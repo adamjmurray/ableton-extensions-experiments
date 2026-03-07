@@ -1,4 +1,4 @@
-import { cpSync, mkdirSync, readdirSync, rmSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { basename, extname, join, relative } from "node:path";
 
 const SDK = "extensions-sdk";
@@ -14,6 +14,119 @@ function flatten(filePath: string): string {
 
 function copy(srcRelative: string, outName: string): void {
   cpSync(join(SDK, srcRelative), join(OUT, outName));
+}
+
+// --- HTML to Markdown conversion for Starlight docs ---
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replaceAll("&#x22;", '"')
+    .replaceAll("&#x27;", "'")
+    .replaceAll("&#x60;", "`")
+    .replaceAll("&#x3C;", "<")
+    .replaceAll("&#x3E;", ">")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&amp;", "&")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&apos;", "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
+}
+
+function htmlToMarkdown(html: string): string {
+  // Extract title from h1
+  const titleMatch = html.match(/<h1[^>]*id="_top"[^>]*>([^<]+)/);
+  const title = titleMatch ? titleMatch[1].trim() : "";
+
+  // Extract description from the p after h1
+  const descMatch = html.match(/<h1[^>]*>.*?<\/h1>\s*<p[^>]*>([^<]+)<\/p>/s);
+  const description = descMatch ? descMatch[1].trim() : "";
+
+  // Extract main content
+  const contentMatch = html.match(/<div class="sl-markdown-content">\s*([\s\S]*?)\s*<\/div>\s*<\/div>\s*<footer/);
+  if (!contentMatch) return `# ${title}\n\n${description}\n`;
+  let content = contentMatch[1];
+
+  // Replace code blocks: extract lines from ec-line divs, language from pre data-language
+  content = content.replace(
+    /<div class="expressive-code">.*?<pre data-language="(\w+)"><code>([\s\S]*?)<\/code><\/pre>[\s\S]*?<\/figure><\/div>/gs,
+    (_, lang, codeHtml) => {
+      const lines = [...codeHtml.matchAll(/<div class="ec-line"><div class="code">(.*?)<\/div><\/div>/g)]
+        .map(m => decodeHtmlEntities(m[1].replace(/<[^>]+>/g, "")));
+      return `\n\`\`\`${lang}\n${lines.join("\n")}\n\`\`\`\n`;
+    }
+  );
+
+  // Replace asides (notes, tips, cautions)
+  content = content.replace(
+    /<aside[^>]*class="starlight-aside starlight-aside--(\w+)"[^>]*>.*?<p class="starlight-aside__title"[^>]*>.*?<\/p>\s*<div class="starlight-aside__content">\s*([\s\S]*?)\s*<\/div>\s*<\/aside>/gs,
+    (_, type, body) => {
+      const label = type.charAt(0).toUpperCase() + type.slice(1);
+      return `\n> **${label}:** ${body.trim()}\n`;
+    }
+  );
+
+  // Strip heading wrappers, keep just the heading tag
+  content = content.replace(
+    /<div class="sl-heading-wrapper level-h(\d)">\s*(<h\d[^>]*>[\s\S]*?<\/h\d>)[\s\S]*?<\/div>/g,
+    (_, _level, heading) => heading
+  );
+
+  // Convert headings (strip nested tags like anchor spans)
+  content = content.replace(/<h([2-6])[^>]*>([\s\S]*?)<\/h\1>/g, (_, level, text) => {
+    const clean = text.replace(/<[^>]+>/g, "").trim();
+    return `\n${"#".repeat(Number(level))} ${clean}\n`;
+  });
+
+  // Convert ordered lists
+  content = content.replace(/<ol[^>]*>([\s\S]*?)<\/ol>/gs, (_, items) => {
+    let i = 0;
+    return (
+      "\n" +
+      items.replace(/<li[^>]*>([\s\S]*?)<\/li>/gs, (_: string, text: string) => {
+        i++;
+        return `${i}. ${text.replace(/<[^>]+>/g, "").trim()}\n`;
+      })
+    );
+  });
+
+  // Convert unordered lists
+  content = content.replace(/<ul[^>]*>([\s\S]*?)<\/ul>/gs, (_, items) => {
+    return (
+      "\n" +
+      items.replace(/<li[^>]*>([\s\S]*?)<\/li>/gs, (_: string, text: string) => {
+        return `- ${text.replace(/<[^>]+>/g, "").trim()}\n`;
+      })
+    );
+  });
+
+  // Convert links
+  content = content.replace(/<a[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g, (_, href, text) => {
+    const clean = text.replace(/<[^>]+>/g, "").trim();
+    return `[${clean}](${href})`;
+  });
+
+  // Convert inline formatting
+  content = content.replace(/<code[^>]*>([\s\S]*?)<\/code>/g, (_, text) => `\`${text}\``);
+  content = content.replace(/<strong>([\s\S]*?)<\/strong>/g, (_, text) => `**${text}**`);
+  content = content.replace(/<em>([\s\S]*?)<\/em>/g, (_, text) => `*${text}*`);
+
+  // Convert paragraphs
+  content = content.replace(/<p[^>]*>([\s\S]*?)<\/p>/g, (_, text) => `\n${text.trim()}\n`);
+
+  // Strip remaining HTML tags
+  content = content.replace(/<[^>]+>/g, "");
+
+  // Decode entities in final output
+  content = decodeHtmlEntities(content);
+
+  // Clean up whitespace: collapse multiple blank lines
+  content = content.replace(/\n{3,}/g, "\n\n").trim();
+
+  let result = `# ${title}\n`;
+  if (description) result += `\n${description}\n`;
+  result += `\n${content}\n`;
+  return result;
 }
 
 // --- Docs (HTML files, skip 404 and index landing page) ---
@@ -35,7 +148,10 @@ for (const file of walkFiles(join(SDK, "docs"))) {
   if (extname(file) !== ".html") continue;
   if (skipDocs.has(basename(file))) continue;
   const rel = relative(SDK, file);
-  copy(rel, flatten(rel));
+  const html = readFileSync(join(SDK, rel), "utf-8");
+  const md = htmlToMarkdown(html);
+  const outName = flatten(rel).replace(/\.html$/, ".md");
+  writeFileSync(join(OUT, outName), md);
 }
 
 // --- Examples (source files, skip node_modules, package-lock, tsconfig) ---
