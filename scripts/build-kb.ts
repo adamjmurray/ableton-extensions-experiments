@@ -8,8 +8,16 @@ const OUT = "knowledge-base";
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT);
 
+// Extensions that Claude Projects (or other upload targets) may block
+const appendTxt = new Set([".mts", ".cts"]);
+
 function flatten(filePath: string): string {
   return filePath.replaceAll("/", "--");
+}
+
+function outputName(flatName: string): string {
+  const ext = extname(flatName);
+  return appendTxt.has(ext) ? flatName + ".txt" : flatName;
 }
 
 function copy(srcRelative: string, outName: string): void {
@@ -150,7 +158,7 @@ for (const file of walkFiles(join(SDK, "docs"))) {
   const rel = relative(SDK, file);
   const html = readFileSync(join(SDK, rel), "utf-8");
   const md = htmlToMarkdown(html);
-  const outName = flatten(rel).replace(/\.html$/, ".md");
+  const outName = outputName(flatten(rel).replace(/\.html$/, ".md"));
   writeFileSync(join(OUT, outName), md);
 }
 
@@ -163,7 +171,7 @@ for (const file of walkFiles(join(SDK, "examples"))) {
   if (skipFiles.has(basename(file))) continue;
   if (!exampleExts.has(extname(file))) continue;
   const rel = relative(SDK, file);
-  copy(rel, flatten(rel));
+  copy(rel, outputName(flatten(rel)));
 }
 
 // --- Type declarations (ESM .d.mts only, skip CLI and .map files) ---
@@ -181,7 +189,7 @@ for (const entry of readdirSync(join(SDK, "dist"))) {
 }
 
 for (const [src, out] of typeFiles) {
-  copy(src, out);
+  copy(src, outputName(out));
 }
 
 // --- SDK config ---
