@@ -1,7 +1,9 @@
 import {
   initialize,
   ClipSlot,
+  DataModelObject,
   MidiClip,
+  MidiTrack,
   Scene,
   type ActivationContext,
   type ArrangementSelection,
@@ -225,17 +227,44 @@ export function activate(activation: ActivationContext) {
       })(arg as Handle),
   );
 
-  // Arrangement time selection (AJM-173 — stub)
+  // Arrangement time selection: MIDI clips on selected tracks that overlap the range
   context.commands.registerCommand(
     "notation.showArrangementSelection",
-    (arg: unknown) => {
-      const selection = arg as ArrangementSelection;
-      console.log("Notation: Arrangement selection not yet implemented.", {
-        start: selection.time_selection_start,
-        end: selection.time_selection_end,
-        laneCount: selection.selected_lanes.length,
-      });
-    },
+    (arg: unknown) =>
+      void (async (selection: ArrangementSelection) => {
+        const tracks = selection.selected_lanes
+          .map((handle) => context.objects.getObjectFromHandle(handle, DataModelObject))
+          .filter((obj): obj is MidiTrack<"0.0.5"> => obj instanceof MidiTrack);
+
+        if (tracks.length === 0) {
+          console.log("Notation: No MIDI tracks in arrangement selection.");
+          return;
+        }
+
+        const start = Number(selection.time_selection_start);
+        const end = Number(selection.time_selection_end);
+        const clips: ClipInfo[] = [];
+        for (const track of tracks) {
+          for (const clip of track.arrangementClips) {
+            if (!(clip instanceof MidiClip)) continue;
+            const clipStart = Number(clip.startTime);
+            const clipEnd = Number(clip.endTime);
+            if (clipStart < end && clipEnd > start) {
+              const clipData = readMidiClip(clip);
+              if (clipData.notes.length > 0) {
+                clips.push(clipData);
+              }
+            }
+          }
+        }
+
+        if (clips.length === 0) {
+          console.log("Notation: No MIDI clips with notes in arrangement selection.");
+          return;
+        }
+
+        await showNotationDialog(clips);
+      })(arg as ArrangementSelection),
   );
 
   context.ui.registerContextMenuAction("MidiClip", "Generate for Clip", "notation.showClip");
