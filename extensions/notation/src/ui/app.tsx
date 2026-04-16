@@ -63,8 +63,9 @@ function App() {
   const [timeSigNum, setTimeSigNum] = useState(data.current.timeSignature.numerator);
   const [timeSigDen, setTimeSigDen] = useState(data.current.timeSignature.denominator);
   const [legato, setLegato] = useState(false);
+  const [showTempo, setShowTempo] = useState(false);
 
-  const renderNotation = useCallback(async (g: QuantizeGrid, tsNum: number, tsDen: number, legato: boolean) => {
+  const renderNotation = useCallback(async (g: QuantizeGrid, tsNum: number, tsDen: number, legato: boolean, showTempo: boolean) => {
     if (!containerRef.current) return;
 
     const quantizedClips: ClipData[] = data.current.clips.map((c) => ({
@@ -79,6 +80,7 @@ function App() {
       data.current.rootNote,
       data.current.scaleName,
       legato,
+      showTempo ? data.current.tempo : undefined,
     );
 
     setDebugXML(musicXML);
@@ -114,8 +116,8 @@ function App() {
   }, []);
 
   useEffect(() => {
-    renderNotation(grid, timeSigNum, timeSigDen, legato);
-  }, [grid, timeSigNum, timeSigDen, legato, renderNotation]);
+    renderNotation(grid, timeSigNum, timeSigDen, legato, showTempo);
+  }, [grid, timeSigNum, timeSigDen, legato, showTempo, renderNotation]);
 
   const clipName = data.current.clips.length === 1
     ? (data.current.clips[0]?.clip.name || "notation")
@@ -183,6 +185,9 @@ function App() {
           <div class="btn-group">
             <button class={legato ? "active" : ""} onClick={() => setLegato((v) => !v)} title="Extend notes to fill gaps (remove rests)">
               Legato
+            </button>
+            <button class={showTempo ? "active" : ""} onClick={() => setShowTempo((v) => !v)} title={`Show tempo marking (${Math.round(data.current.tempo)} BPM)`}>
+              Tempo
             </button>
           </div>
         </div>

@@ -108,6 +108,7 @@ function generatePartMeasures(
   startMarker: number,
   numMeasures: number,
   legato: boolean,
+  tempoDirection: string,
 ): string[] {
   const clef = detectClef(notes);
   const beatsPerMeasure = timeSignature.numerator * (4 / timeSignature.denominator);
@@ -180,6 +181,7 @@ function generatePartMeasures(
       xml += `          <line>${clef.line}</line>\n`;
       xml += `        </clef>\n`;
       xml += `      </attributes>\n`;
+      xml += tempoDirection;
     }
 
     // First pass: collect all rendered note elements with triplet flags
@@ -286,6 +288,7 @@ export function notesToMusicXML(
   rootNote: number,
   scaleName: string,
   legato?: boolean,
+  tempo?: number,
 ): string {
   const fifths = getFifths(rootNote, scaleName);
   const mode = scaleName.toLowerCase().includes("minor") ? "minor" : "major";
@@ -302,6 +305,8 @@ export function notesToMusicXML(
     const clipLength = clipEnds[i] - clips[i].clip.startMarker;
     numMeasures = Math.max(numMeasures, Math.ceil(clipLength / beatsPerMeasure));
   }
+
+  const tempoDirection = tempo && tempo > 0 ? buildTempoDirection(tempo) : "";
 
   const parts: { id: string; name: string; measures: string[] }[] = [];
   let unnamedCount = 0;
@@ -320,11 +325,26 @@ export function notesToMusicXML(
       c.clip.startMarker,
       numMeasures,
       legato ?? false,
+      i === 0 ? tempoDirection : "",
     );
     parts.push({ id, name, measures });
   }
 
   return buildScore(parts);
+}
+
+function buildTempoDirection(tempo: number): string {
+  const bpm = Math.round(tempo);
+  let xml = `      <direction placement="above">\n`;
+  xml += `        <direction-type>\n`;
+  xml += `          <metronome parentheses="no">\n`;
+  xml += `            <beat-unit>quarter</beat-unit>\n`;
+  xml += `            <per-minute>${bpm}</per-minute>\n`;
+  xml += `          </metronome>\n`;
+  xml += `        </direction-type>\n`;
+  xml += `        <sound tempo="${bpm}"/>\n`;
+  xml += `      </direction>\n`;
+  return xml;
 }
 
 const MAX_PART_NAME_LENGTH = 30;
