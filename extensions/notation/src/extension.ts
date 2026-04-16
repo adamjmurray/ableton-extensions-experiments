@@ -62,8 +62,12 @@ export function activate(activation: ActivationContext) {
           const scenes = song.scenes;
           if (scenes.length > 0) {
             const scene = scenes[0];
-            numerator = Number(scene.signatureNumerator);
-            denominator = Number(scene.signatureDenominator);
+            const num = Number(scene.signatureNumerator);
+            const den = Number(scene.signatureDenominator);
+            if (num > 0 && den > 0) {
+              numerator = num;
+              denominator = den;
+            }
           }
         } catch (e) {
           console.log("Notation: Could not read scene time signature, defaulting to 4/4");
