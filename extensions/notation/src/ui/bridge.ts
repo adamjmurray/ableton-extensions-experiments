@@ -15,9 +15,13 @@ export interface NoteData {
   velocity: number;
 }
 
-export interface NotationData {
+export interface ClipData {
   notes: NoteData[];
   clip: { start: number; end: number; name: string };
+}
+
+export interface NotationData {
+  clips: ClipData[];
   tempo: number;
   rootNote: number;
   scaleName: string;
@@ -47,8 +51,7 @@ export function getNotationData(): NotationData {
     return JSON.parse(window.__NOTATION_DATA__ || "{}");
   } catch {
     return {
-      notes: [],
-      clip: { start: 0, end: 16, name: "" },
+      clips: [{ notes: [], clip: { start: 0, end: 16, name: "" } }],
       tempo: 120,
       rootNote: 0,
       scaleName: "Major",

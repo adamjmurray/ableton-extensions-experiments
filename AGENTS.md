@@ -88,10 +88,13 @@ Valid scopes for `context.ui.registerContextMenuAction()`:
 
 The current focus is `extensions/notation/` — an extension that renders MIDI clips as
 sheet music notation. Right-click a MIDI clip → "Show Notation" opens a modal dialog.
+Also supports multi-clip: select multiple clip slots in Session View → right-click →
+"Show Notation" renders each clip on its own staff in a score layout.
 
 ### Architecture
 - `src/extension.ts` — reads clip notes + song metadata, opens dialog in a loop
-  (export actions write a temp file, open it with system `open` command, then re-show the dialog)
+  (export actions write a temp file, open it with system `open` command, then re-show the dialog).
+  Registers two context menu actions: `MidiClip` (single clip) and `ClipSlotSelection` (multi-clip).
 - `src/ui/app.tsx` — Preact UI with toolbar (quantize, time sig, view toggle, export)
 - `src/ui/musicxml.ts` — converts quantized MIDI notes to MusicXML
 - `src/ui/quantize.ts` — snaps notes to grid (16th, mixed 16th/triplet, 32nd)
@@ -99,6 +102,7 @@ sheet music notation. Right-click a MIDI clip → "Show Notation" opens a modal 
 - `src/ui/template.html` — HTML shell with CSS; JS is bundled and injected by esbuild
 
 ### Pipeline: MIDI notes → quantize → MusicXML → OSMD renders SVG
+- Multi-clip: each clip becomes a separate `<part>` in MusicXML with its own staff and clef
 - Uses 24 divisions per quarter note (LCM of 8 and 6) to support both 32nds and triplets
 - Triplet notes need `<time-modification>` and `<tuplet>` bracket notation in MusicXML
 - Key signature derived from `song.rootNote` + `song.scaleName`

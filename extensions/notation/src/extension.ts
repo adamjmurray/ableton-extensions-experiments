@@ -1,7 +1,9 @@
 import {
   initialize,
+  ClipSlot,
   MidiClip,
   type ActivationContext,
+  type ClipSlotSelection,
   type Handle,
 } from "@ableton/extensions-sdk";
 import * as fs from "node:fs";
@@ -32,110 +34,151 @@ function openFile(filePath: string) {
   });
 }
 
+interface ClipInfo {
+  notes: { pitch: number; startTime: number; duration: number; velocity: number }[];
+  clip: { start: number; end: number; name: string };
+}
+
+function readMidiClip(clip: MidiClip<any>): ClipInfo {
+  return {
+    notes: clip.notes.map((n) => ({
+      pitch: Number(n.pitch),
+      startTime: Number(n.startTime),
+      duration: Number(n.duration),
+      velocity: Number(n.velocity ?? 64),
+    })),
+    clip: {
+      start: Number(clip.loopStart),
+      end: Number(clip.loopEnd),
+      name: String(clip.name),
+    },
+  };
+}
+
 export function activate(activation: ActivationContext) {
   const context = initialize(activation, "0.0.5");
 
   console.log("Notation activated!");
 
+  function getSongMetadata() {
+    const song = context.application.song;
+    const tempo = Number(song.tempo);
+    const rootNote = Number(song.rootNote);
+    const scaleName = String(song.scaleName);
+
+    let numerator = 4;
+    let denominator = 4;
+    try {
+      const scenes = song.scenes;
+      if (scenes.length > 0) {
+        const scene = scenes[0];
+        const num = Number(scene.signatureNumerator);
+        const den = Number(scene.signatureDenominator);
+        if (num > 0 && den > 0) {
+          numerator = num;
+          denominator = den;
+        }
+      }
+    } catch (e) {
+      console.log("Notation: Could not read scene time signature, defaulting to 4/4");
+    }
+
+    return { tempo, rootNote, scaleName, timeSignature: { numerator, denominator } };
+  }
+
+  async function showNotationDialog(clips: ClipInfo[]) {
+    const metadata = getSongMetadata();
+
+    const payload = JSON.stringify({
+      clips,
+      ...metadata,
+    });
+
+    const html = notationInterface.replace(
+      "</head>",
+      `<script>window.__NOTATION_DATA__='${payload.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}';</script></head>`,
+    );
+    const dataUrl = `data:text/html,${encodeURIComponent(html)}`;
+
+    const exportDir = path.join(
+      context.environment.tempDirectory || os.tmpdir(),
+      "notation-exports",
+    );
+    fs.mkdirSync(exportDir, { recursive: true });
+
+    const defaultName = clips.length === 1 ? clips[0].clip.name || "notation" : "score";
+
+    while (true) {
+      try {
+        const dialog = context.createModalDialog();
+        const resultStr = await dialog.show(dataUrl, 900, 650);
+        const result: DialogResult = JSON.parse(resultStr);
+
+        if (result.action === "close") {
+          break;
+        }
+
+        if (result.action === "export") {
+          const filePath = path.join(exportDir, result.filename);
+          if (result.encoding === "base64") {
+            fs.writeFileSync(filePath, Buffer.from(result.data, "base64"));
+          } else {
+            fs.writeFileSync(filePath, result.data, "utf-8");
+          }
+          console.log(`Notation: Exported to ${filePath}`);
+          openFile(filePath);
+        }
+      } catch (e) {
+        console.error("Notation dialog error:", e);
+        break;
+      }
+    }
+  }
+
+  // Single clip: right-click a MIDI clip
   context.commands.registerCommand(
     "notation.show",
     (arg: unknown) =>
       void (async (handle: Handle) => {
         const clip = context.objects.getObjectFromHandle(handle, MidiClip);
-        const notes = clip.notes;
+        const clipData = readMidiClip(clip);
 
-        if (notes.length === 0) {
+        if (clipData.notes.length === 0) {
           console.log("Notation: No notes in clip.");
           return;
         }
 
-        // Gather song metadata (coerce to primitives — SDK may return BigInt)
-        const song = context.application.song;
-        const tempo = Number(song.tempo);
-        const rootNote = Number(song.rootNote);
-        const scaleName = String(song.scaleName);
-
-        // Try to get time signature from first scene, default to 4/4
-        let numerator = 4;
-        let denominator = 4;
-        try {
-          const scenes = song.scenes;
-          if (scenes.length > 0) {
-            const scene = scenes[0];
-            const num = Number(scene.signatureNumerator);
-            const den = Number(scene.signatureDenominator);
-            if (num > 0 && den > 0) {
-              numerator = num;
-              denominator = den;
-            }
-          }
-        } catch (e) {
-          console.log("Notation: Could not read scene time signature, defaulting to 4/4");
-        }
-
-        const clipInfo = {
-          start: Number(clip.loopStart),
-          end: Number(clip.loopEnd),
-          name: String(clip.name),
-        };
-
-        const payload = JSON.stringify({
-          notes: notes.map((n) => ({
-            pitch: Number(n.pitch),
-            startTime: Number(n.startTime),
-            duration: Number(n.duration),
-            velocity: Number(n.velocity ?? 64),
-          })),
-          clip: clipInfo,
-          tempo,
-          rootNote,
-          scaleName,
-          timeSignature: { numerator, denominator },
-        });
-
-        // Build the dialog HTML once — reused across the export loop
-        const html = notationInterface.replace(
-          "</head>",
-          `<script>window.__NOTATION_DATA__='${payload.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}';</script></head>`,
-        );
-        const dataUrl = `data:text/html,${encodeURIComponent(html)}`;
-
-        // Determine export directory
-        const exportDir = path.join(
-          context.environment.tempDirectory || os.tmpdir(),
-          "notation-exports",
-        );
-        fs.mkdirSync(exportDir, { recursive: true });
-
-        // Dialog loop: show dialog, handle exports, re-show until user closes
-        while (true) {
-          try {
-            const dialog = context.createModalDialog();
-            const resultStr = await dialog.show(dataUrl, 900, 650);
-            const result: DialogResult = JSON.parse(resultStr);
-
-            if (result.action === "close") {
-              break;
-            }
-
-            if (result.action === "export") {
-              const filePath = path.join(exportDir, result.filename);
-              if (result.encoding === "base64") {
-                fs.writeFileSync(filePath, Buffer.from(result.data, "base64"));
-              } else {
-                fs.writeFileSync(filePath, result.data, "utf-8");
-              }
-              console.log(`Notation: Exported to ${filePath}`);
-              openFile(filePath);
-              // Loop continues — dialog will re-open
-            }
-          } catch (e) {
-            console.error("Notation dialog error:", e);
-            break;
-          }
-        }
+        await showNotationDialog([clipData]);
       })(arg as Handle),
   );
 
+  // Multiple clips: select clip slots in Session View
+  context.commands.registerCommand(
+    "notation.showSelection",
+    (arg: unknown) =>
+      void (async (selection: ClipSlotSelection) => {
+        const clips: ClipInfo[] = [];
+
+        for (const handle of selection.selected_clip_slots) {
+          const slot = context.objects.getObjectFromHandle(handle, ClipSlot);
+          const clip = slot.clip;
+          if (clip && clip instanceof MidiClip) {
+            const clipData = readMidiClip(clip);
+            if (clipData.notes.length > 0) {
+              clips.push(clipData);
+            }
+          }
+        }
+
+        if (clips.length === 0) {
+          console.log("Notation: No MIDI clips with notes in selection.");
+          return;
+        }
+
+        await showNotationDialog(clips);
+      })(arg as ClipSlotSelection),
+  );
+
   context.ui.registerContextMenuAction("MidiClip", "Show Notation", "notation.show");
+  context.ui.registerContextMenuAction("ClipSlotSelection", "Show Notation", "notation.showSelection");
 }

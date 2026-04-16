@@ -1,7 +1,7 @@
 import { render } from "preact";
 import { useState, useEffect, useRef, useCallback } from "preact/hooks";
 import { OpenSheetMusicDisplay } from "opensheetmusicdisplay";
-import { getNotationData, closeDialog, exportFile, type NotationData } from "./bridge.js";
+import { getNotationData, closeDialog, exportFile, type NotationData, type ClipData } from "./bridge.js";
 import { quantizeNotes, type QuantizeGrid } from "./quantize.js";
 import { notesToMusicXML } from "./musicxml.js";
 
@@ -27,14 +27,17 @@ function App() {
   const renderNotation = useCallback(async (g: QuantizeGrid, tsNum: number, tsDen: number, legato: boolean) => {
     if (!containerRef.current) return;
 
-    const quantized = quantizeNotes(data.current.notes, g);
+    const quantizedClips: ClipData[] = data.current.clips.map((c) => ({
+      notes: quantizeNotes(c.notes, g),
+      clip: c.clip,
+    }));
+
+    const totalNotes = quantizedClips.reduce((sum, c) => sum + c.notes.length, 0);
     const musicXML = notesToMusicXML(
-      quantized,
+      quantizedClips,
       { numerator: tsNum, denominator: tsDen },
       data.current.rootNote,
       data.current.scaleName,
-      data.current.clip.start,
-      data.current.clip.end,
       legato,
     );
 
@@ -47,14 +50,17 @@ function App() {
           drawTitle: false,
           drawComposer: false,
           drawCredits: false,
-          drawPartNames: false,
+          drawPartNames: quantizedClips.length > 1,
           autoResize: true,
         });
+      } else if (quantizedClips.length > 1) {
+        osmdRef.current.setOptions({ drawPartNames: true });
       }
 
       await osmdRef.current.load(musicXML);
       osmdRef.current.render();
-      setStatus(`${quantized.length} notes | ${g} quantization | ${tsNum}/${tsDen}${legato ? " | legato" : ""}`);
+      const partsLabel = quantizedClips.length > 1 ? ` | ${quantizedClips.length} parts` : "";
+      setStatus(`${totalNotes} notes${partsLabel} | ${g} quantization | ${tsNum}/${tsDen}${legato ? " | legato" : ""}`);
     } catch (e) {
       console.error("OSMD render error:", e);
       setStatus(`Render error: ${e}`);
@@ -65,7 +71,9 @@ function App() {
     renderNotation(grid, timeSigNum, timeSigDen, legato);
   }, [grid, timeSigNum, timeSigDen, legato, renderNotation]);
 
-  const clipName = data.current.clip.name || "notation";
+  const clipName = data.current.clips.length === 1
+    ? (data.current.clips[0]?.clip.name || "notation")
+    : "score";
 
   const handleExportSVG = useCallback(() => {
     if (!containerRef.current) return;

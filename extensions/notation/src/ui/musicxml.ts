@@ -1,4 +1,4 @@
-import type { NoteData } from "./bridge.js";
+import type { NoteData, ClipData } from "./bridge.js";
 
 // MusicXML divisions per quarter note.
 // LCM(8, 6) = 24 supports 32nd notes (3 divisions) and triplet 16ths (4 divisions).
@@ -100,24 +100,18 @@ interface MeasureEvent {
   tiedTo?: boolean;
 }
 
-export function notesToMusicXML(
+function generatePartMeasures(
   notes: NoteData[],
   timeSignature: { numerator: number; denominator: number },
-  rootNote: number,
-  scaleName: string,
+  fifths: number,
+  mode: string,
   clipStart: number,
-  clipEnd: number,
-  legato?: boolean,
-): string {
-  const fifths = getFifths(rootNote, scaleName);
-  const mode = scaleName.toLowerCase().includes("minor") ? "minor" : "major";
+  numMeasures: number,
+  legato: boolean,
+): string[] {
   const clef = detectClef(notes);
-
   const beatsPerMeasure = timeSignature.numerator * (4 / timeSignature.denominator);
   const measureDivisions = beatsPerMeasure * DIVISIONS;
-
-  const clipLength = clipEnd - clipStart;
-  const numMeasures = Math.max(1, Math.ceil(clipLength / beatsPerMeasure));
 
   const absNotes = notes
     .map((n) => ({
@@ -281,7 +275,45 @@ export function notesToMusicXML(
     measures.push(xml);
   }
 
-  return buildScore(measures);
+  return measures;
+}
+
+export function notesToMusicXML(
+  clips: ClipData[],
+  timeSignature: { numerator: number; denominator: number },
+  rootNote: number,
+  scaleName: string,
+  legato?: boolean,
+): string {
+  const fifths = getFifths(rootNote, scaleName);
+  const mode = scaleName.toLowerCase().includes("minor") ? "minor" : "major";
+  const beatsPerMeasure = timeSignature.numerator * (4 / timeSignature.denominator);
+
+  // Determine global measure count across all clips
+  let numMeasures = 1;
+  for (const c of clips) {
+    const clipLength = c.clip.end - c.clip.start;
+    numMeasures = Math.max(numMeasures, Math.ceil(clipLength / beatsPerMeasure));
+  }
+
+  const parts: { id: string; name: string; measures: string[] }[] = [];
+  for (let i = 0; i < clips.length; i++) {
+    const c = clips[i];
+    const id = `P${i + 1}`;
+    const name = c.clip.name || `Part ${i + 1}`;
+    const measures = generatePartMeasures(
+      c.notes,
+      timeSignature,
+      fifths,
+      mode,
+      c.clip.start,
+      numMeasures,
+      legato ?? false,
+    );
+    parts.push({ id, name, measures });
+  }
+
+  return buildScore(parts);
 }
 
 function renderNote(
@@ -368,18 +400,22 @@ function injectTuplet(noteXml: string, type: "start" | "stop"): string {
   return noteXml.replace("      </note>", notationsBlock + `      </note>`);
 }
 
-function buildScore(measures: string[]): string {
+function buildScore(parts: { id: string; name: string; measures: string[] }[]): string {
   let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
   xml += `<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 4.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">\n`;
   xml += `<score-partwise version="4.0">\n`;
   xml += `  <part-list>\n`;
-  xml += `    <score-part id="P1">\n`;
-  xml += `      <part-name>Part 1</part-name>\n`;
-  xml += `    </score-part>\n`;
+  for (const part of parts) {
+    xml += `    <score-part id="${part.id}">\n`;
+    xml += `      <part-name>${part.name}</part-name>\n`;
+    xml += `    </score-part>\n`;
+  }
   xml += `  </part-list>\n`;
-  xml += `  <part id="P1">\n`;
-  xml += measures.join("");
-  xml += `  </part>\n`;
+  for (const part of parts) {
+    xml += `  <part id="${part.id}">\n`;
+    xml += part.measures.join("");
+    xml += `  </part>\n`;
+  }
   xml += `</score-partwise>\n`;
   return xml;
 }
