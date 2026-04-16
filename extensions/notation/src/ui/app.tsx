@@ -22,8 +22,9 @@ function App() {
   const [view, setView] = useState<"notation" | "xml">("notation");
   const [timeSigNum, setTimeSigNum] = useState(data.current.timeSignature.numerator);
   const [timeSigDen, setTimeSigDen] = useState(data.current.timeSignature.denominator);
+  const [legato, setLegato] = useState(false);
 
-  const renderNotation = useCallback(async (g: QuantizeGrid, tsNum: number, tsDen: number) => {
+  const renderNotation = useCallback(async (g: QuantizeGrid, tsNum: number, tsDen: number, legato: boolean) => {
     if (!containerRef.current) return;
 
     const quantized = quantizeNotes(data.current.notes, g);
@@ -34,6 +35,7 @@ function App() {
       data.current.scaleName,
       data.current.clip.start,
       data.current.clip.end,
+      legato,
     );
 
     setDebugXML(musicXML);
@@ -51,7 +53,7 @@ function App() {
 
       await osmdRef.current.load(musicXML);
       osmdRef.current.render();
-      setStatus(`${quantized.length} notes | ${g} quantization | ${tsNum}/${tsDen}`);
+      setStatus(`${quantized.length} notes | ${g} quantization | ${tsNum}/${tsDen}${legato ? " | legato" : ""}`);
     } catch (e) {
       console.error("OSMD render error:", e);
       setStatus(`Render error: ${e}`);
@@ -59,8 +61,8 @@ function App() {
   }, []);
 
   useEffect(() => {
-    renderNotation(grid, timeSigNum, timeSigDen);
-  }, [grid, timeSigNum, timeSigDen, renderNotation]);
+    renderNotation(grid, timeSigNum, timeSigDen, legato);
+  }, [grid, timeSigNum, timeSigDen, legato, renderNotation]);
 
   const clipName = data.current.clip.name || "notation";
 
@@ -119,6 +121,14 @@ function App() {
                 {g.label}
               </button>
             ))}
+          </div>
+        </div>
+
+        <div class="toolbar-group">
+          <div class="btn-group">
+            <button class={legato ? "active" : ""} onClick={() => setLegato((v) => !v)}>
+              Legato
+            </button>
           </div>
         </div>
 

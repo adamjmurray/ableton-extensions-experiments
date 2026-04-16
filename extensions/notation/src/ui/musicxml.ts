@@ -107,6 +107,7 @@ export function notesToMusicXML(
   scaleName: string,
   clipStart: number,
   clipEnd: number,
+  legato?: boolean,
 ): string {
   const fifths = getFifths(rootNote, scaleName);
   const mode = scaleName.toLowerCase().includes("minor") ? "minor" : "major";
@@ -127,6 +128,14 @@ export function notesToMusicXML(
     }))
     .filter((n) => n.startDiv >= 0 && n.startDiv < numMeasures * measureDivisions)
     .sort((a, b) => a.startDiv - b.startDiv || a.pitch - b.pitch);
+
+  if (legato) {
+    const totalDivisions = numMeasures * measureDivisions;
+    for (let i = 0; i < absNotes.length; i++) {
+      const nextStart = absNotes.find((_n, j) => j > i && _n.startDiv > absNotes[i].startDiv)?.startDiv;
+      absNotes[i].durationDiv = (nextStart ?? totalDivisions) - absNotes[i].startDiv;
+    }
+  }
 
   const measures: string[] = [];
 
