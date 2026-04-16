@@ -4,41 +4,18 @@ import type { NoteData } from "./bridge.js";
 // LCM(8, 6) = 24 supports 32nd notes (3 divisions) and triplet 16ths (4 divisions).
 const DIVISIONS = 24;
 
-// Map MIDI root note (0=C) to MusicXML fifths value for major keys
-const ROOT_TO_FIFTHS_MAJOR: Record<number, number> = {
-  0: 0,   // C
-  1: -5,  // Db
-  2: 2,   // D
-  3: 3,   // Eb
-  4: 4,   // E
-  5: -1,  // F
-  6: 6,   // F#/Gb
-  7: 1,   // G
-  8: -4,  // Ab
-  9: 3,   // A (3 sharps)... wait
-};
-
-// Actually let's be more precise. rootNote 0=C, and we need the fifths circle offset.
-// For major: C=0, G=1, D=2, A=3, E=4, B=5, F#=6, Gb=-6, Db=-5, Ab=-4, Eb=-3, Bb=-2, F=-1
-// For minor: same fifths but mode="minor"
 function getFifths(rootNote: number, scaleName: string): number {
-  // rootNote: 0=C, 1=C#/Db, 2=D, ..., 11=B
   const majorFifths = [0, -5, 2, -3, 4, -1, 6, 1, -4, 3, -2, 5];
   const minorFifths = [-3, 4, -1, -6, 1, -4, 3, -2, 5, 0, -5, 2];
-
   const isMinor = scaleName.toLowerCase().includes("minor");
   return isMinor ? minorFifths[rootNote % 12] : majorFifths[rootNote % 12];
 }
 
-// Convert MIDI pitch to MusicXML pitch components
 function midiToPitch(midi: number, fifths: number): { step: string; alter: number; octave: number } {
   const octave = Math.floor(midi / 12) - 1;
   const pc = midi % 12;
-
-  // Choose sharps or flats based on key signature
   const useFlats = fifths < 0;
 
-  // pitch class to step+alter mapping
   const SHARP_MAP: [string, number][] = [
     ["C", 0], ["C", 1], ["D", 0], ["D", 1], ["E", 0],
     ["F", 0], ["F", 1], ["G", 0], ["G", 1], ["A", 0], ["A", 1], ["B", 0],
@@ -52,68 +29,58 @@ function midiToPitch(midi: number, fifths: number): { step: string; alter: numbe
   return { step, alter, octave };
 }
 
-// Determine the best clef based on the average pitch of the notes
 function detectClef(notes: NoteData[]): { sign: string; line: number } {
-  if (notes.length === 0) return { sign: "G", line: 2 }; // treble
-
+  if (notes.length === 0) return { sign: "G", line: 2 };
   const avgPitch = notes.reduce((sum, n) => sum + n.pitch, 0) / notes.length;
-
-  if (avgPitch < 48) return { sign: "F", line: 4 };       // bass clef
-  if (avgPitch < 60) return { sign: "F", line: 4 };       // bass clef for middle range
-  return { sign: "G", line: 2 };                           // treble clef
+  if (avgPitch < 60) return { sign: "F", line: 4 };
+  return { sign: "G", line: 2 };
 }
 
-// Break a duration (in divisions) into tied note components using valid MusicXML durations.
-// Returns an array of { divisions, type, dots } objects.
+// --- Duration decomposition ---
+
 interface DurationComponent {
   divisions: number;
   type: string;
   dots: number;
+  triplet: boolean; // needs <time-modification> 3-in-2
 }
 
-function decomposeDuration(totalDivisions: number): DurationComponent[] {
-  // Valid base durations in divisions (from largest to smallest)
-  const BASES: { divisions: number; type: string }[] = [
-    { divisions: 96, type: "whole" },
-    { divisions: 72, type: "half" },     // dotted half
-    { divisions: 48, type: "half" },
-    { divisions: 36, type: "quarter" },  // dotted quarter
-    { divisions: 24, type: "quarter" },
-    { divisions: 18, type: "eighth" },   // dotted eighth
-    { divisions: 12, type: "eighth" },
-    { divisions: 9, type: "16th" },      // dotted 16th
-    { divisions: 6, type: "16th" },
-    { divisions: 3, type: "32nd" },
-  ];
+// Duration table ordered largest to smallest.
+// Triplet entries only used when the value exactly matches.
+const DURATION_TABLE: DurationComponent[] = [
+  { divisions: 144, type: "whole", dots: 1, triplet: false },
+  { divisions: 96, type: "whole", dots: 0, triplet: false },
+  { divisions: 72, type: "half", dots: 1, triplet: false },
+  { divisions: 48, type: "half", dots: 0, triplet: false },
+  { divisions: 36, type: "quarter", dots: 1, triplet: false },
+  { divisions: 24, type: "quarter", dots: 0, triplet: false },
+  { divisions: 18, type: "eighth", dots: 1, triplet: false },
+  { divisions: 16, type: "quarter", dots: 0, triplet: true },
+  { divisions: 12, type: "eighth", dots: 0, triplet: false },
+  { divisions: 9, type: "16th", dots: 1, triplet: false },
+  { divisions: 8, type: "eighth", dots: 0, triplet: true },
+  { divisions: 6, type: "16th", dots: 0, triplet: false },
+  { divisions: 4, type: "16th", dots: 0, triplet: true },
+  { divisions: 3, type: "32nd", dots: 0, triplet: false },
+];
 
+function decomposeDuration(totalDivisions: number): DurationComponent[] {
   const result: DurationComponent[] = [];
   let remaining = Math.round(totalDivisions);
 
   while (remaining > 0) {
     let found = false;
-    for (const base of BASES) {
-      // Check dotted version first
-      const dotted = base.divisions * 3 / 2;
-      if (Math.round(dotted) <= remaining && base.divisions !== 72 && base.divisions !== 36 && base.divisions !== 18 && base.divisions !== 9) {
-        // Only dot if it's not already a "dotted" entry
-        result.push({ divisions: Math.round(dotted), type: base.type, dots: 1 });
-        remaining -= Math.round(dotted);
-        found = true;
-        break;
-      }
-      if (base.divisions <= remaining) {
-        // Check if this is one of our "dotted" entries
-        const dots = (base.divisions === 72 || base.divisions === 36 || base.divisions === 18 || base.divisions === 9) ? 1 : 0;
-        const actualType = base.divisions === 72 ? "half" : base.divisions === 36 ? "quarter" : base.divisions === 18 ? "eighth" : base.divisions === 9 ? "16th" : base.type;
-        result.push({ divisions: base.divisions, type: actualType, dots });
-        remaining -= base.divisions;
+    for (const entry of DURATION_TABLE) {
+      if (entry.divisions <= remaining) {
+        result.push({ ...entry });
+        remaining -= entry.divisions;
         found = true;
         break;
       }
     }
     if (!found) {
-      // Fallback: use smallest unit
-      result.push({ divisions: remaining, type: "32nd", dots: 0 });
+      // Fallback for very small remainders (1 or 2 divisions)
+      result.push({ divisions: remaining, type: "32nd", dots: 0, triplet: false });
       break;
     }
   }
@@ -121,14 +88,16 @@ function decomposeDuration(totalDivisions: number): DurationComponent[] {
   return result;
 }
 
+// --- MusicXML rendering ---
+
 interface MeasureEvent {
   type: "note" | "rest";
   pitch?: number;
-  startDiv: number;  // division offset within measure
+  startDiv: number;
   durationDiv: number;
   velocity?: number;
-  tiedFrom?: boolean;  // this note is tied from previous
-  tiedTo?: boolean;    // this note ties to next
+  tiedFrom?: boolean;
+  tiedTo?: boolean;
 }
 
 export function notesToMusicXML(
@@ -143,15 +112,12 @@ export function notesToMusicXML(
   const mode = scaleName.toLowerCase().includes("minor") ? "minor" : "major";
   const clef = detectClef(notes);
 
-  // Measure length in beats
   const beatsPerMeasure = timeSignature.numerator * (4 / timeSignature.denominator);
   const measureDivisions = beatsPerMeasure * DIVISIONS;
 
-  // Figure out how many measures we need
   const clipLength = clipEnd - clipStart;
   const numMeasures = Math.max(1, Math.ceil(clipLength / beatsPerMeasure));
 
-  // Convert notes to absolute division positions (relative to clipStart)
   const absNotes = notes
     .map((n) => ({
       pitch: n.pitch,
@@ -162,21 +128,17 @@ export function notesToMusicXML(
     .filter((n) => n.startDiv >= 0 && n.startDiv < numMeasures * measureDivisions)
     .sort((a, b) => a.startDiv - b.startDiv || a.pitch - b.pitch);
 
-  // Build measures — for now we handle monophonic or chord input
-  // Group simultaneous notes (chords)
   const measures: string[] = [];
 
   for (let m = 0; m < numMeasures; m++) {
     const mStart = m * measureDivisions;
     const mEnd = mStart + measureDivisions;
 
-    // Collect all note events that start or continue in this measure
     const events: MeasureEvent[] = [];
 
     for (const n of absNotes) {
       const noteEnd = n.startDiv + n.durationDiv;
 
-      // Does this note overlap with this measure?
       if (n.startDiv < mEnd && noteEnd > mStart) {
         const effectiveStart = Math.max(n.startDiv, mStart);
         const effectiveEnd = Math.min(noteEnd, mEnd);
@@ -193,10 +155,8 @@ export function notesToMusicXML(
       }
     }
 
-    // Sort by start position, then pitch (low to high for chord ordering)
     events.sort((a, b) => a.startDiv - b.startDiv || (a.pitch ?? 0) - (b.pitch ?? 0));
 
-    // Fill gaps with rests and produce XML
     let xml = `    <measure number="${m + 1}">\n`;
 
     if (m === 0) {
@@ -217,20 +177,26 @@ export function notesToMusicXML(
       xml += `      </attributes>\n`;
     }
 
-    // Group events by start position to handle chords
-    let cursor = 0;
+    // First pass: collect all rendered note elements with triplet flags
+    interface NoteElement {
+      xml: string;
+      triplet: boolean;
+      divisions: number;
+    }
+    const noteElements: NoteElement[] = [];
 
-    // Get unique start positions
+    let cursor = 0;
     const startPositions = [...new Set(events.map((e) => e.startDiv))].sort((a, b) => a - b);
 
     for (const pos of startPositions) {
-      // Insert rest if there's a gap
       if (pos > cursor) {
-        xml += renderRest(pos - cursor);
+        const restComps = decomposeDuration(pos - cursor);
+        for (const comp of restComps) {
+          noteElements.push({ xml: renderRestNote(comp), triplet: comp.triplet, divisions: comp.divisions });
+        }
       }
 
       const chord = events.filter((e) => e.startDiv === pos);
-      // Use the shortest duration in the chord group for forward movement
       const minDur = Math.min(...chord.map((e) => e.durationDiv));
 
       for (let i = 0; i < chord.length; i++) {
@@ -240,27 +206,66 @@ export function notesToMusicXML(
         for (let c = 0; c < components.length; c++) {
           const comp = components[c];
           const isChordMember = i > 0 && c === 0;
-          const tieStart = ev.tiedTo && c === components.length - 1;
           const tieStop = ev.tiedFrom && c === 0;
-          const tieMiddle = c > 0 || (c < components.length - 1 && components.length > 1);
+          const tieStart = ev.tiedTo && c === components.length - 1;
 
-          xml += renderNote(
-            ev.pitch!,
-            comp,
-            fifths,
-            isChordMember,
-            tieStop || (c > 0),
-            tieStart || (c < components.length - 1),
-          );
+          noteElements.push({
+            xml: renderNote(
+              ev.pitch!,
+              comp,
+              fifths,
+              isChordMember,
+              tieStop || (c > 0),
+              tieStart || (c < components.length - 1),
+            ),
+            triplet: comp.triplet,
+            // Chord members don't advance time
+            divisions: isChordMember ? 0 : comp.divisions,
+          });
         }
       }
 
       cursor = pos + minDur;
     }
 
-    // Fill remaining measure with rest
     if (cursor < measureDivisions) {
-      xml += renderRest(measureDivisions - cursor);
+      const restComps = decomposeDuration(measureDivisions - cursor);
+      for (const comp of restComps) {
+        noteElements.push({ xml: renderRestNote(comp), triplet: comp.triplet, divisions: comp.divisions });
+      }
+    }
+
+    // Verify measure duration adds up (fixes barlines)
+    const totalDiv = noteElements.reduce((sum, el) => sum + el.divisions, 0);
+    if (totalDiv < measureDivisions) {
+      const pad = decomposeDuration(measureDivisions - totalDiv);
+      for (const comp of pad) {
+        noteElements.push({ xml: renderRestNote(comp), triplet: comp.triplet, divisions: comp.divisions });
+      }
+    }
+
+    // Second pass: inject tuplet brackets in groups of 3
+    for (let i = 0; i < noteElements.length; i++) {
+      if (!noteElements[i].triplet) continue;
+
+      // Collect the consecutive triplet run
+      let j = i;
+      while (j < noteElements.length && noteElements[j].triplet) j++;
+      const runLength = j - i;
+
+      // Split into groups of 3
+      for (let g = 0; g < runLength; g += 3) {
+        const groupStart = i + g;
+        const groupEnd = Math.min(i + g + 2, j - 1); // last in this group of 3
+        noteElements[groupStart].xml = injectTuplet(noteElements[groupStart].xml, "start");
+        noteElements[groupEnd].xml = injectTuplet(noteElements[groupEnd].xml, "stop");
+      }
+
+      i = j - 1;
+    }
+
+    for (const el of noteElements) {
+      xml += el.xml;
     }
 
     xml += `    </measure>\n`;
@@ -304,6 +309,13 @@ function renderNote(
     xml += `        <dot/>\n`;
   }
 
+  if (comp.triplet) {
+    xml += `        <time-modification>\n`;
+    xml += `          <actual-notes>3</actual-notes>\n`;
+    xml += `          <normal-notes>2</normal-notes>\n`;
+    xml += `        </time-modification>\n`;
+  }
+
   if (tieStart || tieStop) {
     xml += `        <notations>\n`;
     if (tieStop) xml += `          <tied type="stop"/>\n`;
@@ -315,20 +327,36 @@ function renderNote(
   return xml;
 }
 
-function renderRest(durationDiv: number): string {
-  const components = decomposeDuration(durationDiv);
-  let xml = "";
-  for (const comp of components) {
-    xml += `      <note>\n`;
-    xml += `        <rest/>\n`;
-    xml += `        <duration>${comp.divisions}</duration>\n`;
-    xml += `        <type>${comp.type}</type>\n`;
-    for (let d = 0; d < comp.dots; d++) {
-      xml += `        <dot/>\n`;
-    }
-    xml += `      </note>\n`;
+function renderRestNote(comp: DurationComponent): string {
+  let xml = `      <note>\n`;
+  xml += `        <rest/>\n`;
+  xml += `        <duration>${comp.divisions}</duration>\n`;
+  xml += `        <type>${comp.type}</type>\n`;
+  for (let d = 0; d < comp.dots; d++) {
+    xml += `        <dot/>\n`;
   }
+  if (comp.triplet) {
+    xml += `        <time-modification>\n`;
+    xml += `          <actual-notes>3</actual-notes>\n`;
+    xml += `          <normal-notes>2</normal-notes>\n`;
+    xml += `        </time-modification>\n`;
+  }
+  xml += `      </note>\n`;
   return xml;
+}
+
+// Inject a <tuplet> element into a rendered <note> XML string.
+// If a <notations> block exists, insert inside it; otherwise add one.
+function injectTuplet(noteXml: string, type: "start" | "stop"): string {
+  const tupletEl = type === "start"
+    ? `          <tuplet type="start" bracket="yes" number="1"/>\n`
+    : `          <tuplet type="stop" number="1"/>\n`;
+
+  if (noteXml.includes("</notations>")) {
+    return noteXml.replace("</notations>", tupletEl + `        </notations>`);
+  }
+  const notationsBlock = `        <notations>\n${tupletEl}        </notations>\n`;
+  return noteXml.replace("      </note>", notationsBlock + `      </note>`);
 }
 
 function buildScore(measures: string[]): string {
