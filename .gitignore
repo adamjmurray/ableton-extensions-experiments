@@ -4,3 +4,5 @@ dist/
 *.zip
 knowledge-base/
 extensions/*/dist/
+ableton-midi-sculptor/releases/
+ableton-midi-sculptor/device/
