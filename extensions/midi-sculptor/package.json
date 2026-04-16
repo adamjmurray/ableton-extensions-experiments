@@ -1,0 +1,14 @@
+{
+  "main": "dist/extension.js",
+  "scripts": {
+    "build": "node esbuild.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ableton/extensions-sdk": "file:../../extensions-sdk"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.10",
+    "vitest": "^4.0.17"
+  }
+}

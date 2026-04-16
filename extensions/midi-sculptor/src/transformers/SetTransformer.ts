@@ -1,0 +1,49 @@
+import Note, { type NoteProperty } from "../Note.js";
+import Transformer from "./Transformer.js";
+
+export default class SetTransformer extends Transformer {
+  property: string;
+  value: string | number;
+
+  constructor() {
+    super();
+    this.property = "note";
+    this.value = "muted";
+  }
+
+  set notes(notes: Note[]) {
+    super.setNotes(notes);
+  }
+
+  setValue(note: Note): Note {
+    const { property, value } = this;
+
+    if (property === "note") {
+      if (value === "deleted") {
+        note.deleted = true;
+      } else if (value === "muted") {
+        note.muted = true;
+      } else if (value === "unmuted") {
+        note.muted = false;
+      }
+    } else if (typeof value === "number") {
+      note.set(property as NoteProperty, value);
+    }
+
+    return note;
+  }
+
+  setAll(): Note[] {
+    return this.newNotes.map((note) => this.setValue(note)).filter((note) => note);
+  }
+
+  randomize2D(amountX: number, amountY: number): Note[] {
+    return this.newNotes.map((note, index) => {
+      if (this.isInRandomBounds(amountX, amountY, index)) {
+        return this.setValue(note);
+      } else {
+        return this.oldNotes[index]!;
+      }
+    });
+  }
+}
