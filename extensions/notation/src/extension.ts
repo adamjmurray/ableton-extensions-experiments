@@ -2,7 +2,9 @@ import {
   initialize,
   ClipSlot,
   MidiClip,
+  Scene,
   type ActivationContext,
+  type ArrangementSelection,
   type ClipSlotSelection,
   type Handle,
 } from "@ableton/extensions-sdk";
@@ -145,9 +147,9 @@ export function activate(activation: ActivationContext) {
     }
   }
 
-  // Single clip: right-click a MIDI clip
+  // Single clip: right-click a MIDI clip (Session or Arrangement)
   context.commands.registerCommand(
-    "notation.show",
+    "notation.showClip",
     (arg: unknown) =>
       void (async (handle: Handle) => {
         const clip = context.objects.getObjectFromHandle(handle, MidiClip);
@@ -162,7 +164,7 @@ export function activate(activation: ActivationContext) {
       })(arg as Handle),
   );
 
-  // Multiple clips: select clip slots in Session View
+  // Session clip slot selection (one or more clip slots)
   context.commands.registerCommand(
     "notation.showSelection",
     (arg: unknown) =>
@@ -189,6 +191,59 @@ export function activate(activation: ActivationContext) {
       })(arg as ClipSlotSelection),
   );
 
-  context.ui.registerContextMenuAction("MidiClip", "Show Notation", "notation.show");
-  context.ui.registerContextMenuAction("ClipSlotSelection", "Show Notation", "notation.showSelection");
+  // Scene: all MIDI clips in the scene's row
+  context.commands.registerCommand(
+    "notation.showScene",
+    (arg: unknown) =>
+      void (async (handle: Handle) => {
+        const scene = context.objects.getObjectFromHandle(handle, Scene);
+        const scenes = context.application.song.scenes;
+        const sceneIndex = scenes.findIndex((s) => s.handle.id === scene.handle.id);
+        if (sceneIndex < 0) {
+          console.log("Notation: Could not find scene index.");
+          return;
+        }
+
+        const clips: ClipInfo[] = [];
+        for (const track of context.application.song.tracks) {
+          const slot = track.clipSlots[sceneIndex];
+          const clip = slot?.clip;
+          if (clip && clip instanceof MidiClip) {
+            const clipData = readMidiClip(clip);
+            if (clipData.notes.length > 0) {
+              clips.push(clipData);
+            }
+          }
+        }
+
+        if (clips.length === 0) {
+          console.log("Notation: No MIDI clips with notes in scene.");
+          return;
+        }
+
+        await showNotationDialog(clips);
+      })(arg as Handle),
+  );
+
+  // Arrangement time selection (AJM-173 — stub)
+  context.commands.registerCommand(
+    "notation.showArrangementSelection",
+    (arg: unknown) => {
+      const selection = arg as ArrangementSelection;
+      console.log("Notation: Arrangement selection not yet implemented.", {
+        start: selection.time_selection_start,
+        end: selection.time_selection_end,
+        laneCount: selection.selected_lanes.length,
+      });
+    },
+  );
+
+  context.ui.registerContextMenuAction("MidiClip", "Generate for Clip", "notation.showClip");
+  context.ui.registerContextMenuAction("ClipSlotSelection", "Generate for Selection", "notation.showSelection");
+  context.ui.registerContextMenuAction("Scene", "Generate for Scene", "notation.showScene");
+  context.ui.registerContextMenuAction(
+    "MidiTrack.ArrangementSelection",
+    "Generate for Selection",
+    "notation.showArrangementSelection",
+  );
 }
