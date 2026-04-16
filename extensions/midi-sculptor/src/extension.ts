@@ -59,7 +59,7 @@ type SculptorAction = SlideAction | SwapAction | SetAction | SplitAction | Cance
 
 function notesFromClip(clip: MidiClip<"0.0.5">): Note[] {
   // Get all notes from the clip by selecting all and reading them
-  const sdkNotes = clip.getNotes();
+  const sdkNotes = clip.notes;
   return sdkNotes.map(
     (n: any, i: number) =>
       new Note({
@@ -77,8 +77,7 @@ function notesFromClip(clip: MidiClip<"0.0.5">): Note[] {
 }
 
 function applyNotesToClip(clip: MidiClip<"0.0.5">, notes: Note[]): void {
-  clip.removeAllNotes();
-  const sdkNotes = notes
+  clip.notes = notes
     .filter((n) => !n.deleted && n.duration >= Note.MIN_DURATION)
     .map((n) => ({
       pitch: Math.round(Math.max(0, Math.min(127, n.pitch))),
@@ -90,7 +89,6 @@ function applyNotesToClip(clip: MidiClip<"0.0.5">, notes: Note[]): void {
       probability: Math.max(0, Math.min(1, n.probability)),
       muted: n.muted,
     }));
-  clip.addNotes(sdkNotes);
 }
 
 function configureStrumTension(transformer: SlideTransformer, amount: number): void {
@@ -195,6 +193,7 @@ export function activate(activation: ActivationContext) {
     "midi-sculptor.open",
     (arg: unknown) =>
       void (async (handle: Handle) => {
+        console.log("midi-sculptor.open handle:", String(handle), typeof handle);
         const clip = context.objects.getObjectFromHandle(handle, MidiClip);
         const notes = notesFromClip(clip);
 

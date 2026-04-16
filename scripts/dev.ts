@@ -20,41 +20,43 @@ function findLiveApp(): string {
   throw new Error("Could not find Ableton Live with Extension Host installed");
 }
 
-function findExtensionPath(): string {
-  const arg = process.argv[2];
-  if (arg) {
-    const abs = resolve(arg);
-    if (!existsSync(resolve(abs, "manifest.json"))) {
-      throw new Error(`No manifest.json found in ${abs}`);
-    }
-    return abs;
+function findExtensionPaths(): string[] {
+  const args = process.argv.slice(2);
+  if (args.length > 0) {
+    return args.map((arg) => {
+      const abs = resolve(arg);
+      if (!existsSync(resolve(abs, "manifest.json"))) {
+        throw new Error(`No manifest.json found in ${abs}`);
+      }
+      return abs;
+    });
   }
 
-  // Default: find first extension in extensions/
+  // Default: load all extensions in extensions/
   const extDir = resolve(import.meta.dirname!, "..", "extensions");
   if (!existsSync(extDir)) {
-    throw new Error("No extensions/ directory found. Pass a path as argument.");
+    throw new Error("No extensions/ directory found. Pass paths as arguments.");
   }
   const dirs = readdirSync(extDir, { withFileTypes: true })
     .filter((d) => d.isDirectory() && existsSync(resolve(extDir, d.name, "manifest.json")));
   if (dirs.length === 0) {
-    throw new Error("No extensions found in extensions/. Pass a path as argument.");
+    throw new Error("No extensions found in extensions/. Pass paths as arguments.");
   }
-  if (dirs.length > 1) {
-    console.log(`Multiple extensions found, using: ${dirs[0].name}`);
-  }
-  return resolve(extDir, dirs[0].name);
+  return dirs.map((d) => resolve(extDir, d.name));
 }
 
 const hostDir = findLiveApp();
-const extPath = findExtensionPath();
+const extPaths = findExtensionPaths();
 
 console.log(`Extension Host: ${hostDir}`);
-console.log(`Extension:      ${extPath}`);
+for (const p of extPaths) {
+  console.log(`Extension:      ${p}`);
+}
 console.log();
 
 const node = resolve(hostDir, "node");
 const module = resolve(hostDir, "ExtensionHostNodeModule.node");
-const code = `require(${JSON.stringify(module)}).initialize({ extensions: [{ path: ${JSON.stringify(extPath)} }] });`;
+const extensions = extPaths.map((p) => `{ path: ${JSON.stringify(p)} }`).join(", ");
+const code = `require(${JSON.stringify(module)}).initialize({ extensions: [${extensions}] });`;
 
 execFileSync(node, ["-e", code], { stdio: "inherit" });
