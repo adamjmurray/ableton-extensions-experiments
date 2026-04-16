@@ -159,7 +159,9 @@ function App() {
               <button class="btn-export" onClick={handleExportPNG}>PNG</button>
             </>
           )}
-          <button class="btn-export" onClick={handleExportXML}>XML</button>
+          {view === "xml" && (
+            <button class="btn-export" onClick={handleExportXML}>XML</button>
+          )}
           <button class="btn-close" onClick={closeDialog}>Close</button>
         </div>
       </div>

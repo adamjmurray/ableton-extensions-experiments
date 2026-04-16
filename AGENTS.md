@@ -84,6 +84,41 @@ Valid scopes for `context.ui.registerContextMenuAction()`:
 - Run `npm run build:kb` to flatten docs + examples + types into `knowledge-base/` for Claude Projects
 - Key doc sections: getting-started, essentials (basics, concepts, interface), development
 
+## Active Focus: Notation Extension
+
+The current focus is `extensions/notation/` — an extension that renders MIDI clips as
+sheet music notation. Right-click a MIDI clip → "Show Notation" opens a modal dialog.
+
+### Architecture
+- `src/extension.ts` — reads clip notes + song metadata, opens dialog in a loop
+  (export actions write a temp file, open it with system `open` command, then re-show the dialog)
+- `src/ui/app.tsx` — Preact UI with toolbar (quantize, time sig, view toggle, export)
+- `src/ui/musicxml.ts` — converts quantized MIDI notes to MusicXML
+- `src/ui/quantize.ts` — snaps notes to grid (16th, mixed 16th/triplet, 32nd)
+- `src/ui/bridge.ts` — webview ↔ extension host communication via `close_and_send`
+- `src/ui/template.html` — HTML shell with CSS; JS is bundled and injected by esbuild
+
+### Pipeline: MIDI notes → quantize → MusicXML → OSMD renders SVG
+- Uses 24 divisions per quarter note (LCM of 8 and 6) to support both 32nds and triplets
+- Triplet notes need `<time-modification>` and `<tuplet>` bracket notation in MusicXML
+- Key signature derived from `song.rootNote` + `song.scaleName`
+- Time signature from first scene (defaults to 4/4 if scene returns -1)
+- Clef auto-detected from average pitch (bass clef below middle C)
+
+### Known limitations
+- Webview (WKWebView/WebView2) does not support `download` attribute or `navigator.clipboard` —
+  file export goes through extension host via `close_and_send`, Cmd+C doesn't work
+- SDK properties may return BigInt — always coerce with `Number()` / `String()` before serializing
+- Dialog communication is one-way: data injected before show, single JSON result on close
+- Barlines are not rendering (open issue — likely MusicXML measure duration accounting)
+
+### Development workflow
+Always rebuild after making changes: `cd extensions/notation && npm run build`
+Test with: `npm run dev -- extensions/notation` (from repo root)
+
+### Tracking
+Issues are tracked in Linear under the "MIDI Notation Extension" project (AJM-xxx).
+
 ## Rules
 - Do not modify anything inside `extensions-sdk/` — it is a vendored dependency
 - Keep each extension self-contained with its own package.json and build
