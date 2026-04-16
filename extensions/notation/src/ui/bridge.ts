@@ -33,7 +33,12 @@ function doSendMessage(message: unknown) {
 }
 
 export function closeDialog() {
-  const message = { name: "close_and_send", args: [JSON.stringify({ closed: true })] };
+  const message = { name: "close_and_send", args: [JSON.stringify({ action: "close" })] };
+  doSendMessage(message);
+}
+
+export function exportFile(data: string, filename: string, encoding: "utf8" | "base64" = "utf8") {
+  const message = { name: "close_and_send", args: [JSON.stringify({ action: "export", data, filename, encoding })] };
   doSendMessage(message);
 }
 

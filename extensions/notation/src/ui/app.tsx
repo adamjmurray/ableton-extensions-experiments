@@ -1,7 +1,7 @@
 import { render } from "preact";
 import { useState, useEffect, useRef, useCallback } from "preact/hooks";
 import { OpenSheetMusicDisplay } from "opensheetmusicdisplay";
-import { getNotationData, closeDialog, type NotationData } from "./bridge.js";
+import { getNotationData, closeDialog, exportFile, type NotationData } from "./bridge.js";
 import { quantizeNotes, type QuantizeGrid } from "./quantize.js";
 import { notesToMusicXML } from "./musicxml.js";
 
@@ -62,21 +62,16 @@ function App() {
     renderNotation(grid, timeSigNum, timeSigDen);
   }, [grid, timeSigNum, timeSigDen, renderNotation]);
 
+  const clipName = data.current.clip.name || "notation";
+
   const handleExportSVG = useCallback(() => {
     if (!containerRef.current) return;
     const svg = containerRef.current.querySelector("svg");
     if (!svg) return;
 
     const svgData = new XMLSerializer().serializeToString(svg);
-    const blob = new Blob([svgData], { type: "image/svg+xml" });
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${data.current.clip.name || "notation"}.svg`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, []);
+    exportFile(svgData, `${clipName}.svg`);
+  }, [clipName]);
 
   const handleExportPNG = useCallback(() => {
     if (!containerRef.current) return;
@@ -84,11 +79,11 @@ function App() {
     if (!svg) return;
 
     const svgData = new XMLSerializer().serializeToString(svg);
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d")!;
     const img = new Image();
 
     img.onload = () => {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d")!;
       canvas.width = img.width * 2;
       canvas.height = img.height * 2;
       ctx.scale(2, 2);
@@ -96,19 +91,18 @@ function App() {
       ctx.fillRect(0, 0, img.width, img.height);
       ctx.drawImage(img, 0, 0);
 
-      canvas.toBlob((blob) => {
-        if (!blob) return;
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${data.current.clip.name || "notation"}.png`;
-        a.click();
-        URL.revokeObjectURL(url);
-      }, "image/png");
+      const dataUrl = canvas.toDataURL("image/png");
+      const base64 = dataUrl.replace(/^data:image\/png;base64,/, "");
+      exportFile(base64, `${clipName}.png`, "base64");
     };
 
     img.src = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgData)))}`;
-  }, []);
+  }, [clipName]);
+
+  const handleExportXML = useCallback(() => {
+    if (!debugXML) return;
+    exportFile(debugXML, `${clipName}.musicxml`);
+  }, [debugXML, clipName]);
 
   return (
     <div class="app">
@@ -152,6 +146,7 @@ function App() {
         <div class="toolbar-group toolbar-right">
           <button class="btn-export" onClick={handleExportSVG}>SVG</button>
           <button class="btn-export" onClick={handleExportPNG}>PNG</button>
+          <button class="btn-export" onClick={handleExportXML}>MusicXML</button>
           <button class="btn-close" onClick={closeDialog}>Close</button>
         </div>
       </div>
