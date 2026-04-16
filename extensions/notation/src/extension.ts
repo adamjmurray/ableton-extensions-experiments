@@ -93,9 +93,8 @@ export function activate(activation: ActivationContext) {
     let numerator = 4;
     let denominator = 4;
     try {
-      const scenes = song.scenes;
-      if (scenes.length > 0) {
-        const scene = scenes[0];
+      const scene = song.scenes[0];
+      if (scene) {
         const num = Number(scene.signatureNumerator);
         const den = Number(scene.signatureDenominator);
         if (num > 0 && den > 0) {
@@ -129,8 +128,6 @@ export function activate(activation: ActivationContext) {
       "notation-exports",
     );
     fs.mkdirSync(exportDir, { recursive: true });
-
-    const defaultName = clips.length === 1 ? clips[0].clip.name || "notation" : "score";
 
     while (true) {
       try {
