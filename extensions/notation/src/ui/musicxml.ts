@@ -304,10 +304,13 @@ export function notesToMusicXML(
   }
 
   const parts: { id: string; name: string; measures: string[] }[] = [];
+  let unnamedCount = 0;
   for (let i = 0; i < clips.length; i++) {
     const c = clips[i];
     const id = `P${i + 1}`;
-    const name = buildPartName(c.clip.trackName, c.clip.name, i);
+    const clipName = (c.clip.name ?? "").trim();
+    const label = clipName || `(unnamed ${++unnamedCount})`;
+    const name = buildPartName(c.clip.trackName, label, i);
 
     const measures = generatePartMeasures(
       c.notes,
@@ -326,9 +329,9 @@ export function notesToMusicXML(
 
 const MAX_PART_NAME_LENGTH = 30;
 
-function buildPartName(trackName: string | undefined, clipName: string | undefined, index: number): string {
+function buildPartName(trackName: string | undefined, label: string, index: number): string {
   const t = (trackName ?? "").trim();
-  const c = (clipName ?? "").trim();
+  const c = label.trim();
   let name: string;
   if (t && c) name = `[${t}] ${c}`;
   else if (t) name = `[${t}]`;

@@ -11,9 +11,9 @@ const GRIDS: { value: QuantizeGrid; label: string }[] = [
   { value: "32nd", label: "32nd" },
 ];
 
-function buildFullPartName(trackName: string, clipName: string, index: number): string {
+function buildFullPartName(trackName: string, label: string, index: number): string {
   const t = (trackName ?? "").trim();
-  const c = (clipName ?? "").trim();
+  const c = label.trim();
   if (t && c) return `[${t}] ${c}`;
   if (t) return `[${t}]`;
   if (c) return c;
@@ -30,7 +30,12 @@ function injectPartNameTooltips(container: HTMLDivElement | null, clips: ClipDat
   if (!svg) return;
 
   const SVG_NS = "http://www.w3.org/2000/svg";
-  const fullNames = clips.map((c, i) => buildFullPartName(c.clip.trackName, c.clip.name, i));
+  let unnamedCount = 0;
+  const fullNames = clips.map((c, i) => {
+    const clipName = (c.clip.name ?? "").trim();
+    const label = clipName || `(unnamed ${++unnamedCount})`;
+    return buildFullPartName(c.clip.trackName, label, i);
+  });
 
   const texts = svg.querySelectorAll("text");
   texts.forEach((textEl) => {
