@@ -118,7 +118,6 @@ multi-clip entry points render each clip on its own staff in a score layout.
   file export goes through extension host via `close_and_send`, Cmd+C doesn't work
 - SDK properties may return BigInt — always coerce with `Number()` / `String()` before serializing
 - Dialog communication is one-way: data injected before show, single JSON result on close
-- Barlines are not rendering (open issue — likely MusicXML measure duration accounting)
 
 ### Development workflow
 Always rebuild after making changes: `cd extensions/notation && npm run build`
