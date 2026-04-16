@@ -17,7 +17,14 @@ export interface NoteData {
 
 export interface ClipData {
   notes: NoteData[];
-  clip: { start: number; end: number; name: string };
+  clip: {
+    name: string;
+    startMarker: number;
+    endMarker: number;
+    looping: boolean;
+    loopStart: number;
+    loopEnd: number;
+  };
 }
 
 export interface NotationData {
@@ -51,7 +58,17 @@ export function getNotationData(): NotationData {
     return JSON.parse(window.__NOTATION_DATA__ || "{}");
   } catch {
     return {
-      clips: [{ notes: [], clip: { start: 0, end: 16, name: "" } }],
+      clips: [{
+        notes: [],
+        clip: {
+          name: "",
+          startMarker: 0,
+          endMarker: 16,
+          looping: false,
+          loopStart: 0,
+          loopEnd: 16,
+        },
+      }],
       tempo: 120,
       rootNote: 0,
       scaleName: "Major",

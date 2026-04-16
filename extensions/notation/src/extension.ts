@@ -36,7 +36,14 @@ function openFile(filePath: string) {
 
 interface ClipInfo {
   notes: { pitch: number; startTime: number; duration: number; velocity: number }[];
-  clip: { start: number; end: number; name: string };
+  clip: {
+    name: string;
+    startMarker: number;
+    endMarker: number;
+    looping: boolean;
+    loopStart: number;
+    loopEnd: number;
+  };
 }
 
 function readMidiClip(clip: MidiClip<any>): ClipInfo {
@@ -48,9 +55,12 @@ function readMidiClip(clip: MidiClip<any>): ClipInfo {
       velocity: Number(n.velocity ?? 64),
     })),
     clip: {
-      start: Number(clip.loopStart),
-      end: Number(clip.loopEnd),
       name: String(clip.name),
+      startMarker: Number(clip.startMarker),
+      endMarker: Number(clip.endMarker),
+      looping: Boolean(clip.looping),
+      loopStart: Number(clip.loopStart),
+      loopEnd: Number(clip.loopEnd),
     },
   };
 }

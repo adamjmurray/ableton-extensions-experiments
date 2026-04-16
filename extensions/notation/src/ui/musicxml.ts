@@ -105,7 +105,7 @@ function generatePartMeasures(
   timeSignature: { numerator: number; denominator: number },
   fifths: number,
   mode: string,
-  clipStart: number,
+  startMarker: number,
   numMeasures: number,
   legato: boolean,
 ): string[] {
@@ -116,7 +116,7 @@ function generatePartMeasures(
   const absNotes = notes
     .map((n) => ({
       pitch: n.pitch,
-      startDiv: Math.round((n.startTime - clipStart) * DIVISIONS),
+      startDiv: Math.round((n.startTime - startMarker) * DIVISIONS),
       durationDiv: Math.max(1, Math.round(n.duration * DIVISIONS)),
       velocity: n.velocity,
     }))
@@ -289,10 +289,15 @@ export function notesToMusicXML(
   const mode = scaleName.toLowerCase().includes("minor") ? "minor" : "major";
   const beatsPerMeasure = timeSignature.numerator * (4 / timeSignature.denominator);
 
-  // Determine global measure count across all clips
+  // Per-clip effective end: loopEnd if looping (content past loopEnd is unheard), else endMarker
+  const clipEnds = clips.map((c) =>
+    c.clip.looping ? c.clip.loopEnd : c.clip.endMarker,
+  );
+
+  // Global measure count covers the longest rendered clip
   let numMeasures = 1;
-  for (const c of clips) {
-    const clipLength = c.clip.end - c.clip.start;
+  for (let i = 0; i < clips.length; i++) {
+    const clipLength = clipEnds[i] - clips[i].clip.startMarker;
     numMeasures = Math.max(numMeasures, Math.ceil(clipLength / beatsPerMeasure));
   }
 
@@ -301,12 +306,13 @@ export function notesToMusicXML(
     const c = clips[i];
     const id = `P${i + 1}`;
     const name = c.clip.name || `Part ${i + 1}`;
+
     const measures = generatePartMeasures(
       c.notes,
       timeSignature,
       fifths,
       mode,
-      c.clip.start,
+      c.clip.startMarker,
       numMeasures,
       legato ?? false,
     );
