@@ -1,0 +1,14 @@
+{
+  "main": "dist/extension.js",
+  "scripts": {
+    "build": "node esbuild.js"
+  },
+  "dependencies": {
+    "@ableton/extensions-sdk": "file:../../extensions-sdk",
+    "opensheetmusicdisplay": "^1.8.9",
+    "preact": "^10.25.4"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.10"
+  }
+}
