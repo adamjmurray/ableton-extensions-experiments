@@ -47,6 +47,7 @@ function App() {
           drawTitle: false,
           drawComposer: false,
           drawCredits: false,
+          drawPartNames: false,
           autoResize: true,
         });
       }
@@ -110,13 +111,13 @@ function App() {
     <div class="app">
       <div class="toolbar">
         <div class="toolbar-group">
-          <span class="label">Quantize</span>
           <div class="btn-group">
             {GRIDS.map((g) => (
               <button
                 key={g.value}
                 class={grid === g.value ? "active" : ""}
                 onClick={() => setGrid(g.value)}
+                title={`Quantize to ${g.label}`}
               >
                 {g.label}
               </button>
@@ -126,17 +127,17 @@ function App() {
 
         <div class="toolbar-group">
           <div class="btn-group">
-            <button class={legato ? "active" : ""} onClick={() => setLegato((v) => !v)}>
+            <button class={legato ? "active" : ""} onClick={() => setLegato((v) => !v)} title="Extend notes to fill gaps (remove rests)">
               Legato
             </button>
           </div>
         </div>
 
         <div class="toolbar-group">
-          <span class="label">Time Sig</span>
           <select
             value={timeSigNum}
             onChange={(e) => setTimeSigNum(Number((e.target as HTMLSelectElement).value))}
+            title="Time signature numerator"
           >
             {[2, 3, 4, 5, 6, 7, 8, 9, 12].map((n) => (
               <option key={n} value={n}>{n}</option>
@@ -146,6 +147,7 @@ function App() {
           <select
             value={timeSigDen}
             onChange={(e) => setTimeSigDen(Number((e.target as HTMLSelectElement).value))}
+            title="Time signature denominator"
           >
             {[2, 4, 8, 16].map((n) => (
               <option key={n} value={n}>{n}</option>
@@ -154,25 +156,23 @@ function App() {
         </div>
 
         <div class="toolbar-group">
-          <span class="label">View</span>
           <div class="btn-group">
-            <button class={view === "notation" ? "active" : ""} onClick={() => setView("notation")}>Notation</button>
-            <button class={view === "xml" ? "active" : ""} onClick={() => setView("xml")}>MusicXML</button>
+            <button class={view === "notation" ? "active" : ""} onClick={() => setView("notation")} title="Show notation">Notation</button>
+            <button class={view === "xml" ? "active" : ""} onClick={() => setView("xml")} title="Show MusicXML source">MusicXML</button>
           </div>
         </div>
 
         <div class="toolbar-group toolbar-right">
-          <span class="label">Export</span>
           {view === "notation" && (
             <>
-              <button class="btn-export" onClick={handleExportSVG}>SVG</button>
-              <button class="btn-export" onClick={handleExportPNG}>PNG</button>
+              <button class="btn-export" onClick={handleExportSVG} title="Download as SVG">&#8595; SVG</button>
+              <button class="btn-export" onClick={handleExportPNG} title="Download as PNG">&#8595; PNG</button>
             </>
           )}
           {view === "xml" && (
-            <button class="btn-export" onClick={handleExportXML}>XML</button>
+            <button class="btn-export" onClick={handleExportXML} title="Download as MusicXML">&#8595; XML</button>
           )}
-          <button class="btn-close" onClick={closeDialog}>Close</button>
+          <button class="btn-close" onClick={closeDialog} title="Close">&#10005;</button>
         </div>
       </div>
 
