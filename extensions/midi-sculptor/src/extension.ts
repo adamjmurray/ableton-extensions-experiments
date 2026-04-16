@@ -193,7 +193,6 @@ export function activate(activation: ActivationContext) {
     "midi-sculptor.open",
     (arg: unknown) =>
       void (async (handle: Handle) => {
-        console.log("midi-sculptor.open handle:", String(handle), typeof handle);
         const clip = context.objects.getObjectFromHandle(handle, MidiClip);
         const notes = notesFromClip(clip);
 
@@ -226,14 +225,20 @@ export function activate(activation: ActivationContext) {
               `<script>window.__SCULPTOR_NOTES__='${notesJson.replace(/'/g, "\\'")}';window.__SCULPTOR_CLIP__='${clipJson.replace(/'/g, "\\'")}';</script></head>`,
             );
 
+          console.log("Showing dialog...");
           const result = await dialog.show(
             `data:text/html,${encodeURIComponent(html)}`,
             580,
             560,
           );
+          console.log("Dialog result:", result);
           const action: SculptorAction = JSON.parse(result);
+          console.log("Parsed action:", action);
 
-          if ("cancelled" in action) return;
+          if ("cancelled" in action) {
+            console.log("Action cancelled");
+            return;
+          }
 
           let transformedNotes: Note[] | undefined;
 
@@ -252,10 +257,14 @@ export function activate(activation: ActivationContext) {
               break;
           }
 
+          console.log("Transformed notes:", transformedNotes ? transformedNotes.length : "none");
+
           if (transformedNotes) {
+            console.log("Applying notes in transaction...");
             context.withinTransaction(() => {
               applyNotesToClip(clip, transformedNotes);
             });
+            console.log("Transaction complete");
           }
         } catch (e) {
           console.error("MIDI Sculptor dialog error:", e);

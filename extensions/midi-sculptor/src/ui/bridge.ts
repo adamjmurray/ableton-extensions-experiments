@@ -18,7 +18,11 @@ function doSendMessage(message: unknown) {
 }
 
 export function closeWithResult(result: unknown) {
-  doSendMessage({ name: "close_and_send", args: [JSON.stringify(result)] });
+  console.log("[bridge] closeWithResult called:", result);
+  const message = { name: "close_and_send", args: [JSON.stringify(result)] };
+  console.log("[bridge] sending message:", message);
+  doSendMessage(message);
+  console.log("[bridge] message sent");
 }
 
 export function getInitialNotes(): Array<Record<string, unknown>> {
