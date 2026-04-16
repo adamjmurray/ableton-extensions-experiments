@@ -19,7 +19,7 @@ function App() {
   const [grid, setGrid] = useState<QuantizeGrid>("16th");
   const [status, setStatus] = useState("Loading...");
   const [debugXML, setDebugXML] = useState("");
-  const [showDebug, setShowDebug] = useState(false);
+  const [view, setView] = useState<"notation" | "xml">("notation");
   const [timeSigNum, setTimeSigNum] = useState(data.current.timeSignature.numerator);
   const [timeSigDen, setTimeSigDen] = useState(data.current.timeSignature.denominator);
 
@@ -99,10 +99,6 @@ function App() {
     img.src = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgData)))}`;
   }, [clipName]);
 
-  const handleExportXML = useCallback(() => {
-    if (!debugXML) return;
-    exportFile(debugXML, `${clipName}.musicxml`);
-  }, [debugXML, clipName]);
 
   return (
     <div class="app">
@@ -143,27 +139,29 @@ function App() {
           </select>
         </div>
 
+        <div class="toolbar-group">
+          <span class="label">View</span>
+          <div class="btn-group">
+            <button class={view === "notation" ? "active" : ""} onClick={() => setView("notation")}>Notation</button>
+            <button class={view === "xml" ? "active" : ""} onClick={() => setView("xml")}>XML</button>
+          </div>
+        </div>
+
         <div class="toolbar-group toolbar-right">
-          <button class="btn-export" onClick={handleExportSVG}>SVG</button>
-          <button class="btn-export" onClick={handleExportPNG}>PNG</button>
-          <button class="btn-export" onClick={handleExportXML}>MusicXML</button>
+          {view === "notation" && (
+            <>
+              <button class="btn-export" onClick={handleExportSVG}>SVG</button>
+              <button class="btn-export" onClick={handleExportPNG}>PNG</button>
+            </>
+          )}
           <button class="btn-close" onClick={closeDialog}>Close</button>
         </div>
       </div>
 
-      <div class="status-bar">
-        {status}
-        {" | "}
-        <a href="#" onClick={(e) => { e.preventDefault(); setShowDebug(!showDebug); }} style="color: var(--accent);">
-          {showDebug ? "Hide XML" : "Show XML"}
-        </a>
-      </div>
+      <div class="status-bar">{status}</div>
 
-      {showDebug && (
-        <pre class="debug-xml">{debugXML}</pre>
-      )}
-
-      <div class="notation-container" ref={containerRef} />
+      <pre class="xml-view" style={{ display: view === "xml" ? "block" : "none" }}>{debugXML}</pre>
+      <div class="notation-container" ref={containerRef} style={{ display: view === "notation" ? "flex" : "none" }} />
     </div>
   );
 }
