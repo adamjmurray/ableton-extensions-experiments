@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MIDI Sculptor</title>
+  <script>
+    const isWebKit = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.live;
+    const isWebView2 = window.chrome && window.chrome.webview;
+
+    function doSendMessage(message) {
+      if (isWebKit) {
+        window.webkit.messageHandlers.live.postMessage(message);
+      } else if (isWebView2) {
+        window.chrome.webview.postMessage(message);
+      }
+    }
+
+    function closeWithResult(result) {
+      doSendMessage({ name: "close_and_send", args: [JSON.stringify(result)] });
+    }
+
+    // --- State ---
+    let currentTab = 'slide';
+
+    // Slide state
+    let slideProperty = 'pitch';
+    let slideRange = 12;
+    let slideEdgeBehavior = 'clamp';
+    let slideAnchor = 'mid';
+    let slideStrumTension = 0;
+    let slideStrumUnlockEnd = false;
+
+    // Swap state
+    let swapTargets = { pitch: true, velocity: true, duration: true, velrange: true, release: true };
+
+    // Set state
+    let setProperty = 'note';
+    let setValue = 'muted';
+
+    // Split state
+    let splitType = 'note';
+    let splitAmount1 = 2;
+    let splitAmount2 = 1;
+    let splitGate = 1;
+    let splitEnvelope = 'none';
+
+    // --- Tab switching ---
+    function switchTab(tab) {
+      currentTab = tab;
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === tab);
+      });
+      document.querySelectorAll('.tab-panel').forEach(panel => {
+        panel.classList.toggle('active', panel.id === 'panel-' + tab);
+      });
+    }
+
+    // --- Range defaults ---
+    const rangeDefaults = {
+      pitch: 12, velocity: 64, start: 1, duration: 1,
+      strum: 1, velrange: 64, release: 64, probability: 0.5
+    };
+
+    function onSlidePropertyChange(el) {
+      slideProperty = el.value;
+      const isStrum = slideProperty === 'strum';
+      document.getElementById('strum-options').style.display = isStrum ? 'flex' : 'none';
+      document.getElementById('slide-shift-label').textContent = isStrum ? 'Strum Start' : 'Shift';
+      document.getElementById('slide-spread-label').textContent = isStrum ? 'Strum End' : 'Spread';
+      slideRange = rangeDefaults[slideProperty] || 1;
+      document.getElementById('slide-range').value = slideRange;
+      document.getElementById('slide-range-val').textContent = slideRange;
+    }
+
+    function onSlideRangeChange(el) {
+      slideRange = parseFloat(el.value);
+      document.getElementById('slide-range-val').textContent = slideRange;
+    }
+
+    // --- Apply functions ---
+    function applySlide(operation, amount) {
+      closeWithResult({
+        tool: 'slide',
+        operation: operation,
+        property: slideProperty,
+        amount: amount,
+        range: slideRange,
+        edgeBehavior: slideEdgeBehavior,
+        anchor: slideAnchor,
+        strumTension: slideStrumTension,
+        strumUnlockEnd: slideStrumUnlockEnd
+      });
+    }
+
+    function applySlideRandom() {
+      const x = parseFloat(document.getElementById('slide-random-x').value);
+      const y = parseFloat(document.getElementById('slide-random-y').value);
+      applySlide('random', [x, y]);
+    }
+
+    function applySwap(operation, amount) {
+      closeWithResult({
+        tool: 'swap',
+        operation: operation,
+        amount: amount,
+        targets: swapTargets
+      });
+    }
+
+    function applySwapRandom() {
+      const x = parseFloat(document.getElementById('swap-random-x').value);
+      const y = parseFloat(document.getElementById('swap-random-y').value);
+      applySwap('random', [x, y]);
+    }
+
+    function applySet(operation) {
+      closeWithResult({
+        tool: 'set',
+        operation: operation,
+        property: setProperty,
+        value: isNaN(Number(setValue)) ? setValue : Number(setValue)
+      });
+    }
+
+    function applySetRandom() {
+      const x = parseFloat(document.getElementById('set-random-x').value);
+      const y = parseFloat(document.getElementById('set-random-y').value);
+      closeWithResult({
+        tool: 'set',
+        operation: 'random',
+        property: setProperty,
+        value: isNaN(Number(setValue)) ? setValue : Number(setValue),
+        amount: [x, y]
+      });
+    }
+
+    function applySplit() {
+      closeWithResult({
+        tool: 'split',
+        operation: 'split',
+        splitType: splitType,
+        amount1: splitAmount1,
+        amount2: splitAmount2,
+        gate: splitGate,
+        envelope: splitEnvelope
+      });
+    }
+
+    function applySplitTilt() {
+      const amount = parseFloat(document.getElementById('split-tilt').value);
+      closeWithResult({
+        tool: 'split',
+        operation: 'tilt',
+        splitType: splitType,
+        amount1: splitAmount1,
+        amount2: splitAmount2,
+        gate: splitGate,
+        envelope: splitEnvelope,
+        tiltAmount: amount
+      });
+    }
+
+    function onSetValueChange(el) {
+      setValue = el.value;
+    }
+
+    function onSplitTypeChange(el) {
+      splitType = el.value;
+      document.getElementById('split-amount2-group').style.display =
+        (splitType === 'euclid' || splitType === 'halves') ? 'flex' : 'none';
+
+      const labels = { time: 'Time (beats)', note: 'Count', euclid: 'Pulses', halves: 'Notes/div' };
+      const labels2 = { euclid: 'Total', halves: 'Divisions' };
+      document.getElementById('split-amount1-label').textContent = labels[splitType] || 'Amount';
+      document.getElementById('split-amount2-label').textContent = labels2[splitType] || '';
+    }
+
+    function updateSliderValue(sliderId, displayId) {
+      const val = document.getElementById(sliderId).value;
+      document.getElementById(displayId).textContent = val;
+    }
+  </script>
+  <style>
+    :root {
+      --bg: #333;
+      --panel: #444;
+      --surface: #555;
+      --accent: #FF9500;
+      --accent-hover: #FF8000;
+      --text: #eee;
+      --text-dim: #999;
+      --input-bg: #2a2a2a;
+      --border: #222;
+      --tab-inactive: #3a3a3a;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      background: var(--bg);
+      font-family: 'Lucida Grande', 'Segoe UI', sans-serif;
+      color: var(--text);
+      font-size: 11px;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      padding: 8px;
+      gap: 6px;
+    }
+
+    /* Tabs */
+    .tab-bar {
+      display: flex;
+      gap: 2px;
+      flex-shrink: 0;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 6px 0;
+      background: var(--tab-inactive);
+      border: 1px solid var(--border);
+      border-bottom: none;
+      color: var(--text-dim);
+      cursor: pointer;
+      font-size: 11px;
+      font-family: inherit;
+      border-radius: 4px 4px 0 0;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .tab-btn.active {
+      background: var(--panel);
+      color: var(--text);
+      font-weight: bold;
+    }
+
+    .tab-btn:hover { color: var(--text); }
+
+    /* Panels */
+    .tab-content {
+      flex: 1;
+      overflow-y: auto;
+      background: var(--panel);
+      border-radius: 0 0 4px 4px;
+      border: 1px solid var(--border);
+      padding: 10px;
+    }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: flex; flex-direction: column; gap: 8px; }
+
+    /* Form controls */
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .row-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+    }
+
+    label {
+      color: var(--text-dim);
+      min-width: 60px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    select, input[type="number"], input[type="text"] {
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 11px;
+      padding: 4px 6px;
+    }
+
+    select { min-width: 80px; }
+    input[type="number"] { width: 60px; }
+
+    input[type="range"] {
+      flex: 1;
+      min-width: 80px;
+      accent-color: var(--accent);
+      height: 14px;
+    }
+
+    .range-val {
+      min-width: 30px;
+      text-align: right;
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+
+    /* Buttons */
+    .btn {
+      padding: 5px 10px;
+      font-size: 11px;
+      background: var(--accent);
+      color: #000;
+      border: none;
+      border-radius: 2px;
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: bold;
+    }
+
+    .btn:hover { background: var(--accent-hover); }
+
+    .btn-sm {
+      padding: 4px 8px;
+      font-size: 10px;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--text);
+    }
+
+    .btn-secondary:hover { background: #666; }
+
+    /* Slider with action */
+    .slider-action {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .slider-action label { min-width: 50px; }
+
+    .slider-action input[type="range"] { flex: 1; }
+
+    /* Section divider */
+    .section-label {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-dim);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 3px;
+      margin-top: 4px;
+    }
+
+    /* Checkboxes */
+    .checkbox-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .checkbox-group label {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      min-width: auto;
+      cursor: pointer;
+    }
+
+    /* Cancel row */
+    .footer {
+      display: flex;
+      justify-content: flex-end;
+      flex-shrink: 0;
+    }
+
+    /* XY pad placeholder */
+    .xy-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .xy-row label { min-width: 12px; }
+    .xy-row input[type="range"] { flex: 1; }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="slide" onclick="switchTab('slide')">Slide</button>
+      <button class="tab-btn" data-tab="swap" onclick="switchTab('swap')">Swap</button>
+      <button class="tab-btn" data-tab="set" onclick="switchTab('set')">Set</button>
+      <button class="tab-btn" data-tab="split" onclick="switchTab('split')">Split</button>
+    </div>
+
+    <div class="tab-content">
+      <!-- SLIDE PANEL -->
+      <div class="tab-panel active" id="panel-slide">
+        <div class="row">
+          <label>Property</label>
+          <select onchange="onSlidePropertyChange(this)">
+            <option value="pitch" selected>Pitch</option>
+            <option value="velocity">Velocity</option>
+            <option value="start">Start</option>
+            <option value="duration">Duration</option>
+            <option value="strum">Strum</option>
+            <option value="velrange">Vel Range</option>
+            <option value="release">Release</option>
+            <option value="probability">Probability</option>
+          </select>
+          <label>Range</label>
+          <input type="number" id="slide-range" value="12" step="any"
+                 onchange="onSlideRangeChange(this)">
+          <span id="slide-range-val" class="range-val">12</span>
+        </div>
+
+        <div class="row">
+          <label>Edge</label>
+          <select onchange="slideEdgeBehavior = this.value">
+            <option value="clamp" selected>Clamp</option>
+            <option value="rotate">Rotate</option>
+            <option value="reflect">Reflect</option>
+            <option value="remove">Remove</option>
+          </select>
+          <label>Anchor</label>
+          <select onchange="slideAnchor = this.value">
+            <option value="min">Min</option>
+            <option value="mid" selected>Mid</option>
+            <option value="max">Max</option>
+          </select>
+        </div>
+
+        <div id="strum-options" class="row" style="display:none">
+          <label>Tension</label>
+          <input type="range" min="-1" max="1" step="0.01" value="0"
+                 oninput="slideStrumTension = parseFloat(this.value); document.getElementById('strum-tension-val').textContent = this.value">
+          <span id="strum-tension-val" class="range-val">0</span>
+          <label style="min-width:auto">
+            <input type="checkbox" onchange="slideStrumUnlockEnd = this.checked"> Unlock End
+          </label>
+        </div>
+
+        <div class="section-label">Operations</div>
+
+        <div class="slider-action">
+          <label id="slide-shift-label">Shift</label>
+          <input type="range" id="slide-shift" min="-1" max="1" step="0.01" value="0">
+          <button class="btn btn-sm" onclick="applySlide('shift', parseFloat(document.getElementById('slide-shift').value))">Apply</button>
+        </div>
+
+        <div class="slider-action">
+          <label id="slide-spread-label">Spread</label>
+          <input type="range" id="slide-spread" min="-1" max="1" step="0.01" value="0">
+          <button class="btn btn-sm" onclick="applySlide('spread', parseFloat(document.getElementById('slide-spread').value))">Apply</button>
+        </div>
+
+        <div class="section-label">Random</div>
+        <div class="xy-row">
+          <label>X</label>
+          <input type="range" id="slide-random-x" min="-1" max="1" step="0.01" value="0">
+          <label>Y</label>
+          <input type="range" id="slide-random-y" min="-1" max="1" step="0.01" value="0">
+          <button class="btn btn-sm" onclick="applySlideRandom()">Apply</button>
+        </div>
+      </div>
+
+      <!-- SWAP PANEL -->
+      <div class="tab-panel" id="panel-swap">
+        <div class="row">
+          <label>Targets</label>
+          <div class="checkbox-group">
+            <label><input type="checkbox" checked onchange="swapTargets.pitch = this.checked"> Pitch</label>
+            <label><input type="checkbox" checked onchange="swapTargets.velocity = this.checked"> Velocity</label>
+            <label><input type="checkbox" checked onchange="swapTargets.duration = this.checked"> Duration</label>
+            <label><input type="checkbox" checked onchange="swapTargets.velrange = this.checked"> Vel Range</label>
+            <label><input type="checkbox" checked onchange="swapTargets.release = this.checked"> Release</label>
+          </div>
+        </div>
+
+        <div class="section-label">Operations</div>
+
+        <div class="slider-action">
+          <label>Rotate</label>
+          <input type="range" id="swap-rotate" min="-1" max="1" step="0.01" value="0">
+          <button class="btn btn-sm" onclick="applySwap('rotate', parseFloat(document.getElementById('swap-rotate').value))">Apply</button>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn btn-sm btn-secondary" onclick="applySwap('pairs')">Pairs</button>
+          <button class="btn btn-sm btn-secondary" onclick="applySwap('reverse')">Reverse</button>
+          <button class="btn btn-sm btn-secondary" onclick="applySwap('zip')">Zip</button>
+          <button class="btn btn-sm btn-secondary" onclick="applySwap('unzip')">Unzip</button>
+        </div>
+
+        <div class="section-label">Random</div>
+        <div class="xy-row">
+          <label>X</label>
+          <input type="range" id="swap-random-x" min="-1" max="1" step="0.01" value="0">
+          <label>Y</label>
+          <input type="range" id="swap-random-y" min="-1" max="1" step="0.01" value="0">
+          <button class="btn btn-sm" onclick="applySwapRandom()">Apply</button>
+        </div>
+      </div>
+
+      <!-- SET PANEL -->
+      <div class="tab-panel" id="panel-set">
+        <div class="row">
+          <label>Property</label>
+          <select onchange="setProperty = this.value">
+            <option value="note" selected>Note</option>
+            <option value="pitch">Pitch</option>
+            <option value="velocity">Velocity</option>
+            <option value="start">Start</option>
+            <option value="duration">Duration</option>
+            <option value="velrange">Vel Range</option>
+            <option value="release">Release</option>
+            <option value="probability">Probability</option>
+          </select>
+          <label>Value</label>
+          <select id="set-value-select" onchange="onSetValueChange(this)">
+            <option value="muted" selected>Muted</option>
+            <option value="unmuted">Unmuted</option>
+            <option value="deleted">Deleted</option>
+          </select>
+          <input type="number" id="set-value-number" style="display:none" step="any"
+                 onchange="setValue = this.value">
+        </div>
+
+        <div class="section-label">Operations</div>
+
+        <div class="btn-row">
+          <button class="btn" onclick="applySet('all')">Set All</button>
+        </div>
+
+        <div class="section-label">Random</div>
+        <div class="xy-row">
+          <label>X</label>
+          <input type="range" id="set-random-x" min="-1" max="1" step="0.01" value="0">
+          <label>Y</label>
+          <input type="range" id="set-random-y" min="-1" max="1" step="0.01" value="0">
+          <button class="btn btn-sm" onclick="applySetRandom()">Apply</button>
+        </div>
+      </div>
+
+      <!-- SPLIT PANEL -->
+      <div class="tab-panel" id="panel-split">
+        <div class="row">
+          <label>Type</label>
+          <select onchange="onSplitTypeChange(this)">
+            <option value="note" selected>By Count</option>
+            <option value="time">By Time</option>
+            <option value="euclid">Euclidean</option>
+            <option value="halves">Halves</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <label id="split-amount1-label">Count</label>
+          <input type="number" value="2" min="1" step="1"
+                 onchange="splitAmount1 = parseInt(this.value)">
+          <span id="split-amount2-group" style="display:none">
+            <label id="split-amount2-label">Total</label>
+            <input type="number" value="1" min="1" step="1"
+                   onchange="splitAmount2 = parseInt(this.value)">
+          </span>
+        </div>
+
+        <div class="row">
+          <label>Gate</label>
+          <input type="range" min="0.01" max="1" step="0.01" value="1"
+                 oninput="splitGate = parseFloat(this.value); document.getElementById('split-gate-val').textContent = this.value">
+          <span id="split-gate-val" class="range-val">1</span>
+        </div>
+
+        <div class="row">
+          <label>Envelope</label>
+          <select onchange="splitEnvelope = this.value">
+            <option value="none" selected>None</option>
+            <option value="fade-out">Fade Out</option>
+            <option value="fade-in">Fade In</option>
+            <option value="ramp-down">Ramp Down</option>
+            <option value="ramp-up">Ramp Up</option>
+          </select>
+        </div>
+
+        <div class="section-label">Operations</div>
+
+        <div class="btn-row">
+          <button class="btn" onclick="applySplit()">Split</button>
+        </div>
+
+        <div class="slider-action">
+          <label>Tilt</label>
+          <input type="range" id="split-tilt" min="-1" max="1" step="0.01" value="0">
+          <button class="btn btn-sm" onclick="applySplitTilt()">Apply Tilt</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <button class="btn btn-secondary" onclick="closeWithResult({ cancelled: true })">Cancel</button>
+    </div>
+  </div>
+</body>
+
+</html>
