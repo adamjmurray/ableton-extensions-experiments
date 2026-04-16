@@ -61,7 +61,7 @@ Valid scopes for `context.ui.registerContextMenuAction()`:
 ### Building
 - Use esbuild to bundle to CJS (see `extensions/my-extension/esbuild.js` for config)
 - Use `.html` loader in esbuild to inline webview HTML as text
-- Do not ship `node_modules/` or `package-lock.json` in extensions
+- Distributed extensions (ZIP) should not include `node_modules/` or `package-lock.json`
 
 ### Testing
 - Tests use vitest with `@ableton/extensions-sdk/testing` for mocking
