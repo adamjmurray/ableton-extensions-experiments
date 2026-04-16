@@ -135,7 +135,7 @@ export function activate(activation: ActivationContext) {
     while (true) {
       try {
         const dialog = context.createModalDialog();
-        const resultStr = await dialog.show(dataUrl, 900, 650);
+        const resultStr = await dialog.show(dataUrl, 1200, 800);
         const result: DialogResult = JSON.parse(resultStr);
 
         if (result.action === "close") {

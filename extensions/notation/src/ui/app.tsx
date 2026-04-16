@@ -94,6 +94,10 @@ function App() {
           autoResize: true,
         });
         osmdRef.current.rules.InstrumentLabelTextHeight = 1.5;
+        osmdRef.current.rules.PageTopMargin = 1;
+        osmdRef.current.rules.PageBottomMargin = 1;
+        osmdRef.current.rules.PageLeftMargin = 2;
+        osmdRef.current.rules.PageRightMargin = 2;
       } else if (quantizedClips.length > 1) {
         osmdRef.current.setOptions({ drawPartNames: true });
       }
