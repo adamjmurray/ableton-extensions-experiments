@@ -5,7 +5,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@ableton/extensions-sdk": "file:../../extensions-sdk"
+    "@ableton/extensions-sdk": "file:../../extensions-sdk",
+    "preact": "^10.25.4"
   },
   "devDependencies": {
     "esbuild": "^0.25.10",

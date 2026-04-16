@@ -211,10 +211,26 @@ export function activate(activation: ActivationContext) {
 
         const dialog = context.createModalDialog();
         try {
+          // Inject note and clip data into the webview HTML
+          const notesJson = JSON.stringify(
+            notes.map((n) => ({
+              pitch: n.pitch,
+              velocity: n.velocity,
+              start: n.start,
+              duration: n.duration,
+            })),
+          );
+          const clipJson = JSON.stringify(clipInfo);
+          const html = sculptorInterface
+            .replace(
+              "</head>",
+              `<script>window.__SCULPTOR_NOTES__='${notesJson.replace(/'/g, "\\'")}';window.__SCULPTOR_CLIP__='${clipJson.replace(/'/g, "\\'")}';</script></head>`,
+            );
+
           const result = await dialog.show(
-            `data:text/html,${encodeURIComponent(sculptorInterface)}`,
-            520,
-            420,
+            `data:text/html,${encodeURIComponent(html)}`,
+            580,
+            560,
           );
           const action: SculptorAction = JSON.parse(result);
 
