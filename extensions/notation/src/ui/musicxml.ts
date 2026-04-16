@@ -124,10 +124,12 @@ function generatePartMeasures(
     .sort((a, b) => a.startDiv - b.startDiv || a.pitch - b.pitch);
 
   if (legato) {
-    const totalDivisions = numMeasures * measureDivisions;
     for (let i = 0; i < absNotes.length; i++) {
-      const nextStart = absNotes.find((_n, j) => j > i && _n.startDiv > absNotes[i].startDiv)?.startDiv;
-      absNotes[i].durationDiv = (nextStart ?? totalDivisions) - absNotes[i].startDiv;
+      const startDiv = absNotes[i].startDiv;
+      const barEnd = (Math.floor(startDiv / measureDivisions) + 1) * measureDivisions;
+      const nextStart = absNotes.find((_n, j) => j > i && _n.startDiv > startDiv)?.startDiv;
+      const limit = nextStart !== undefined ? Math.min(nextStart, barEnd) : barEnd;
+      absNotes[i].durationDiv = limit - startDiv;
     }
   }
 
