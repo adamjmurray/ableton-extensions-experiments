@@ -99,6 +99,10 @@ function App() {
     img.src = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgData)))}`;
   }, [clipName]);
 
+  const handleExportXML = useCallback(() => {
+    if (!debugXML) return;
+    exportFile(debugXML, `${clipName}.music.xml`);
+  }, [debugXML, clipName]);
 
   return (
     <div class="app">
@@ -143,17 +147,19 @@ function App() {
           <span class="label">View</span>
           <div class="btn-group">
             <button class={view === "notation" ? "active" : ""} onClick={() => setView("notation")}>Notation</button>
-            <button class={view === "xml" ? "active" : ""} onClick={() => setView("xml")}>XML</button>
+            <button class={view === "xml" ? "active" : ""} onClick={() => setView("xml")}>MusicXML</button>
           </div>
         </div>
 
         <div class="toolbar-group toolbar-right">
+          <span class="label">Export</span>
           {view === "notation" && (
             <>
               <button class="btn-export" onClick={handleExportSVG}>SVG</button>
               <button class="btn-export" onClick={handleExportPNG}>PNG</button>
             </>
           )}
+          <button class="btn-export" onClick={handleExportXML}>XML</button>
           <button class="btn-close" onClick={closeDialog}>Close</button>
         </div>
       </div>
