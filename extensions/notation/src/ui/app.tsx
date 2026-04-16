@@ -11,6 +11,41 @@ const GRIDS: { value: QuantizeGrid; label: string }[] = [
   { value: "32nd", label: "32nd" },
 ];
 
+function buildFullPartName(trackName: string, clipName: string, index: number): string {
+  const t = (trackName ?? "").trim();
+  const c = (clipName ?? "").trim();
+  if (t && c) return `[${t}] ${c}`;
+  if (t) return `[${t}]`;
+  if (c) return c;
+  return `Part ${index + 1}`;
+}
+
+// Walk SVG text nodes ending with "…" and match them to their original full
+// part name by prefix, then add an SVG <title> child so browsers show a
+// native tooltip on hover. OSMD does not tag part-name labels, so we rely on
+// the truncation marker + prefix match.
+function injectPartNameTooltips(container: HTMLDivElement | null, clips: ClipData[]): void {
+  if (!container) return;
+  const svg = container.querySelector("svg");
+  if (!svg) return;
+
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  const fullNames = clips.map((c, i) => buildFullPartName(c.clip.trackName, c.clip.name, i));
+
+  const texts = svg.querySelectorAll("text");
+  texts.forEach((textEl) => {
+    const content = textEl.textContent ?? "";
+    if (!content.endsWith("…")) return;
+    const prefix = content.slice(0, -1);
+    const full = fullNames.find((n) => n.startsWith(prefix));
+    if (!full) return;
+    if (textEl.querySelector("title")) return;
+    const titleEl = document.createElementNS(SVG_NS, "title");
+    titleEl.textContent = full;
+    textEl.appendChild(titleEl);
+  });
+}
+
 function App() {
   const data = useRef<NotationData>(getNotationData());
   const containerRef = useRef<HTMLDivElement>(null);
@@ -53,12 +88,14 @@ function App() {
           drawPartNames: quantizedClips.length > 1,
           autoResize: true,
         });
+        osmdRef.current.rules.InstrumentLabelTextHeight = 1.5;
       } else if (quantizedClips.length > 1) {
         osmdRef.current.setOptions({ drawPartNames: true });
       }
 
       await osmdRef.current.load(musicXML);
       osmdRef.current.render();
+      injectPartNameTooltips(containerRef.current, quantizedClips);
       const partsLabel = quantizedClips.length > 1 ? ` | ${quantizedClips.length} parts` : "";
       setStatus(`${totalNotes} notes${partsLabel} | ${g} quantization | ${tsNum}/${tsDen}${legato ? " | legato" : ""}`);
     } catch (e) {

@@ -42,6 +42,7 @@ interface ClipInfo {
   notes: { pitch: number; startTime: number; duration: number; velocity: number }[];
   clip: {
     name: string;
+    trackName: string;
     startMarker: number;
     endMarker: number;
     looping: boolean;
@@ -50,7 +51,15 @@ interface ClipInfo {
   };
 }
 
-function readMidiClip(clip: MidiClip<any>): ClipInfo {
+function findMidiTrack(obj: DataModelObject<"0.0.5"> | null): MidiTrack<"0.0.5"> | null {
+  let current: DataModelObject<"0.0.5"> | null = obj;
+  while (current && !(current instanceof MidiTrack)) {
+    current = current.parent as DataModelObject<"0.0.5"> | null;
+  }
+  return current;
+}
+
+function readMidiClip(clip: MidiClip<any>, trackName: string): ClipInfo {
   return {
     notes: clip.notes.map((n) => ({
       pitch: Number(n.pitch),
@@ -60,6 +69,7 @@ function readMidiClip(clip: MidiClip<any>): ClipInfo {
     })),
     clip: {
       name: String(clip.name),
+      trackName,
       startMarker: Number(clip.startMarker),
       endMarker: Number(clip.endMarker),
       looping: Boolean(clip.looping),
@@ -155,7 +165,8 @@ export function activate(activation: ActivationContext) {
     (arg: unknown) =>
       void (async (handle: Handle) => {
         const clip = context.objects.getObjectFromHandle(handle, MidiClip);
-        const clipData = readMidiClip(clip);
+        const trackName = String(findMidiTrack(clip)?.name ?? "");
+        const clipData = readMidiClip(clip, trackName);
 
         if (clipData.notes.length === 0) {
           console.log("Notation: No notes in clip.");
@@ -177,7 +188,8 @@ export function activate(activation: ActivationContext) {
           const slot = context.objects.getObjectFromHandle(handle, ClipSlot);
           const clip = slot.clip;
           if (clip && clip instanceof MidiClip) {
-            const clipData = readMidiClip(clip);
+            const trackName = String(findMidiTrack(slot)?.name ?? "");
+            const clipData = readMidiClip(clip, trackName);
             if (clipData.notes.length > 0) {
               clips.push(clipData);
             }
@@ -211,7 +223,7 @@ export function activate(activation: ActivationContext) {
           const slot = track.clipSlots[sceneIndex];
           const clip = slot?.clip;
           if (clip && clip instanceof MidiClip) {
-            const clipData = readMidiClip(clip);
+            const clipData = readMidiClip(clip, String(track.name));
             if (clipData.notes.length > 0) {
               clips.push(clipData);
             }
@@ -250,7 +262,7 @@ export function activate(activation: ActivationContext) {
             const clipStart = Number(clip.startTime);
             const clipEnd = Number(clip.endTime);
             if (clipStart < end && clipEnd > start) {
-              const clipData = readMidiClip(clip);
+              const clipData = readMidiClip(clip, String(track.name));
               if (clipData.notes.length > 0) {
                 clips.push(clipData);
               }

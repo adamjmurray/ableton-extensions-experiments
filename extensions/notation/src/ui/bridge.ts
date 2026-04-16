@@ -19,6 +19,7 @@ export interface ClipData {
   notes: NoteData[];
   clip: {
     name: string;
+    trackName: string;
     startMarker: number;
     endMarker: number;
     looping: boolean;
@@ -62,6 +63,7 @@ export function getNotationData(): NotationData {
         notes: [],
         clip: {
           name: "",
+          trackName: "",
           startMarker: 0,
           endMarker: 16,
           looping: false,

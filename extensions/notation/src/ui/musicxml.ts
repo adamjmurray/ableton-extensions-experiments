@@ -307,7 +307,7 @@ export function notesToMusicXML(
   for (let i = 0; i < clips.length; i++) {
     const c = clips[i];
     const id = `P${i + 1}`;
-    const name = c.clip.name || `Part ${i + 1}`;
+    const name = buildPartName(c.clip.trackName, c.clip.name, i);
 
     const measures = generatePartMeasures(
       c.notes,
@@ -322,6 +322,32 @@ export function notesToMusicXML(
   }
 
   return buildScore(parts);
+}
+
+const MAX_PART_NAME_LENGTH = 30;
+
+function buildPartName(trackName: string | undefined, clipName: string | undefined, index: number): string {
+  const t = (trackName ?? "").trim();
+  const c = (clipName ?? "").trim();
+  let name: string;
+  if (t && c) name = `[${t}] ${c}`;
+  else if (t) name = `[${t}]`;
+  else if (c) name = c;
+  else name = `Part ${index + 1}`;
+
+  if (name.length > MAX_PART_NAME_LENGTH) {
+    name = name.slice(0, MAX_PART_NAME_LENGTH - 1) + "…";
+  }
+  return name;
+}
+
+function escapeXml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
 }
 
 function renderNote(
@@ -415,7 +441,7 @@ function buildScore(parts: { id: string; name: string; measures: string[] }[]): 
   xml += `  <part-list>\n`;
   for (const part of parts) {
     xml += `    <score-part id="${part.id}">\n`;
-    xml += `      <part-name>${part.name}</part-name>\n`;
+    xml += `      <part-name>${escapeXml(part.name)}</part-name>\n`;
     xml += `    </score-part>\n`;
   }
   xml += `  </part-list>\n`;
