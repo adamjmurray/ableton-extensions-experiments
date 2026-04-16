@@ -1,0 +1,7 @@
+{
+  "name": "My Extension",
+  "author": "Adam Murray",
+  "entry": "dist/extension.js",
+  "version": "0.0.1",
+  "minimumApiVersion": "0.0.5"
+}

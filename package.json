@@ -2,7 +2,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:kb": "node --experimental-strip-types scripts/build-kb.ts"
+    "build:kb": "node scripts/build-kb.ts",
+    "dev": "node scripts/dev.ts"
   },
   "devDependencies": {
     "@types/node": "^25.3.5"
