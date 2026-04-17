@@ -53,6 +53,7 @@ function injectPartNameTooltips(container: HTMLDivElement | null, clips: ClipDat
 
 function App() {
   const data = useRef<NotationData>(getNotationData());
+  const emptyStateMessage = data.current.emptyStateMessage;
   const containerRef = useRef<HTMLDivElement>(null);
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
 
@@ -66,6 +67,7 @@ function App() {
   const [showTempo, setShowTempo] = useState(false);
 
   const renderNotation = useCallback(async (g: QuantizeGrid, tsNum: number, tsDen: number, legato: boolean, showTempo: boolean) => {
+    if (emptyStateMessage) return;
     if (!containerRef.current) return;
 
     const quantizedClips: ClipData[] = data.current.clips.map((c) => ({
@@ -162,6 +164,17 @@ function App() {
     if (!debugXML) return;
     exportFile(debugXML, `${clipName}.music.xml`);
   }, [debugXML, clipName]);
+
+  if (emptyStateMessage) {
+    return (
+      <div class="app app-empty">
+        <div class="empty-state">
+          <div class="empty-message">{emptyStateMessage}</div>
+          <button class="btn-close empty-close" onClick={closeDialog}>Close</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div class="app">

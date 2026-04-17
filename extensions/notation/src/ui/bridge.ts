@@ -34,6 +34,7 @@ export interface NotationData {
   rootNote: number;
   scaleName: string;
   timeSignature: { numerator: number; denominator: number };
+  emptyStateMessage?: string;
 }
 
 function doSendMessage(message: unknown) {

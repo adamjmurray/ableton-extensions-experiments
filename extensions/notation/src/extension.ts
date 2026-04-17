@@ -109,12 +109,13 @@ export function activate(activation: ActivationContext) {
     return { tempo, rootNote, scaleName, timeSignature: { numerator, denominator } };
   }
 
-  async function showNotationDialog(clips: ClipInfo[]) {
+  async function showNotationDialog(clips: ClipInfo[], emptyStateMessage?: string) {
     const metadata = getSongMetadata();
 
     const payload = JSON.stringify({
       clips,
       ...metadata,
+      ...(emptyStateMessage ? { emptyStateMessage } : {}),
     });
 
     const html = notationInterface.replace(
@@ -166,7 +167,7 @@ export function activate(activation: ActivationContext) {
         const clipData = readMidiClip(clip, trackName);
 
         if (clipData.notes.length === 0) {
-          console.log("Notation: No notes in clip.");
+          await showNotationDialog([], "No notes in this clip.");
           return;
         }
 
@@ -194,7 +195,7 @@ export function activate(activation: ActivationContext) {
         }
 
         if (clips.length === 0) {
-          console.log("Notation: No MIDI clips with notes in selection.");
+          await showNotationDialog([], "No notes in the selected clip(s).");
           return;
         }
 
@@ -228,7 +229,7 @@ export function activate(activation: ActivationContext) {
         }
 
         if (clips.length === 0) {
-          console.log("Notation: No MIDI clips with notes in scene.");
+          await showNotationDialog([], "No notes in this scene.");
           return;
         }
 
@@ -246,7 +247,7 @@ export function activate(activation: ActivationContext) {
           .filter((obj): obj is MidiTrack<"0.0.5"> => obj instanceof MidiTrack);
 
         if (tracks.length === 0) {
-          console.log("Notation: No MIDI tracks in arrangement selection.");
+          await showNotationDialog([], "No MIDI tracks in the selection.");
           return;
         }
 
@@ -268,7 +269,7 @@ export function activate(activation: ActivationContext) {
         }
 
         if (clips.length === 0) {
-          console.log("Notation: No MIDI clips with notes in arrangement selection.");
+          await showNotationDialog([], "No notes in the selected time range.");
           return;
         }
 
