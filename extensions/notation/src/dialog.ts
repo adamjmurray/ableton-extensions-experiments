@@ -11,6 +11,7 @@ import { exec } from "node:child_process";
 import notationInterface from "./notation.html";
 import type { ClipInfo } from "./clip-utils.js";
 import { escapeDialogPayload } from "./escape.js";
+import { sanitizeFilename } from "./filename.js";
 
 // initialize<"0.0.5">'s return type — the bound ExtensionContext shape. We
 // only need a thin surface here, but naming it as an inline type keeps the
@@ -116,7 +117,8 @@ export async function showNotationDialog(
 
     // Clear any prior error; a new export attempt will set its own.
     errorMessage = undefined;
-    const filePath = path.join(exportDir, result.filename);
+    const safeFilename = sanitizeFilename(result.filename);
+    const filePath = path.join(exportDir, safeFilename);
     try {
       if (result.encoding === "base64") {
         fs.writeFileSync(filePath, Buffer.from(result.data, "base64"));
@@ -126,7 +128,7 @@ export async function showNotationDialog(
     } catch (e) {
       const reason = e instanceof Error ? e.message : String(e);
       console.error(`Notation: failed to write ${filePath}:`, e);
-      errorMessage = `Couldn't save ${result.filename}: ${reason}`;
+      errorMessage = `Couldn't save ${safeFilename}: ${reason}`;
       continue;
     }
 
@@ -135,7 +137,7 @@ export async function showNotationDialog(
     if (openErr) {
       const reason = openErr.message || String(openErr);
       console.error(`Notation: failed to open ${filePath}:`, openErr);
-      errorMessage = `Saved ${result.filename}, but couldn't open it: ${reason}`;
+      errorMessage = `Saved ${safeFilename}, but couldn't open it: ${reason}`;
     }
   }
 }
