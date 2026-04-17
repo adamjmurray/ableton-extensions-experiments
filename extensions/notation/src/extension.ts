@@ -66,21 +66,46 @@ function findMidiTrack(obj: DataModelObject<"0.0.5"> | null): MidiTrack<"0.0.5">
   return current;
 }
 
-// Recursively check whether the device tree contains any drum-rack chain.
-// Handles the common Instrument Rack → Drum Rack nesting case.
-function hasDrumChain(devices: Device<"0.0.5">[]): boolean {
+// Structural check for a top-level Drum Rack on a track: walk the track's
+// devices and look for a RackDevice whose chains are DrumChains. Works when
+// Drum Rack sits directly on the track.
+//
+// Known alpha-SDK bug: once a Drum Rack is wrapped inside an Instrument Rack,
+// the host no longer tags its pad chains as DrumChain (verified by probing
+// `dataModelInstance.getObjectIsOfClass` directly — nothing returns a drum
+// tag), and the nested Drum Rack's `.chains` returns empty. Recursing into
+// nested racks doesn't help: Instrument Rack → Instrument Rack nesting also
+// yields empty `.chains`, so a 0-chain fallback false-positives. Until the
+// SDK classifies nested drum-rack chains correctly, we only auto-detect the
+// top-level case here and fall back to name heuristics in the caller.
+function hasTopLevelDrumRack(devices: Device<"0.0.5">[]): boolean {
   for (const d of devices) {
     if (!(d instanceof RackDevice)) continue;
     for (const chain of d.chains) {
       if (chain instanceof DrumChain) return true;
-      if (hasDrumChain(chain.devices)) return true;
     }
   }
   return false;
 }
 
+// Name-based fallback for wrapped drum racks. If the track or its first rack
+// device is named like a drum track ("Drums", "Kit"), assume drums. Matches
+// the common naming convention ("Drums 1", "808 Kit", etc.) and covers the
+// wrapped-in-instrument-rack case the SDK can't surface structurally.
+const DRUM_NAME_TOKENS = ["drums", "kit"];
+
+function nameSuggestsDrums(name: string): boolean {
+  const lower = name.toLowerCase();
+  return DRUM_NAME_TOKENS.some((t) => lower.includes(t));
+}
+
 function isDrumRackTrack(track: MidiTrack<"0.0.5"> | null): boolean {
-  return track ? hasDrumChain(track.devices) : false;
+  if (!track) return false;
+  if (hasTopLevelDrumRack(track.devices)) return true;
+  if (nameSuggestsDrums(String(track.name))) return true;
+  const firstRack = track.devices.find((d): d is RackDevice<"0.0.5"> => d instanceof RackDevice);
+  if (firstRack && nameSuggestsDrums(String(firstRack.name))) return true;
+  return false;
 }
 
 function beatsPerMeasure(ts: { numerator: number; denominator: number }): number {
