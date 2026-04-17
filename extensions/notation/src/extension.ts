@@ -127,6 +127,36 @@ function buildFlattenedClipInfo(
   return info;
 }
 
+// Flatten a contiguous range of a track's clipSlots into one ClipInfo.
+// `sceneBarCounts[i]` is the bar width allotted to scene `(sceneStart + i)` —
+// callers compute these widths so that scenes can align across multiple
+// tracks (per-scene width = max barCount across participating tracks). A clip
+// shorter than its scene width gets implicit trailing rest from the synthetic
+// loopEnd envelope.
+function flattenTrackSlots(
+  track: MidiTrack<"0.0.5">,
+  trackName: string,
+  isDrum: boolean,
+  bpm: number,
+  sceneStart: number,
+  sceneBarCounts: number[],
+): ClipInfo {
+  const notes: ClipInfo["notes"] = [];
+  let offset = 0;
+  for (let i = 0; i < sceneBarCounts.length; i++) {
+    const sceneWidth = sceneBarCounts[i]! * bpm;
+    const slot = track.clipSlots[sceneStart + i];
+    const clip = slot?.clip;
+    if (clip && clip instanceof MidiClip) {
+      const info = readMidiClip(clip, trackName, isDrum);
+      const region = getClipRenderRegion(info.clip, bpm);
+      notes.push(...shiftClipNotes(info, region.filterStart, region.renderEnd, offset - region.renderStart));
+    }
+    offset += sceneWidth;
+  }
+  return buildFlattenedClipInfo(trackName, isDrum, notes, offset);
+}
+
 // Synthetic single-clip envelope for "Render Range". Like
 // buildFlattenedClipInfo but with startMarker=leadingOffset so a sub-bar
 // range start becomes leading rest inside bar 1. Notes passed in are
@@ -289,21 +319,86 @@ export function activate(activation: ActivationContext) {
     "notation.showSelection",
     (arg: unknown) =>
       void (async (selection: ClipSlotSelection) => {
-        const clips: ClipInfo[] = [];
         const songTracks = context.application.song.tracks;
+        const bpm = beatsPerMeasure(getSongMetadata().timeSignature);
+
+        type SelectedTrack = {
+          trackIdx: number;
+          track: MidiTrack<"0.0.5">;
+          trackName: string;
+          isDrum: boolean;
+        };
+        const selectedTracks = new Map<number, SelectedTrack>();
+        let minScene = Infinity;
+        let maxScene = -Infinity;
 
         for (const handle of selection.selected_clip_slots) {
           const slot = context.objects.getObjectFromHandle(handle, ClipSlot);
-          const clip = slot.clip;
-          if (clip && clip instanceof MidiClip) {
-            const track = findMidiTrack(slot);
-            const trackName = String(track?.name ?? "");
-            const trackIndex = track ? songTracks.findIndex((t) => t.handle.id === track.handle.id) : -1;
-            const clipData = readMidiClip(clip, trackName, isDrumRackTrack(track), undefined, trackIndex >= 0 ? trackIndex : undefined);
-            if (clipData.notes.length > 0) {
-              clips.push(clipData);
+          const track = findMidiTrack(slot);
+          if (!track) continue;
+          const trackIdx = songTracks.findIndex((t) => t.handle.id === track.handle.id);
+          if (trackIdx < 0) continue;
+          const sceneIdx = track.clipSlots.findIndex((s) => s.handle.id === slot.handle.id);
+          if (sceneIdx < 0) continue;
+
+          if (!selectedTracks.has(trackIdx)) {
+            selectedTracks.set(trackIdx, {
+              trackIdx,
+              track,
+              trackName: String(track.name),
+              isDrum: isDrumRackTrack(track),
+            });
+          }
+          if (sceneIdx < minScene) minScene = sceneIdx;
+          if (sceneIdx > maxScene) maxScene = sceneIdx;
+        }
+
+        if (selectedTracks.size === 0 || maxScene < minScene) {
+          await showNotationDialog([], "No notes in the selected clip(s).");
+          return;
+        }
+
+        // Per-scene width = max bar count across participating tracks; empty
+        // everywhere ⇒ 1 bar of rest. Computed across the union scene range
+        // so scene boundaries align across all parts.
+        const rangeLen = maxScene - minScene + 1;
+        const sceneBarCounts: number[] = new Array(rangeLen).fill(1);
+        let lastSceneWithAnyClip = -1;
+        for (let i = 0; i < rangeLen; i++) {
+          const sceneIdx = minScene + i;
+          let widest = 1;
+          let hasClip = false;
+          for (const { track } of selectedTracks.values()) {
+            const clip = track.clipSlots[sceneIdx]?.clip;
+            if (clip && clip instanceof MidiClip) {
+              hasClip = true;
+              const region = getClipRenderRegion(
+                {
+                  startMarker: Number(clip.startMarker),
+                  loopStart: Number(clip.loopStart),
+                  loopEnd: Number(clip.loopEnd),
+                  looping: Boolean(clip.looping),
+                },
+                bpm,
+              );
+              if (region.barCount > widest) widest = region.barCount;
             }
           }
+          sceneBarCounts[i] = widest;
+          if (hasClip) lastSceneWithAnyClip = i;
+        }
+
+        if (lastSceneWithAnyClip < 0) {
+          await showNotationDialog([], "No notes in the selected clip(s).");
+          return;
+        }
+
+        const trimmedBarCounts = sceneBarCounts.slice(0, lastSceneWithAnyClip + 1);
+        const orderedTracks = [...selectedTracks.values()].sort((a, b) => a.trackIdx - b.trackIdx);
+        const clips: ClipInfo[] = [];
+        for (const { track, trackName, isDrum } of orderedTracks) {
+          const flattened = flattenTrackSlots(track, trackName, isDrum, bpm, minScene, trimmedBarCounts);
+          if (flattened.notes.length > 0) clips.push(flattened);
         }
 
         if (clips.length === 0) {
@@ -485,30 +580,25 @@ export function activate(activation: ActivationContext) {
         const isDrum = isDrumRackTrack(track);
         const bpm = beatsPerMeasure(getSongMetadata().timeSignature);
 
-        type Entry = { kind: "clip"; info: ClipInfo; shift: number; filterStart: number; renderEnd: number } | { kind: "empty" };
-        const entries: Entry[] = [];
-        let lastNonEmpty = -1;
-        let offset = 0;
-
         const slots = track.clipSlots;
+        const sceneBarCounts: number[] = [];
+        let lastNonEmpty = -1;
         for (let i = 0; i < slots.length; i++) {
-          const slot = slots[i];
-          const clip = slot?.clip;
+          const clip = slots[i]?.clip;
           if (clip && clip instanceof MidiClip) {
-            const info = readMidiClip(clip, trackName, isDrum);
-            const region = getClipRenderRegion(info.clip, bpm);
-            entries.push({
-              kind: "clip",
-              info,
-              shift: offset - region.renderStart,
-              filterStart: region.filterStart,
-              renderEnd: region.renderEnd,
-            });
-            offset += region.barCount * bpm;
+            const region = getClipRenderRegion(
+              {
+                startMarker: Number(clip.startMarker),
+                loopStart: Number(clip.loopStart),
+                loopEnd: Number(clip.loopEnd),
+                looping: Boolean(clip.looping),
+              },
+              bpm,
+            );
+            sceneBarCounts.push(region.barCount);
             lastNonEmpty = i;
           } else {
-            entries.push({ kind: "empty" });
-            offset += bpm;
+            sceneBarCounts.push(1);
           }
         }
 
@@ -517,21 +607,14 @@ export function activate(activation: ActivationContext) {
           return;
         }
 
-        // Trim trailing empty slots and recompute total length.
-        const trimmed = entries.slice(0, lastNonEmpty + 1);
-        let totalLength = 0;
-        const notes: ClipInfo["notes"] = [];
-        for (const e of trimmed) {
-          if (e.kind === "clip") {
-            const region = getClipRenderRegion(e.info.clip, bpm);
-            notes.push(...shiftClipNotes(e.info, e.filterStart, e.renderEnd, e.shift));
-            totalLength += region.barCount * bpm;
-          } else {
-            totalLength += bpm;
-          }
-        }
-
-        const flattened = buildFlattenedClipInfo(trackName, isDrum, notes, totalLength);
+        const flattened = flattenTrackSlots(
+          track,
+          trackName,
+          isDrum,
+          bpm,
+          0,
+          sceneBarCounts.slice(0, lastNonEmpty + 1),
+        );
         if (flattened.notes.length === 0) {
           await showNotationDialog([], "No notes on this track's session clips.");
           return;
