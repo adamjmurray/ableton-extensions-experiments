@@ -43,6 +43,11 @@ interface CloseAction {
 
 type DialogResult = ExportAction | CloseAction;
 
+// Modal dialog size. Wide enough for a 4-beat bar line to read comfortably at
+// typical OSMD zoom; tall enough to show toolbar + ~4 systems before scroll.
+const DIALOG_WIDTH = 1200;
+const DIALOG_HEIGHT = 800;
+
 function openFile(filePath: string): Promise<Error | null> {
   return new Promise((resolve) => {
     const platform = os.platform();
@@ -197,7 +202,7 @@ export function activate(activation: ActivationContext) {
       let resultStr: string;
       try {
         const dialog = context.createModalDialog();
-        resultStr = await dialog.show(dataUrl, 1200, 800);
+        resultStr = await dialog.show(dataUrl, DIALOG_WIDTH, DIALOG_HEIGHT);
       } catch (e) {
         console.error("Notation: dialog failed to show:", e);
         break;

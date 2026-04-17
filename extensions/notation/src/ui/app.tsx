@@ -17,6 +17,10 @@ const SORT_MODES: { value: SortMode; label: string; title: string }[] = [
   { value: "native", label: "Native", title: "Preserve selection order" },
 ];
 
+// PNG export renders the SVG onto a canvas at this multiple of its native
+// dimensions so the bitmap stays sharp on retina/high-DPI displays.
+const PNG_SCALE_FACTOR = 2;
+
 function buildFullPartName(trackName: string, label: string, index: number): string {
   const t = (trackName ?? "").trim();
   const c = label.trim();
@@ -178,9 +182,9 @@ function App() {
     img.onload = () => {
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d")!;
-      canvas.width = img.width * 2;
-      canvas.height = img.height * 2;
-      ctx.scale(2, 2);
+      canvas.width = img.width * PNG_SCALE_FACTOR;
+      canvas.height = img.height * PNG_SCALE_FACTOR;
+      ctx.scale(PNG_SCALE_FACTOR, PNG_SCALE_FACTOR);
       ctx.fillStyle = "white";
       ctx.fillRect(0, 0, img.width, img.height);
       ctx.drawImage(img, 0, 0);

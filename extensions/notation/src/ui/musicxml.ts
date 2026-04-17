@@ -1,7 +1,9 @@
 import type { NoteData, ClipData } from "./bridge.js";
 
-// MusicXML divisions per quarter note.
-// LCM(8, 6) = 24 supports 32nd notes (3 divisions) and triplet 16ths (4 divisions).
+// MusicXML <divisions> value — how many units one quarter note is split into.
+// LCM(8, 6) = 24 is the smallest value that keeps both 32nd notes (3 units)
+// and triplet 16ths (4 units) integer-valued, so we never lose precision when
+// converting quantized beat positions to MusicXML durations.
 const DIVISIONS = 24;
 
 // Circle-of-fifths value for each major-key tonic, indexed by pitch class:
@@ -182,13 +184,27 @@ interface AbsNote {
   voice: number;
 }
 
-// Assign each note a 1-indexed voice number so overlapping notes engrave as
-// independent rhythmic lines. Greedy first-fit: notes are processed longest-
-// and highest-first at each start position, so the primary melodic line
-// (typically the sustained/topmost notes) claims voice 1 and flourishes spill
-// into voice 2+. True chords (same startDiv + same durationDiv as the most-
-// recent note in some voice) merge into that voice so <chord/> still stacks
-// them rather than splitting them across voices.
+/**
+ * Assign each note a 1-indexed voice number so overlapping notes engrave as
+ * independent rhythmic lines on the same staff. Mutates each note's `.voice`
+ * field in place.
+ *
+ * Notes are processed in a deterministic order — by start position first,
+ * then longest-duration first, then highest-pitch first — so the primary
+ * melodic line (typically sustained/topmost notes) claims voice 1 and
+ * flourishes spill into voice 2+.
+ *
+ * Assignment rules, checked in order for each note:
+ *   1. If some voice's most recent note has the exact same start and duration,
+ *      reuse that voice. This keeps true chords (stacked same-length notes at
+ *      the same onset) in one voice so MusicXML emits them with `<chord/>`
+ *      rather than splitting them across multiple voices.
+ *   2. Otherwise, reuse the lowest-numbered voice whose last note has already
+ *      ended (startDiv >= voiceMaxEnd[v]).
+ *   3. Otherwise, open a new voice.
+ *
+ * @param notes absolute-positioned notes for one part; `voice` will be set on each.
+ */
 function assignVoices(notes: AbsNote[]): void {
   const order = notes
     .slice()
@@ -274,6 +290,35 @@ function renderWholeRestMeasure(
   return xml;
 }
 
+/**
+ * Emit the `<measure>` elements for one part (one clip's staff).
+ *
+ * Walks the clip's notes measure-by-measure, splitting voices, ties, tuplets,
+ * and rests. Time is carried in MusicXML divisions (see `DIVISIONS`) so
+ * quantized beat positions map to integer durations.
+ *
+ * The emitted measure list is structured as:
+ *   [leadingMeasures × whole-rest] + [numMeasures × content] + [trailingMeasures × whole-rest]
+ * Leading/trailing rests appear in multi-clip arrangement alignment, where
+ * this part has to pad so its content measures sit on the shared bar grid.
+ *
+ * @param notes            clip-local quantized notes (beats from clip start).
+ * @param timeSignature    score time signature; drives measure length.
+ * @param fifths           key signature fifths count (from `getKeySignature`).
+ * @param mode             "major" | "minor" — emitted into `<key><mode>`.
+ * @param renderStart      clip-local beat at which emission begins; notes before this
+ *                         time are placed using `filterStartDiv` as leading rest.
+ * @param filterStartDiv   divisions from `renderStart` to the first sounding position;
+ *                         notes before it render as leading rest inside measure 1.
+ * @param renderLengthDiv  total divisions covered by the content measures.
+ * @param numMeasures      how many content measures to emit.
+ * @param legato           extend note durations to fill gaps to the next onset.
+ * @param tempoDirection   pre-built `<direction>` string for tempo; empty when no tempo.
+ * @param leadingMeasures  whole-rest measures emitted *before* the content.
+ * @param trailingMeasures whole-rest measures emitted *after* the content.
+ * @param isDrumRack       when true, render notes with x noteheads (drum convention).
+ * @returns one string per measure, ready to join.
+ */
 function generatePartMeasures(
   notes: NoteData[],
   timeSignature: { numerator: number; denominator: number },
@@ -417,6 +462,29 @@ export function getClipRenderRegion(
   return { filterStart, renderEnd, renderStart, barCount };
 }
 
+/**
+ * Convert one or more MIDI clips into a single MusicXML partwise score.
+ *
+ * Each clip becomes a `<part>` with its own staff, clef (bass/treble detected
+ * by average pitch), and part-name label. The score's key signature is
+ * derived from `rootNote` + `scaleName` via `getKeySignature`; when the scale
+ * is unrecognized, falls back to 0 fifths with per-note accidentals.
+ *
+ * Multi-clip alignment: if every clip carries `arrangementStartTime` (set
+ * only by the arrangement-selection entry point), parts are anchored to a
+ * shared bar grid derived from the earliest clip's first sounding note. Each
+ * clip then emits leading rest measures so its content starts at the correct
+ * absolute bar. Without `arrangementStartTime`, each clip renders standalone
+ * using its own bar floor.
+ *
+ * @param clips         quantized clips, each with `notes` + `clip` envelope.
+ * @param timeSignature score time signature; drives measure length.
+ * @param rootNote      MIDI pitch class for the tonic (0=C … 11=B).
+ * @param scaleName     Ableton scale name (e.g. "Major", "Dorian").
+ * @param legato        when true, extend note durations to the next onset.
+ * @param tempo         BPM marking to emit on the first part; omitted when falsy.
+ * @returns a complete MusicXML `<score-partwise>` document as a string.
+ */
 export function notesToMusicXML(
   clips: ClipData[],
   timeSignature: { numerator: number; denominator: number },
