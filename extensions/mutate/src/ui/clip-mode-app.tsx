@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "preact/hooks";
 import type { FillMode } from "../apply.js";
+import { deriveSeed } from "../rng.js";
 import {
   freshSeed,
   generateVariations,
@@ -17,7 +18,8 @@ const THUMB_HEIGHT = 100;
 
 export function ClipModeApp({ data }: { data: ClipModePayload }) {
   const [controls, setControls] = useState<MutateControls>(ZERO_CONTROLS);
-  const [variations, setVariations] = useState(4);
+  const [mutateSource, setMutateSource] = useState(true);
+  const [variations, setVariations] = useState(0);
   const [fillMode, setFillMode] = useState<FillMode>("skip");
   const [baseSeed, setBaseSeed] = useState(() => freshSeed());
 
@@ -25,18 +27,33 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
     setBaseSeed(freshSeed());
   }, [controls, variations]);
 
+  // In-place uses seed index 0; variations use 1..N. Keeping variations on
+  // seeds 1..N means toggling mutateSource on/off doesn't re-roll the Var
+  // thumbnails the user is already looking at.
+  const inPlaceNotes = useMemo(
+    () => (mutateSource
+      ? generateVariations(data.sourceNotes, controls, 1, deriveSeed(baseSeed, 0), data.bounds)[0]!
+      : null),
+    [data, controls, baseSeed, mutateSource],
+  );
   const variationNotes = useMemo(
-    () => generateVariations(data.sourceNotes, controls, variations, baseSeed, data.bounds),
+    () => Array.from({ length: variations }, (_, i) =>
+      generateVariations(data.sourceNotes, controls, 1, deriveSeed(baseSeed, i + 1), data.bounds)[0]!,
+    ),
     [data, controls, variations, baseSeed],
   );
 
+  const canApply = mutateSource || variations > 0;
+
   const handleApply = () => {
+    if (!canApply) return;
     applyMutations({
       action: "apply",
       controls,
       variations,
       baseSeed,
       fillMode,
+      mutateSource,
     });
   };
 
@@ -52,7 +69,11 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
           <button class="btn" onClick={() => closeDialog()}>
             Cancel
           </button>
-          <button class="btn primary" onClick={handleApply}>
+          <button
+            class="btn primary"
+            onClick={handleApply}
+            disabled={!canApply}
+          >
             Apply
           </button>
         </div>
@@ -72,16 +93,27 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
         <ControlsGrid controls={controls} onChange={setControls} />
         <div class="right-pane">
           <div>
+            <div class="section-label">Target</div>
+            <label class="checkbox-row">
+              <input
+                type="checkbox"
+                checked={mutateSource}
+                onInput={(e) => setMutateSource((e.target as HTMLInputElement).checked)}
+              />
+              <span>Mutate this clip</span>
+            </label>
+          </div>
+          <div>
             <div class="section-label">Variations</div>
             <div class="field">
               <input
                 type="number"
-                min={1}
+                min={0}
                 max={32}
                 step={1}
                 value={variations}
                 onInput={(e) => {
-                  const n = Math.max(1, Math.min(32, Number((e.target as HTMLInputElement).value) | 0));
+                  const n = Math.max(0, Math.min(32, Number((e.target as HTMLInputElement).value) | 0));
                   setVariations(n);
                 }}
               />
@@ -108,6 +140,20 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
       </div>
 
       <div class="variations">
+        {inPlaceNotes && (
+          <div class="variation in-place">
+            <div class="label">
+              <span>Source (in-place)</span>
+              <span class="status">overwrite</span>
+            </div>
+            <PianoRoll
+              notes={inPlaceNotes}
+              bounds={data.bounds}
+              width={THUMB_WIDTH}
+              height={THUMB_HEIGHT}
+            />
+          </div>
+        )}
         {variationNotes.map((notes, i) => {
           const occupied = i < data.slotsBelowOccupied.length && data.slotsBelowOccupied[i];
           const noSlot = i >= data.availableSlotsBelow;

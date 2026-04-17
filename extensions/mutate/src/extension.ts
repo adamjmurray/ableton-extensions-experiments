@@ -17,7 +17,6 @@ import mutateClipModeHtml from "./mutate-clip-mode.html";
 import { shuffleDrums, type Note as ScaffoldNote } from "./mutations.js";
 import { dropNotes, swapNotes, transformVelocity, type ClipBounds, type Note } from "./transforms.js";
 import { mulberry32, type Rng } from "./rng.js";
-import { generateVariations } from "./variations.js";
 import { applyScene, applySession, type SceneSource, type SceneSourceClip, type SessionSource } from "./apply.js";
 import type {
   ClipModePayload,
@@ -113,6 +112,7 @@ export function activate(activation: ActivationContext) {
       kind: "session",
       track,
       slotIndex: track.clipSlots.indexOf(slot),
+      clip,
       duration: Number(clip.loopEnd),
       notes: clip.notes.map(coerceNote),
       bounds: clipBoundsFor(clip),
@@ -236,17 +236,19 @@ export function activate(activation: ActivationContext) {
       }
       if (result.action !== "apply") return;
 
-      const variations = generateVariations(
-        source.notes,
-        result.controls,
-        result.variations,
-        result.baseSeed,
-        source.bounds,
-      );
       try {
-        await applySession(context, source, variations, result.fillMode);
+        await applySession(
+          context,
+          source,
+          result.controls,
+          result.variations,
+          result.baseSeed,
+          result.fillMode,
+          result.mutateSource,
+        );
+        const sourceWrite = result.mutateSource ? ` + in-place` : "";
         console.log(
-          `Mutate: wrote ${variations.length} variation(s) below "${payload.sourceClipName}"`,
+          `Mutate: wrote ${result.variations} variation(s)${sourceWrite} for "${payload.sourceClipName}"`,
         );
       } catch (e) {
         console.error("Mutate: applySession failed:", e);
@@ -280,6 +282,7 @@ export function activate(activation: ActivationContext) {
         snapshot.push({
           trackIndex: ti,
           track,
+          clip,
           notes: clip.notes.map(coerceNote),
           bounds: clipBoundsFor(clip),
           duration: Number(clip.loopEnd),
@@ -329,9 +332,12 @@ export function activate(activation: ActivationContext) {
           result.variations,
           result.baseSeed,
           result.fillMode,
+          result.mutateSource,
         );
+        const inPlaceCount = result.mutateSource ? snapshot.length : 0;
+        const newCount = result.variations * snapshot.length;
         console.log(
-          `Mutate: scene "${scene.name}" — wrote ${result.variations * snapshot.length} clip(s)`,
+          `Mutate: scene "${scene.name}" — wrote ${inPlaceCount} in-place + ${newCount} new clip(s)`,
         );
       } catch (e) {
         console.error("Mutate: applyScene failed:", e);

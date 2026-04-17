@@ -78,6 +78,24 @@
       font-weight: 700;
     }
     .btn.primary:hover { background: var(--accent-hover); }
+    .btn:disabled,
+    .btn.primary:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .btn.primary:disabled:hover { background: var(--accent); }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .checkbox-row input[type="checkbox"] {
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
 
     .source-panel {
       padding: 10px 12px;
@@ -207,6 +225,9 @@
       justify-content: space-between;
     }
     .variation.dimmed { opacity: 0.35; }
+    .variation.in-place {
+      border-color: var(--accent);
+    }
     .variation .status {
       font-size: 9px;
       color: var(--accent);

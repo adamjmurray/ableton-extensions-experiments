@@ -8,6 +8,7 @@ export type ApplyMessage = {
   variations: number;
   baseSeed: number;
   fillMode: FillMode;
+  mutateSource: boolean;
 };
 
 export type CloseMessage = { action: "close" };
