@@ -43,11 +43,11 @@ interface CloseAction {
 
 type DialogResult = ExportAction | CloseAction;
 
-function openFile(filePath: string) {
-  const platform = os.platform();
-  const cmd = platform === "win32" ? "start" : "open";
-  exec(`${cmd} "${filePath}"`, (err) => {
-    if (err) console.error("Notation: Failed to open file:", err);
+function openFile(filePath: string): Promise<Error | null> {
+  return new Promise((resolve) => {
+    const platform = os.platform();
+    const cmd = platform === "win32" ? "start" : "open";
+    exec(`${cmd} "${filePath}"`, (err) => resolve(err));
   });
 }
 
@@ -159,57 +159,82 @@ export function activate(activation: ActivationContext) {
   async function showNotationDialog(clips: ClipInfo[], emptyStateMessage?: string) {
     const metadata = getSongMetadata();
 
-    const payload = JSON.stringify({
-      clips,
-      ...metadata,
-      ...(emptyStateMessage ? { emptyStateMessage } : {}),
-    });
-
-    // Escape sequences that would prematurely terminate the <script> block or
-    // break HTML/JS parsing if they appear inside clip/track/scale names.
-    // JSON.stringify does not escape `<`, `>`, or U+2028/U+2029.
-    const safePayload = payload
-      .replace(/\\/g, "\\\\")
-      .replace(/'/g, "\\'")
-      .replace(/</g, "\\u003c")
-      .replace(/>/g, "\\u003e")
-      .replace(/\u2028/g, "\\u2028")
-      .replace(/\u2029/g, "\\u2029");
-    const html = notationInterface.replace(
-      "</head>",
-      `<script>window.__NOTATION_DATA__='${safePayload}';</script></head>`,
-    );
-    const dataUrl = `data:text/html,${encodeURIComponent(html)}`;
-
     const exportDir = path.join(
       context.environment.tempDirectory || os.tmpdir(),
       "notation-exports",
     );
     fs.mkdirSync(exportDir, { recursive: true });
 
+    // Carried from one dialog iteration to the next. When an export fails
+    // (write or open), the dialog closes, we surface the error in a banner
+    // on the next iteration.
+    let errorMessage: string | undefined;
+
     while (true) {
+      const payload = JSON.stringify({
+        clips,
+        ...metadata,
+        ...(emptyStateMessage ? { emptyStateMessage } : {}),
+        ...(errorMessage ? { errorMessage } : {}),
+      });
+
+      // Escape sequences that would prematurely terminate the <script> block
+      // or break HTML/JS parsing if they appear inside clip/track/scale names.
+      // JSON.stringify does not escape `<`, `>`, or U+2028/U+2029.
+      const safePayload = payload
+        .replace(/\\/g, "\\\\")
+        .replace(/'/g, "\\'")
+        .replace(/</g, "\\u003c")
+        .replace(/>/g, "\\u003e")
+        .replace(/\u2028/g, "\\u2028")
+        .replace(/\u2029/g, "\\u2029");
+      const html = notationInterface.replace(
+        "</head>",
+        `<script>window.__NOTATION_DATA__='${safePayload}';</script></head>`,
+      );
+      const dataUrl = `data:text/html,${encodeURIComponent(html)}`;
+
+      let resultStr: string;
       try {
         const dialog = context.createModalDialog();
-        const resultStr = await dialog.show(dataUrl, 1200, 800);
-        const result: DialogResult = JSON.parse(resultStr);
+        resultStr = await dialog.show(dataUrl, 1200, 800);
+      } catch (e) {
+        console.error("Notation: dialog failed to show:", e);
+        break;
+      }
 
-        if (result.action === "close") {
-          break;
-        }
+      let result: DialogResult;
+      try {
+        result = JSON.parse(resultStr);
+      } catch (e) {
+        console.error("Notation: dialog returned unparseable result:", resultStr, e);
+        break;
+      }
 
-        if (result.action === "export") {
-          const filePath = path.join(exportDir, result.filename);
-          if (result.encoding === "base64") {
-            fs.writeFileSync(filePath, Buffer.from(result.data, "base64"));
-          } else {
-            fs.writeFileSync(filePath, result.data, "utf-8");
-          }
-          console.log(`Notation: Exported to ${filePath}`);
-          openFile(filePath);
+      if (result.action === "close") break;
+
+      // Clear any prior error; a new export attempt will set its own.
+      errorMessage = undefined;
+      const filePath = path.join(exportDir, result.filename);
+      try {
+        if (result.encoding === "base64") {
+          fs.writeFileSync(filePath, Buffer.from(result.data, "base64"));
+        } else {
+          fs.writeFileSync(filePath, result.data, "utf-8");
         }
       } catch (e) {
-        console.error("Notation dialog error:", e);
-        break;
+        const reason = e instanceof Error ? e.message : String(e);
+        console.error(`Notation: failed to write ${filePath}:`, e);
+        errorMessage = `Couldn't save ${result.filename}: ${reason}`;
+        continue;
+      }
+
+      console.log(`Notation: Exported to ${filePath}`);
+      const openErr = await openFile(filePath);
+      if (openErr) {
+        const reason = openErr.message || String(openErr);
+        console.error(`Notation: failed to open ${filePath}:`, openErr);
+        errorMessage = `Saved ${result.filename}, but couldn't open it: ${reason}`;
       }
     }
   }

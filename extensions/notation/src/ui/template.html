@@ -191,6 +191,34 @@
       padding: 6px 16px;
       font-size: 11px;
     }
+
+    /* Error banner (shown below toolbar when an export fails) */
+    .error-banner {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 12px;
+      background: #3a1a1a;
+      border-bottom: 1px solid #6b2a2a;
+      color: #f4b4b4;
+      font-size: 12px;
+    }
+    .error-banner-message {
+      flex: 1;
+      line-height: 1.4;
+    }
+    .error-banner-dismiss {
+      background: transparent;
+      color: #f4b4b4;
+      border: 1px solid #6b2a2a;
+      border-radius: 3px;
+      padding: 2px 8px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .error-banner-dismiss:hover {
+      background: #6b2a2a;
+    }
   </style>
 </head>
 <body>

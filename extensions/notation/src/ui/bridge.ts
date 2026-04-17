@@ -45,6 +45,10 @@ export interface NotationData {
   scaleName: string;
   timeSignature: { numerator: number; denominator: number };
   emptyStateMessage?: string;
+  // Set by the extension host when a previous export failed. Surfaced as a
+  // dismissable banner below the toolbar so the user can see what went wrong
+  // on the next dialog iteration.
+  errorMessage?: string;
 }
 
 function doSendMessage(message: unknown) {

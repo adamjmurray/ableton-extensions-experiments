@@ -78,6 +78,7 @@ function injectPartNameTooltips(container: HTMLDivElement | null, clips: ClipDat
 function App() {
   const data = useRef<NotationData>(assignUnnamedIndices(getNotationData()));
   const emptyStateMessage = data.current.emptyStateMessage;
+  const [errorBanner, setErrorBanner] = useState<string | undefined>(data.current.errorMessage);
   const containerRef = useRef<HTMLDivElement>(null);
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
 
@@ -301,6 +302,20 @@ function App() {
           <button class="btn-close" onClick={closeDialog} title="Close">&#10005;</button>
         </div>
       </div>
+
+      {errorBanner && (
+        <div class="error-banner" role="alert">
+          <span class="error-banner-message">{errorBanner}</span>
+          <button
+            class="error-banner-dismiss"
+            onClick={() => setErrorBanner(undefined)}
+            title="Dismiss"
+            aria-label="Dismiss error"
+          >
+            &#10005;
+          </button>
+        </div>
+      )}
 
       <div class="status-bar">{status}</div>
 
