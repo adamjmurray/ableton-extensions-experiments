@@ -2,104 +2,28 @@ import {
   initialize,
   ClipSlot,
   DataModelObject,
-  Device,
-  DrumChain,
   MidiClip,
   MidiTrack,
-  RackDevice,
   Scene,
   type ActivationContext,
   type ArrangementSelection,
   type ClipSlotSelection,
   type Handle,
 } from "@ableton/extensions-sdk";
-import * as fs from "node:fs";
-import * as path from "node:path";
-import * as os from "node:os";
-import { exec } from "node:child_process";
 
-import notationInterface from "./notation.html";
 import { getClipRenderRegion } from "./ui/musicxml.js";
 import {
   beatsPerMeasure,
   buildFlattenedClipInfo,
   buildRangeClipInfo,
-  nameSuggestsDrums,
+  computeArrangementRange,
+  findOverlap,
   readMidiClip,
   shiftClipNotes,
   type ClipInfo,
 } from "./clip-utils.js";
-
-interface ExportAction {
-  action: "export";
-  data: string;
-  filename: string;
-  encoding: "utf8" | "base64";
-}
-
-interface CloseAction {
-  action: "close";
-}
-
-type DialogResult = ExportAction | CloseAction;
-
-// Modal dialog size. Wide enough for a 4-beat bar line to read comfortably at
-// typical OSMD zoom; tall enough to show toolbar + ~4 systems before scroll.
-const DIALOG_WIDTH = 1200;
-const DIALOG_HEIGHT = 800;
-
-function openFile(filePath: string): Promise<Error | null> {
-  return new Promise((resolve) => {
-    const platform = os.platform();
-    const cmd = platform === "win32" ? "start" : "open";
-    exec(`${cmd} "${filePath}"`, (err) => resolve(err));
-  });
-}
-
-function findMidiTrack(obj: DataModelObject<"0.0.5"> | null): MidiTrack<"0.0.5"> | null {
-  let current: DataModelObject<"0.0.5"> | null = obj;
-  while (current && !(current instanceof MidiTrack)) {
-    current = current.parent as DataModelObject<"0.0.5"> | null;
-  }
-  return current;
-}
-
-// Structural check for a top-level Drum Rack on a track: walk the track's
-// devices and look for a RackDevice whose chains are DrumChains. Works when
-// Drum Rack sits directly on the track.
-//
-// Known alpha-SDK bug: once a Drum Rack is wrapped inside an Instrument Rack,
-// the host no longer tags its pad chains as DrumChain (verified by probing
-// `dataModelInstance.getObjectIsOfClass` directly — nothing returns a drum
-// tag), and the nested Drum Rack's `.chains` returns empty. Recursing into
-// nested racks doesn't help: Instrument Rack → Instrument Rack nesting also
-// yields empty `.chains`, so a 0-chain fallback false-positives. Until the
-// SDK classifies nested drum-rack chains correctly, we only auto-detect the
-// top-level case here and fall back to name heuristics in the caller.
-function hasTopLevelDrumRack(devices: Device<"0.0.5">[]): boolean {
-  for (const d of devices) {
-    if (!(d instanceof RackDevice)) continue;
-    for (const chain of d.chains) {
-      if (chain instanceof DrumChain) return true;
-    }
-  }
-  return false;
-}
-
-// Name-based fallback for wrapped drum racks lives in clip-utils.ts. If the
-// track or its first rack device is named like a drum track ("Drums", "Kit"),
-// assume drums. Matches the common naming convention ("Drums 1", "808 Kit",
-// etc.) and covers the wrapped-in-instrument-rack case the SDK can't surface
-// structurally.
-
-function isDrumRackTrack(track: MidiTrack<"0.0.5"> | null): boolean {
-  if (!track) return false;
-  if (hasTopLevelDrumRack(track.devices)) return true;
-  if (nameSuggestsDrums(String(track.name))) return true;
-  const firstRack = track.devices.find((d): d is RackDevice<"0.0.5"> => d instanceof RackDevice);
-  if (firstRack && nameSuggestsDrums(String(firstRack.name))) return true;
-  return false;
-}
+import { findMidiTrack, isDrumRackTrack } from "./drum-rack.js";
+import { showNotationDialog as runNotationDialog } from "./dialog.js";
 
 // Flatten a contiguous range of a track's clipSlots into one ClipInfo.
 // `sceneBarCounts[i]` is the bar width allotted to scene `(sceneStart + i)` —
@@ -161,87 +85,12 @@ export function activate(activation: ActivationContext) {
     return { tempo, rootNote, scaleName, timeSignature: { numerator, denominator } };
   }
 
-  async function showNotationDialog(clips: ClipInfo[], emptyStateMessage?: string) {
-    const metadata = getSongMetadata();
-
-    const exportDir = path.join(
-      context.environment.tempDirectory || os.tmpdir(),
-      "notation-exports",
+  function showNotationDialog(clips: ClipInfo[], emptyStateMessage?: string) {
+    return runNotationDialog(
+      { context, getMetadata: getSongMetadata },
+      clips,
+      emptyStateMessage,
     );
-    fs.mkdirSync(exportDir, { recursive: true });
-
-    // Carried from one dialog iteration to the next. When an export fails
-    // (write or open), the dialog closes, we surface the error in a banner
-    // on the next iteration.
-    let errorMessage: string | undefined;
-
-    while (true) {
-      const payload = JSON.stringify({
-        clips,
-        ...metadata,
-        ...(emptyStateMessage ? { emptyStateMessage } : {}),
-        ...(errorMessage ? { errorMessage } : {}),
-      });
-
-      // Escape sequences that would prematurely terminate the <script> block
-      // or break HTML/JS parsing if they appear inside clip/track/scale names.
-      // JSON.stringify does not escape `<`, `>`, or U+2028/U+2029.
-      const safePayload = payload
-        .replace(/\\/g, "\\\\")
-        .replace(/'/g, "\\'")
-        .replace(/</g, "\\u003c")
-        .replace(/>/g, "\\u003e")
-        .replace(/\u2028/g, "\\u2028")
-        .replace(/\u2029/g, "\\u2029");
-      const html = notationInterface.replace(
-        "</head>",
-        `<script>window.__NOTATION_DATA__='${safePayload}';</script></head>`,
-      );
-      const dataUrl = `data:text/html,${encodeURIComponent(html)}`;
-
-      let resultStr: string;
-      try {
-        const dialog = context.createModalDialog();
-        resultStr = await dialog.show(dataUrl, DIALOG_WIDTH, DIALOG_HEIGHT);
-      } catch (e) {
-        console.error("Notation: dialog failed to show:", e);
-        break;
-      }
-
-      let result: DialogResult;
-      try {
-        result = JSON.parse(resultStr);
-      } catch (e) {
-        console.error("Notation: dialog returned unparseable result:", resultStr, e);
-        break;
-      }
-
-      if (result.action === "close") break;
-
-      // Clear any prior error; a new export attempt will set its own.
-      errorMessage = undefined;
-      const filePath = path.join(exportDir, result.filename);
-      try {
-        if (result.encoding === "base64") {
-          fs.writeFileSync(filePath, Buffer.from(result.data, "base64"));
-        } else {
-          fs.writeFileSync(filePath, result.data, "utf-8");
-        }
-      } catch (e) {
-        const reason = e instanceof Error ? e.message : String(e);
-        console.error(`Notation: failed to write ${filePath}:`, e);
-        errorMessage = `Couldn't save ${result.filename}: ${reason}`;
-        continue;
-      }
-
-      console.log(`Notation: Exported to ${filePath}`);
-      const openErr = await openFile(filePath);
-      if (openErr) {
-        const reason = openErr.message || String(openErr);
-        console.error(`Notation: failed to open ${filePath}:`, openErr);
-        errorMessage = `Saved ${result.filename}, but couldn't open it: ${reason}`;
-      }
-    }
   }
 
   // Single clip: right-click a MIDI clip (Session or Arrangement)
@@ -460,9 +309,7 @@ export function activate(activation: ActivationContext) {
         const rangeStart = Number(selection.time_selection_start);
         const rangeEnd = Number(selection.time_selection_end);
         const bpm = beatsPerMeasure(getSongMetadata().timeSignature);
-        const anchor = Math.floor(rangeStart / bpm) * bpm;
-        const leadingOffset = rangeStart - anchor;
-        const renderLength = rangeEnd - anchor;
+        const { anchor, leadingOffset, renderLength } = computeArrangementRange(rangeStart, rangeEnd, bpm);
 
         const clips: ClipInfo[] = [];
         const songTracks = context.application.song.tracks;
@@ -621,7 +468,7 @@ export function activate(activation: ActivationContext) {
           const flatStart = c.filterStart + shift;
           const flatEnd = c.renderEnd + shift;
 
-          const overlap = placedRanges.find((r) => r.start < flatEnd && r.end > flatStart);
+          const overlap = findOverlap(placedRanges, flatStart, flatEnd);
           if (overlap) {
             console.warn(
               `Notation: overlapping arrangement clips on track "${trackName}" merged into single voice (ranges ${overlap.start.toFixed(2)}-${overlap.end.toFixed(2)} and ${flatStart.toFixed(2)}-${flatEnd.toFixed(2)} in beats).`,

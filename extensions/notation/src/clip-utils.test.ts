@@ -4,6 +4,8 @@ import {
   beatsPerMeasure,
   buildFlattenedClipInfo,
   buildRangeClipInfo,
+  computeArrangementRange,
+  findOverlap,
   nameSuggestsDrums,
   readMidiClip,
   shiftClipNotes,
@@ -231,5 +233,87 @@ describe("readMidiClip", () => {
   it("coerces non-string name to string", () => {
     const info = readMidiClip(fakeClip({ name: 42 }), "Piano", false);
     expect(info.clip.name).toBe("42");
+  });
+});
+
+describe("findOverlap", () => {
+  it("returns undefined when placed list is empty", () => {
+    expect(findOverlap([], 0, 4)).toBeUndefined();
+  });
+
+  it("finds a range that strictly contains the new range", () => {
+    expect(findOverlap([{ start: 0, end: 8 }], 2, 4)).toEqual({ start: 0, end: 8 });
+  });
+
+  it("finds a range the new range strictly contains", () => {
+    expect(findOverlap([{ start: 4, end: 6 }], 0, 16)).toEqual({ start: 4, end: 6 });
+  });
+
+  it("treats adjacent ranges (end == otherStart) as non-overlapping", () => {
+    expect(findOverlap([{ start: 0, end: 4 }], 4, 8)).toBeUndefined();
+    expect(findOverlap([{ start: 4, end: 8 }], 0, 4)).toBeUndefined();
+  });
+
+  it("detects partial overlap on the left edge", () => {
+    expect(findOverlap([{ start: 2, end: 6 }], 0, 4)).toEqual({ start: 2, end: 6 });
+  });
+
+  it("detects partial overlap on the right edge", () => {
+    expect(findOverlap([{ start: 0, end: 4 }], 2, 8)).toEqual({ start: 0, end: 4 });
+  });
+
+  it("returns the first match when multiple ranges overlap", () => {
+    const overlap = findOverlap(
+      [
+        { start: 0, end: 2 },
+        { start: 4, end: 10 },
+        { start: 8, end: 12 },
+      ],
+      6,
+      11,
+    );
+    expect(overlap).toEqual({ start: 4, end: 10 });
+  });
+});
+
+describe("computeArrangementRange", () => {
+  it("range aligned to a barline has zero leading offset", () => {
+    expect(computeArrangementRange(8, 16, 4)).toEqual({
+      anchor: 8,
+      leadingOffset: 0,
+      renderLength: 8,
+    });
+  });
+
+  it("range starting mid-bar floors anchor to previous barline", () => {
+    expect(computeArrangementRange(5, 13, 4)).toEqual({
+      anchor: 4,
+      leadingOffset: 1,
+      renderLength: 9,
+    });
+  });
+
+  it("range starting at 0 keeps anchor at 0", () => {
+    expect(computeArrangementRange(0, 4, 4)).toEqual({
+      anchor: 0,
+      leadingOffset: 0,
+      renderLength: 4,
+    });
+  });
+
+  it("honors non-4 beatsPerMeasure (3/4)", () => {
+    expect(computeArrangementRange(7, 13, 3)).toEqual({
+      anchor: 6,
+      leadingOffset: 1,
+      renderLength: 7,
+    });
+  });
+
+  it("sub-bar ranges entirely within one bar still produce a valid renderLength", () => {
+    expect(computeArrangementRange(5, 6, 4)).toEqual({
+      anchor: 4,
+      leadingOffset: 1,
+      renderLength: 2,
+    });
   });
 });

@@ -101,6 +101,39 @@ export function buildRangeClipInfo(
   return info;
 }
 
+// Return the first placed range that overlaps [newStart, newEnd), or
+// undefined if none. Ranges are half-open: end == otherStart is NOT an
+// overlap. Used by the "Render Track (Arrangement)" flattener to emit a
+// console warning when two arrangement clips share a timeline window and
+// get merged into a single voice.
+export function findOverlap(
+  placed: { start: number; end: number }[],
+  newStart: number,
+  newEnd: number,
+): { start: number; end: number } | undefined {
+  return placed.find((r) => r.start < newEnd && r.end > newStart);
+}
+
+// Map an arrangement time-selection onto the bar grid. The renderer anchors
+// at the barline at or before `rangeStart` so the output lands on the
+// correct musical grid; the offset between `rangeStart` and that anchor
+// becomes leading rest inside bar 1.
+//
+// Returns:
+//   anchor        — clip-local time 0 in the rendered output (bar 1, beat 1).
+//   leadingOffset — beats of leading rest inside bar 1 (0 if range starts on a barline).
+//   renderLength  — total span from anchor to rangeEnd, in beats.
+export function computeArrangementRange(
+  rangeStart: number,
+  rangeEnd: number,
+  beatsPerMeasure: number,
+): { anchor: number; leadingOffset: number; renderLength: number } {
+  const anchor = Math.floor(rangeStart / beatsPerMeasure) * beatsPerMeasure;
+  const leadingOffset = rangeStart - anchor;
+  const renderLength = rangeEnd - anchor;
+  return { anchor, leadingOffset, renderLength };
+}
+
 export function readMidiClip(
   clip: MidiClip<any>,
   trackName: string,
