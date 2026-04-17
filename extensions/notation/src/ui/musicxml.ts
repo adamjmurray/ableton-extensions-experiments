@@ -171,6 +171,67 @@ interface MeasureEvent {
   velocity: number;
   tiedFrom: boolean;
   tiedTo: boolean;
+  voice: number;
+}
+
+interface AbsNote {
+  pitch: number;
+  startDiv: number;
+  durationDiv: number;
+  velocity: number;
+  voice: number;
+}
+
+// Assign each note a 1-indexed voice number so overlapping notes engrave as
+// independent rhythmic lines. Greedy first-fit: notes are processed longest-
+// and highest-first at each start position, so the primary melodic line
+// (typically the sustained/topmost notes) claims voice 1 and flourishes spill
+// into voice 2+. True chords (same startDiv + same durationDiv as the most-
+// recent note in some voice) merge into that voice so <chord/> still stacks
+// them rather than splitting them across voices.
+function assignVoices(notes: AbsNote[]): void {
+  const order = notes
+    .slice()
+    .sort(
+      (a, b) =>
+        a.startDiv - b.startDiv ||
+        b.durationDiv - a.durationDiv ||
+        b.pitch - a.pitch,
+    );
+
+  const voiceMaxEnd: number[] = [];
+  const lastInVoice: AbsNote[] = [];
+
+  for (const n of order) {
+    let assigned = -1;
+
+    for (let v = 0; v < lastInVoice.length; v++) {
+      const last = lastInVoice[v]!;
+      if (last.startDiv === n.startDiv && last.durationDiv === n.durationDiv) {
+        assigned = v;
+        break;
+      }
+    }
+
+    if (assigned === -1) {
+      for (let v = 0; v < voiceMaxEnd.length; v++) {
+        if (n.startDiv >= voiceMaxEnd[v]!) {
+          assigned = v;
+          break;
+        }
+      }
+    }
+
+    if (assigned === -1) {
+      assigned = voiceMaxEnd.length;
+      voiceMaxEnd.push(0);
+    }
+
+    n.voice = assigned + 1;
+    lastInVoice[assigned] = n;
+    const end = n.startDiv + n.durationDiv;
+    if (end > (voiceMaxEnd[assigned] ?? 0)) voiceMaxEnd[assigned] = end;
+  }
 }
 
 function buildAttributesBlock(
@@ -207,6 +268,7 @@ function renderWholeRestMeasure(
   xml += `      <note>\n`;
   xml += `        <rest measure="yes"/>\n`;
   xml += `        <duration>${measureDivisions}</duration>\n`;
+  xml += `        <voice>1</voice>\n`;
   xml += `      </note>\n`;
   xml += `    </measure>\n`;
   return xml;
@@ -234,12 +296,13 @@ function generatePartMeasures(
   const attributesBlock = buildAttributesBlock(clef, fifths, mode, timeSignature);
   const firstMeasureHeader = attributesBlock + tempoDirection;
 
-  const absNotes = notes
+  const absNotes: AbsNote[] = notes
     .map((n) => ({
       pitch: n.pitch,
       startDiv: Math.round((n.startTime - renderStart) * DIVISIONS),
       durationDiv: Math.max(1, Math.round(n.duration * DIVISIONS)),
       velocity: n.velocity,
+      voice: 1,
     }))
     .filter((n) => n.startDiv >= filterStartDiv && n.startDiv < renderLengthDiv)
     .sort((a, b) => a.startDiv - b.startDiv || a.pitch - b.pitch);
@@ -254,6 +317,8 @@ function generatePartMeasures(
       note.durationDiv = limit - startDiv;
     }
   }
+
+  assignVoices(absNotes);
 
   const measures: string[] = [];
   let measureNumber = 1;
@@ -284,11 +349,10 @@ function generatePartMeasures(
           velocity: n.velocity,
           tiedFrom: n.startDiv < mStart,
           tiedTo: noteEnd > mEnd,
+          voice: n.voice,
         });
       }
     }
-
-    events.sort((a, b) => a.startDiv - b.startDiv || a.pitch - b.pitch);
 
     let xml = `    <measure number="${measureNumber}">\n`;
 
@@ -296,98 +360,26 @@ function generatePartMeasures(
       xml += firstMeasureHeader;
     }
 
-    // First pass: collect all rendered note elements with triplet flags
-    interface NoteElement {
-      xml: string;
-      triplet: boolean;
-      divisions: number;
-    }
-    const noteElements: NoteElement[] = [];
+    const voiceNumbers = [...new Set(events.map((e) => e.voice))].sort((a, b) => a - b);
+    if (voiceNumbers.length === 0) voiceNumbers.push(1);
 
-    let cursor = 0;
-    const startPositions = [...new Set(events.map((e) => e.startDiv))].sort((a, b) => a - b);
+    for (let vi = 0; vi < voiceNumbers.length; vi++) {
+      const voice = voiceNumbers[vi]!;
+      const voiceEvents = events
+        .filter((e) => e.voice === voice)
+        .sort((a, b) => a.startDiv - b.startDiv || a.pitch - b.pitch);
 
-    for (const pos of startPositions) {
-      if (pos > cursor) {
-        const restComps = decomposeDuration(pos - cursor);
-        for (const comp of restComps) {
-          noteElements.push({ xml: renderRestNote(comp), triplet: comp.triplet, divisions: comp.divisions });
-        }
+      xml += renderVoiceElements(
+        voiceEvents,
+        voice,
+        measureDivisions,
+        fifths,
+        isDrumRack,
+      );
+
+      if (vi < voiceNumbers.length - 1) {
+        xml += `      <backup>\n        <duration>${measureDivisions}</duration>\n      </backup>\n`;
       }
-
-      const chord = events.filter((e) => e.startDiv === pos);
-      const minDur = Math.min(...chord.map((e) => e.durationDiv));
-
-      for (let i = 0; i < chord.length; i++) {
-        const ev = chord[i]!;
-        const components = decomposeDuration(ev.durationDiv);
-
-        for (let c = 0; c < components.length; c++) {
-          const comp = components[c]!;
-          const isChordMember = i > 0 && c === 0;
-          const tieStop = ev.tiedFrom && c === 0;
-          const tieStart = ev.tiedTo && c === components.length - 1;
-
-          noteElements.push({
-            xml: renderNote(
-              ev.pitch,
-              comp,
-              fifths,
-              isChordMember,
-              tieStop || (c > 0),
-              tieStart || (c < components.length - 1),
-              isDrumRack,
-            ),
-            triplet: comp.triplet,
-            // Chord members don't advance time
-            divisions: isChordMember ? 0 : comp.divisions,
-          });
-        }
-      }
-
-      cursor = pos + minDur;
-    }
-
-    if (cursor < measureDivisions) {
-      const restComps = decomposeDuration(measureDivisions - cursor);
-      for (const comp of restComps) {
-        noteElements.push({ xml: renderRestNote(comp), triplet: comp.triplet, divisions: comp.divisions });
-      }
-    }
-
-    // Verify measure duration adds up (fixes barlines)
-    const totalDiv = noteElements.reduce((sum, el) => sum + el.divisions, 0);
-    if (totalDiv < measureDivisions) {
-      const pad = decomposeDuration(measureDivisions - totalDiv);
-      for (const comp of pad) {
-        noteElements.push({ xml: renderRestNote(comp), triplet: comp.triplet, divisions: comp.divisions });
-      }
-    }
-
-    // Second pass: inject tuplet brackets in groups of 3
-    for (let i = 0; i < noteElements.length; i++) {
-      if (!noteElements[i]!.triplet) continue;
-
-      // Collect the consecutive triplet run
-      let j = i;
-      while (j < noteElements.length && noteElements[j]!.triplet) j++;
-      const runLength = j - i;
-
-      // Split into groups of 3
-      for (let g = 0; g < runLength; g += 3) {
-        const groupStart = i + g;
-        const groupEnd = Math.min(i + g + 2, j - 1); // last in this group of 3
-        const startEl = noteElements[groupStart]!;
-        const endEl = noteElements[groupEnd]!;
-        startEl.xml = injectTuplet(startEl.xml, "start");
-        endEl.xml = injectTuplet(endEl.xml, "stop");
-      }
-
-      i = j - 1;
-    }
-
-    for (const el of noteElements) {
-      xml += el.xml;
     }
 
     xml += `    </measure>\n`;
@@ -571,6 +563,7 @@ function renderNote(
   tieStop: boolean,
   tieStart: boolean,
   isDrumRack: boolean,
+  voice: number,
 ): string {
   const p = midiToPitch(pitch, fifths);
   let xml = `      <note>\n`;
@@ -593,6 +586,7 @@ function renderNote(
     if (tieStart) xml += `        <tie type="start"/>\n`;
   }
 
+  xml += `        <voice>${voice}</voice>\n`;
   xml += `        <type>${comp.type}</type>\n`;
   for (let d = 0; d < comp.dots; d++) {
     xml += `        <dot/>\n`;
@@ -620,10 +614,11 @@ function renderNote(
   return xml;
 }
 
-function renderRestNote(comp: DurationComponent): string {
+function renderRestNote(comp: DurationComponent, voice: number): string {
   let xml = `      <note>\n`;
   xml += `        <rest/>\n`;
   xml += `        <duration>${comp.divisions}</duration>\n`;
+  xml += `        <voice>${voice}</voice>\n`;
   xml += `        <type>${comp.type}</type>\n`;
   for (let d = 0; d < comp.dots; d++) {
     xml += `        <dot/>\n`;
@@ -635,6 +630,108 @@ function renderRestNote(comp: DurationComponent): string {
     xml += `        </time-modification>\n`;
   }
   xml += `      </note>\n`;
+  return xml;
+}
+
+interface NoteElement {
+  xml: string;
+  triplet: boolean;
+  divisions: number;
+}
+
+// Build the note/rest XML for a single voice within a single measure.
+// Returns the concatenated XML; callers emit <backup> between voices.
+function renderVoiceElements(
+  voiceEvents: MeasureEvent[],
+  voice: number,
+  measureDivisions: number,
+  fifths: number,
+  isDrumRack: boolean,
+): string {
+  const noteElements: NoteElement[] = [];
+
+  let cursor = 0;
+  const startPositions = [...new Set(voiceEvents.map((e) => e.startDiv))].sort((a, b) => a - b);
+
+  for (const pos of startPositions) {
+    if (pos > cursor) {
+      const restComps = decomposeDuration(pos - cursor);
+      for (const comp of restComps) {
+        noteElements.push({ xml: renderRestNote(comp, voice), triplet: comp.triplet, divisions: comp.divisions });
+      }
+    }
+
+    const chord = voiceEvents.filter((e) => e.startDiv === pos);
+    const minDur = Math.min(...chord.map((e) => e.durationDiv));
+
+    for (let i = 0; i < chord.length; i++) {
+      const ev = chord[i]!;
+      const components = decomposeDuration(ev.durationDiv);
+
+      for (let c = 0; c < components.length; c++) {
+        const comp = components[c]!;
+        const isChordMember = i > 0 && c === 0;
+        const tieStop = ev.tiedFrom && c === 0;
+        const tieStart = ev.tiedTo && c === components.length - 1;
+
+        noteElements.push({
+          xml: renderNote(
+            ev.pitch,
+            comp,
+            fifths,
+            isChordMember,
+            tieStop || (c > 0),
+            tieStart || (c < components.length - 1),
+            isDrumRack,
+            voice,
+          ),
+          triplet: comp.triplet,
+          divisions: isChordMember ? 0 : comp.divisions,
+        });
+      }
+    }
+
+    cursor = pos + minDur;
+  }
+
+  if (cursor < measureDivisions) {
+    const restComps = decomposeDuration(measureDivisions - cursor);
+    for (const comp of restComps) {
+      noteElements.push({ xml: renderRestNote(comp, voice), triplet: comp.triplet, divisions: comp.divisions });
+    }
+  }
+
+  const totalDiv = noteElements.reduce((sum, el) => sum + el.divisions, 0);
+  if (totalDiv < measureDivisions) {
+    const pad = decomposeDuration(measureDivisions - totalDiv);
+    for (const comp of pad) {
+      noteElements.push({ xml: renderRestNote(comp, voice), triplet: comp.triplet, divisions: comp.divisions });
+    }
+  }
+
+  for (let i = 0; i < noteElements.length; i++) {
+    if (!noteElements[i]!.triplet) continue;
+
+    let j = i;
+    while (j < noteElements.length && noteElements[j]!.triplet) j++;
+    const runLength = j - i;
+
+    for (let g = 0; g < runLength; g += 3) {
+      const groupStart = i + g;
+      const groupEnd = Math.min(i + g + 2, j - 1);
+      const startEl = noteElements[groupStart]!;
+      const endEl = noteElements[groupEnd]!;
+      startEl.xml = injectTuplet(startEl.xml, "start");
+      endEl.xml = injectTuplet(endEl.xml, "stop");
+    }
+
+    i = j - 1;
+  }
+
+  let xml = "";
+  for (const el of noteElements) {
+    xml += el.xml;
+  }
   return xml;
 }
 

@@ -289,6 +289,110 @@ describe("notesToMusicXML", () => {
     const firstMeasureA = parts[0]!.match(/<measure number="1">[\s\S]*?<\/measure>/)?.[0] ?? "";
     expect(firstMeasureA).toMatch(/<pitch>\s*<step>C<\/step>/);
   });
+
+  // AJM-182: overlapping notes split into multiple <voice> elements.
+  describe("polyphonic voice splitting", () => {
+    function firstMeasure(xml: string): string {
+      return xml.match(/<measure number="1">[\s\S]*?<\/measure>/)?.[0] ?? "";
+    }
+
+    test("non-overlapping notes stay in a single voice with no <backup>", () => {
+      const xml = notesToMusicXML(
+        [clip([note(60, 0, 1), note(62, 1, 1), note(64, 2, 1), note(65, 3, 1)])],
+        TS_4_4,
+        0,
+        "Major",
+      );
+      const m1 = firstMeasure(xml);
+      const voices = [...new Set([...m1.matchAll(/<voice>(\d+)<\/voice>/g)].map((m) => m[1]))];
+      expect(voices).toEqual(["1"]);
+      expect(m1).not.toContain("<backup>");
+    });
+
+    test("quarters on downbeats + eighths on upbeats split into two voices with <backup>", () => {
+      // Repro from the issue: 4 quarters (beats 1-4) overlap 4 eighths (the "and"s).
+      // Quarters should claim voice 1 (longer/earlier-starting), eighths → voice 2.
+      const quarters = [0, 1, 2, 3].map((b) => note(72, b, 1));
+      const eighths = [0.5, 1.5, 2.5, 3.5].map((b) => note(60, b, 0.5));
+      const xml = notesToMusicXML([clip([...quarters, ...eighths])], TS_4_4, 0, "Major");
+
+      const m1 = firstMeasure(xml);
+      const voices = new Set([...m1.matchAll(/<voice>(\d+)<\/voice>/g)].map((m) => m[1]));
+      expect(voices).toEqual(new Set(["1", "2"]));
+      expect(m1).toContain("<backup>");
+      expect(m1).toContain("<duration>96</duration>");
+
+      // Voice 1 contains the four quarter notes (pitch 72 = C5).
+      // Extract voice 1 (before <backup>) and voice 2 (after).
+      const backupIdx = m1.indexOf("<backup>");
+      const v1 = m1.slice(0, backupIdx);
+      const v2 = m1.slice(backupIdx);
+      const v1Quarters = [...v1.matchAll(/<step>C<\/step>[\s\S]*?<octave>5<\/octave>/g)].length;
+      const v2Eighths = [...v2.matchAll(/<step>C<\/step>[\s\S]*?<octave>4<\/octave>/g)].length;
+      expect(v1Quarters).toBe(4);
+      expect(v2Eighths).toBe(4);
+    });
+
+    test("true chord (same start, same duration) stays in one voice with <chord/>", () => {
+      // C-E-G triad, all starting at beat 0 for a whole note.
+      const xml = notesToMusicXML(
+        [clip([note(60, 0, 4), note(64, 0, 4), note(67, 0, 4)])],
+        TS_4_4,
+        0,
+        "Major",
+      );
+      const m1 = firstMeasure(xml);
+      expect(m1).not.toContain("<backup>");
+      const voices = new Set([...m1.matchAll(/<voice>(\d+)<\/voice>/g)].map((m) => m[1]));
+      expect(voices).toEqual(new Set(["1"]));
+      expect([...m1.matchAll(/<chord\/>/g)]).toHaveLength(2);
+    });
+
+    test("tie across barline preserves voice assignment on both sides", () => {
+      // Voice 1: whole note on beat 1. Voice 2: 4-beat note starting at beat 3
+      // (overlaps voice 1 in bar 1, then crosses into bar 2 where voice 1 is silent).
+      const overlap = [
+        clip([
+          note(72, 0, 4),
+          note(60, 2, 4),
+        ], { loopEnd: 8 }),
+      ];
+      const xml = notesToMusicXML(overlap, TS_4_4, 0, "Major");
+      const m1 = xml.match(/<measure number="1">[\s\S]*?<\/measure>/)?.[0] ?? "";
+      const m2 = xml.match(/<measure number="2">[\s\S]*?<\/measure>/)?.[0] ?? "";
+
+      // Bar 1 has both voices. After <backup> the voice-2 notes begin with
+      // a half-rest (beats 1-2) then a tied half note (beats 3-4).
+      expect(m1).toContain("<backup>");
+      const v2Start = m1.slice(m1.indexOf("<backup>"));
+      expect(v2Start).toContain('<tie type="start"/>');
+      expect(v2Start).toContain("<voice>2</voice>");
+      expect(v2Start).not.toContain("<voice>1</voice>");
+
+      // Bar 2 has only voice 2 (the tie continuation). No <backup>.
+      expect(m2).not.toContain("<backup>");
+      expect(m2).toContain('<tie type="stop"/>');
+      expect(m2).toContain("<voice>2</voice>");
+    });
+
+    test("legato runs before voice assignment; legato-closed overlaps stay single voice", () => {
+      // Two overlapping notes without legato → 2 voices. With legato, first note
+      // gets truncated to the next onset, removing the overlap → 1 voice.
+      const clips = [clip([note(60, 0, 2), note(62, 1, 1)], { loopEnd: 4 })];
+      const plain = notesToMusicXML(clips, TS_4_4, 0, "Major", false);
+      const legato = notesToMusicXML(clips, TS_4_4, 0, "Major", true);
+
+      const plainM1 = firstMeasure(plain);
+      const legatoM1 = firstMeasure(legato);
+
+      expect(plainM1).toContain("<backup>");
+      expect(legatoM1).not.toContain("<backup>");
+      const legatoVoices = new Set(
+        [...legatoM1.matchAll(/<voice>(\d+)<\/voice>/g)].map((m) => m[1]),
+      );
+      expect(legatoVoices).toEqual(new Set(["1"]));
+    });
+  });
 });
 
 describe("getClipRenderRegion", () => {
