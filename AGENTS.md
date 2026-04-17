@@ -40,7 +40,7 @@ Each extension needs at minimum:
 - `package.json` with `"@ableton/extensions-sdk": "file:../../extensions-sdk"` as a dependency
 - An entry point (TypeScript recommended, must be bundled to CJS for the runtime)
 
-See `extensions/my-extension/` for a working reference with esbuild config and modal dialog.
+See `extensions/mutate/` for a minimal reference (single-phase esbuild, stub modal dialog) or `extensions/notation/` for a full-featured reference (Preact UI, vitest tests).
 
 ### Key patterns
 - The extension entry point must export an `activate` function
@@ -59,7 +59,7 @@ Valid scopes for `context.ui.registerContextMenuAction()`:
 - `ClipSlotSelection` — right-click with multiple clip slots selected in Session View
 
 ### Building
-- Use esbuild to bundle to CJS (see `extensions/my-extension/esbuild.js` for config)
+- Use esbuild to bundle to CJS (see `extensions/mutate/esbuild.js` for a minimal single-phase config, or `extensions/notation/esbuild.js` for a two-phase UI-bundling config)
 - Use `.html` loader in esbuild to inline webview HTML as text
 - Distributed extensions (ZIP) should not include `node_modules/` or `package-lock.json`
 
