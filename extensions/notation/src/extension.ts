@@ -79,7 +79,7 @@ export function activate(activation: ActivationContext) {
         }
       }
     } catch (e) {
-      console.log("Notation: Could not read scene time signature, defaulting to 4/4");
+      console.log("Notation: Could not read scene time signature, defaulting to 4/4:", e);
     }
 
     return { tempo, rootNote, scaleName, timeSignature: { numerator, denominator } };
