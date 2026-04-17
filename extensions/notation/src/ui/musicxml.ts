@@ -91,13 +91,12 @@ function decomposeDuration(totalDivisions: number): DurationComponent[] {
 // --- MusicXML rendering ---
 
 interface MeasureEvent {
-  type: "note" | "rest";
-  pitch?: number;
+  pitch: number;
   startDiv: number;
   durationDiv: number;
-  velocity?: number;
-  tiedFrom?: boolean;
-  tiedTo?: boolean;
+  velocity: number;
+  tiedFrom: boolean;
+  tiedTo: boolean;
 }
 
 function buildAttributesBlock(
@@ -204,7 +203,6 @@ function generatePartMeasures(
         const effectiveEnd = Math.min(noteEnd, mEnd);
 
         events.push({
-          type: "note",
           pitch: n.pitch,
           startDiv: effectiveStart - mStart,
           durationDiv: effectiveEnd - effectiveStart,
@@ -215,7 +213,7 @@ function generatePartMeasures(
       }
     }
 
-    events.sort((a, b) => a.startDiv - b.startDiv || (a.pitch ?? 0) - (b.pitch ?? 0));
+    events.sort((a, b) => a.startDiv - b.startDiv || a.pitch - b.pitch);
 
     let xml = `    <measure number="${measureNumber}">\n`;
 
@@ -257,7 +255,7 @@ function generatePartMeasures(
 
           noteElements.push({
             xml: renderNote(
-              ev.pitch!,
+              ev.pitch,
               comp,
               fifths,
               isChordMember,
@@ -340,19 +338,6 @@ export function notesToMusicXML(
   const fifths = getFifths(rootNote, scaleName);
   const mode = scaleName.toLowerCase().includes("minor") ? "minor" : "major";
   const beatsPerMeasure = timeSignature.numerator * (4 / timeSignature.denominator);
-
-  // Per-clip render window. The alpha SDK currently reports endMarker at
-  // the absolute clip end rather than the playback end, so we always use
-  // loopEnd as the effective end. The filter anchor is startMarker (or
-  // min(loopStart, startMarker) for loops, since the loop region plays
-  // even if it precedes startMarker). When that anchor is mid-measure,
-  // the render anchor rounds back to the previous bar boundary so bar
-  // lines align to the song's musical grid; the gap becomes leading rests.
-  const filterStarts = clips.map((c) =>
-    c.clip.looping ? Math.min(c.clip.loopStart, c.clip.startMarker) : c.clip.startMarker,
-  );
-  const renderEnds = clips.map((c) => c.clip.loopEnd);
-
   const tempoDirection = tempo && tempo > 0 ? buildTempoDirection(tempo) : "";
 
   // Arrangement-timeline alignment: when every clip carries an
@@ -362,87 +347,85 @@ export function notesToMusicXML(
   // each clip's renderStart so its first emitted content measure lands on
   // that same arrangement bar grid. AJM-178's in-staff leading-rest machinery
   // then produces any sub-bar offset inside the first rendered measure.
-  const arrangementStarts = clips.map((c) => c.clip.arrangementStartTime);
-  const align = arrangementStarts.every((t) => t !== undefined);
-  const numClips = clips.length;
-  const leadingMeasuresPerClip = new Array<number>(numClips).fill(0);
-  const trailingMeasuresPerClip = new Array<number>(numClips).fill(0);
+  const align = clips.length > 0 && clips.every((c) => c.clip.arrangementStartTime !== undefined);
 
-  // arrangement time of each clip's filter anchor
-  const arrangementFilterStarts = align
-    ? clips.map((c, i) => arrangementStarts[i]! + filterStarts[i]! - c.clip.startMarker)
-    : [];
+  // Per-clip render window. The alpha SDK currently reports endMarker at
+  // the absolute clip end rather than the playback end, so we always use
+  // loopEnd as the effective end. The filter anchor is startMarker (or
+  // min(loopStart, startMarker) for loops, since the loop region plays
+  // even if it precedes startMarker). When that anchor is mid-measure,
+  // the render anchor rounds back to the previous bar boundary so bar
+  // lines align to the song's musical grid; the gap becomes leading rests.
+  const base = clips.map((c) => {
+    const filterStart = c.clip.looping
+      ? Math.min(c.clip.loopStart, c.clip.startMarker)
+      : c.clip.startMarker;
+    // Only meaningful when align is true; harmless placeholder otherwise.
+    const arrangementStart = c.clip.arrangementStartTime ?? 0;
+    return {
+      clip: c.clip,
+      notes: c.notes,
+      filterStart,
+      renderEnd: c.clip.loopEnd,
+      arrangementStart,
+      arrangementFilterStart: arrangementStart + filterStart - c.clip.startMarker,
+    };
+  });
 
-  let globalOrigin = 0;
-  if (align && numClips > 0) {
-    const earliest = Math.min(...arrangementFilterStarts);
-    globalOrigin = Math.floor(earliest / beatsPerMeasure) * beatsPerMeasure;
-    for (let i = 0; i < numClips; i++) {
-      leadingMeasuresPerClip[i] = Math.max(
-        0,
-        Math.floor((arrangementFilterStarts[i]! - globalOrigin) / beatsPerMeasure),
-      );
-    }
-  }
+  const globalOrigin = align
+    ? Math.floor(Math.min(...base.map((r) => r.arrangementFilterStart)) / beatsPerMeasure) * beatsPerMeasure
+    : 0;
 
   // Per-clip renderStart: in aligned mode, map the arrangement position of
   // the clip's first emitted content measure back to clip-local time. In
   // standalone mode, keep the clip-local bar floor (AJM-178).
-  const renderStarts = clips.map((c, i) => {
-    if (align) {
-      const renderStartArrangement = globalOrigin + leadingMeasuresPerClip[i]! * beatsPerMeasure;
-      return c.clip.startMarker + (renderStartArrangement - arrangementStarts[i]!);
-    }
-    return Math.floor(filterStarts[i]! / beatsPerMeasure) * beatsPerMeasure;
+  const withLayout = base.map((r) => {
+    const leadingMeasures = align
+      ? Math.max(0, Math.floor((r.arrangementFilterStart - globalOrigin) / beatsPerMeasure))
+      : 0;
+    const renderStart = align
+      ? r.clip.startMarker + (globalOrigin + leadingMeasures * beatsPerMeasure - r.arrangementStart)
+      : Math.floor(r.filterStart / beatsPerMeasure) * beatsPerMeasure;
+    const clipMeasureCount = Math.max(1, Math.ceil((r.renderEnd - renderStart) / beatsPerMeasure));
+    return { ...r, leadingMeasures, renderStart, clipMeasureCount };
   });
 
-  const clipMeasureCounts = renderStarts.map((rs, i) =>
-    Math.max(1, Math.ceil((renderEnds[i]! - rs) / beatsPerMeasure)),
-  );
+  const totalMeasures = align
+    ? withLayout.reduce((m, r) => Math.max(m, r.leadingMeasures + r.clipMeasureCount), 0)
+    : 0;
 
-  if (align && numClips > 0) {
-    let totalMeasures = 0;
-    for (let i = 0; i < numClips; i++) {
-      totalMeasures = Math.max(totalMeasures, leadingMeasuresPerClip[i]! + clipMeasureCounts[i]!);
-    }
-    for (let i = 0; i < numClips; i++) {
-      trailingMeasuresPerClip[i] = totalMeasures - leadingMeasuresPerClip[i]! - clipMeasureCounts[i]!;
-    }
-  }
+  const renders = withLayout.map((r) => ({
+    ...r,
+    trailingMeasures: align ? totalMeasures - r.leadingMeasures - r.clipMeasureCount : 0,
+  }));
 
-  const parts: { id: string; name: string; measures: string[] }[] = [];
   let unnamedCount = 0;
-  for (let i = 0; i < clips.length; i++) {
-    const c = clips[i]!;
+  const parts = renders.map((r, i) => {
     const id = `P${i + 1}`;
-    const clipName = (c.clip.name ?? "").trim();
+    const clipName = (r.clip.name ?? "").trim();
     const label = clipName || `(unnamed ${++unnamedCount})`;
-    const name = buildPartName(c.clip.trackName, label, i);
+    const name = buildPartName(r.clip.trackName, label, i);
 
-    const renderStart = renderStarts[i]!;
-    const filterStart = filterStarts[i]!;
-    const renderEnd = renderEnds[i]!;
-    const clipLength = renderEnd - renderStart;
-    const numMeasures = clipMeasureCounts[i]!;
+    const clipLength = r.renderEnd - r.renderStart;
     const renderLengthDiv = Math.round(clipLength * DIVISIONS);
-    const filterStartDiv = Math.round((filterStart - renderStart) * DIVISIONS);
+    const filterStartDiv = Math.round((r.filterStart - r.renderStart) * DIVISIONS);
 
     const measures = generatePartMeasures(
-      c.notes,
+      r.notes,
       timeSignature,
       fifths,
       mode,
-      renderStart,
+      r.renderStart,
       filterStartDiv,
       renderLengthDiv,
-      numMeasures,
+      r.clipMeasureCount,
       legato ?? false,
       i === 0 ? tempoDirection : "",
-      leadingMeasuresPerClip[i]!,
-      trailingMeasuresPerClip[i]!,
+      r.leadingMeasures,
+      r.trailingMeasures,
     );
-    parts.push({ id, name, measures });
-  }
+    return { id, name, measures };
+  });
 
   return buildScore(parts);
 }

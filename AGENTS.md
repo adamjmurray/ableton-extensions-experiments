@@ -122,6 +122,7 @@ multi-clip entry points render each clip on its own staff in a score layout.
 ### Development workflow
 Always rebuild after making changes: `cd extensions/notation && npm run build`
 Test with: `npm run dev -- extensions/notation` (from repo root)
+Before finishing a task, `npm run typecheck` must pass.
 
 ### Tracking
 Issues are tracked in Linear under the "MIDI Notation Extension" project (AJM-xxx).
