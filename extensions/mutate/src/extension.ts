@@ -4,6 +4,7 @@ import {
   DataModelObject,
   MidiClip,
   MidiTrack,
+  Scene,
   type ActivationContext,
   type ArrangementSelection,
   type ClipSlotSelection,
@@ -17,10 +18,16 @@ import { shuffleDrums, type Note as ScaffoldNote } from "./mutations.js";
 import { dropNotes, swapNotes, transformVelocity, type ClipBounds, type Note } from "./transforms.js";
 import { mulberry32, type Rng } from "./rng.js";
 import { generateVariations } from "./variations.js";
-import { applySession, type SessionSource } from "./apply.js";
-import type { DialogPayload, DialogResult as ClipDialogResult } from "./ui/bridge.js";
+import { applyScene, applySession, type SceneSource, type SceneSourceClip, type SessionSource } from "./apply.js";
+import type {
+  ClipModePayload,
+  DialogPayload,
+  DialogResult,
+  SceneModePayload,
+  SceneSourceSummary,
+} from "./ui/bridge.js";
 
-type StubDialogMode = "scene" | "range" | "drums";
+type StubDialogMode = "range" | "drums";
 
 type MutationFn = (notes: ScaffoldNote[]) => ScaffoldNote[];
 
@@ -64,7 +71,7 @@ export function activate(activation: ActivationContext) {
       .replace(/\u2029/g, "\\u2029");
   }
 
-  async function showMutateClipDialog(payload: DialogPayload): Promise<ClipDialogResult> {
+  async function showMutateDialog(payload: DialogPayload): Promise<DialogResult> {
     const html = mutateClipModeHtml.replace(
       "</head>",
       `<script>window.__MUTATE_DATA__='${escapePayload(JSON.stringify(payload))}';</script></head>`,
@@ -72,7 +79,18 @@ export function activate(activation: ActivationContext) {
     const dataUrl = `data:text/html,${encodeURIComponent(html)}`;
     const dialog = context.createModalDialog();
     const resultStr = await dialog.show(dataUrl, 1200, 800);
-    return JSON.parse(resultStr) as ClipDialogResult;
+    return JSON.parse(resultStr) as DialogResult;
+  }
+
+  function clipBoundsFor(clip: MidiClip<"0.0.5">): ClipBounds {
+    const looping = Boolean(clip.looping);
+    const loopStart = Number(clip.loopStart);
+    const loopEnd = Number(clip.loopEnd);
+    const startMarker = Number(clip.startMarker);
+    return {
+      start: looping ? Math.min(loopStart, startMarker) : startMarker,
+      end: loopEnd,
+    };
   }
 
   function coerceNote(n: NoteDescription): Note {
@@ -91,23 +109,13 @@ export function activate(activation: ActivationContext) {
     if (!(slot instanceof ClipSlot)) return null;
     const track = slot.parent;
     if (!(track instanceof MidiTrack)) return null;
-
-    const looping = Boolean(clip.looping);
-    const loopStart = Number(clip.loopStart);
-    const loopEnd = Number(clip.loopEnd);
-    const startMarker = Number(clip.startMarker);
-    const bounds: ClipBounds = {
-      start: looping ? Math.min(loopStart, startMarker) : startMarker,
-      end: loopEnd,
-    };
-
     return {
       kind: "session",
       track,
       slotIndex: track.clipSlots.indexOf(slot),
-      duration: loopEnd,
+      duration: Number(clip.loopEnd),
       notes: clip.notes.map(coerceNote),
-      bounds,
+      bounds: clipBoundsFor(clip),
     };
   }
 
@@ -209,7 +217,8 @@ export function activate(activation: ActivationContext) {
       }
 
       const slotsBelow = source.track.clipSlots.slice(source.slotIndex + 1);
-      const payload: DialogPayload = {
+      const payload: ClipModePayload = {
+        mode: "clip",
         sourceNotes: source.notes,
         bounds: source.bounds,
         sourceClipName: String(sourceClip.name),
@@ -218,9 +227,9 @@ export function activate(activation: ActivationContext) {
         slotsBelowOccupied: slotsBelow.map((s) => s.clip !== null),
       };
 
-      let result: ClipDialogResult;
+      let result: DialogResult;
       try {
-        result = await showMutateClipDialog(payload);
+        result = await showMutateDialog(payload);
       } catch (e) {
         console.error("Mutate: clip dialog failed to show:", e);
         return;
@@ -245,12 +254,89 @@ export function activate(activation: ActivationContext) {
     })(),
   );
 
-  context.commands.registerCommand(
-    "mutate.sceneDialog",
-    (arg: unknown) =>
-      void (async (_handle: Handle) => {
-        await openStubDialog("scene");
-      })(arg as Handle),
+  context.commands.registerCommand("mutate.sceneDialog", (arg: unknown) =>
+    void (async () => {
+      const scene = context.objects.getObjectFromHandle(arg as Handle, Scene);
+      const song = context.application.song;
+      const scenes = song.scenes;
+      const sceneIndex = scenes.findIndex((s) => s.handle.id === scene.handle.id);
+      if (sceneIndex < 0) {
+        console.log("Mutate: could not find scene index");
+        return;
+      }
+
+      const tracks = song.tracks;
+      const totalScenes = scenes.length;
+
+      const snapshot: SceneSourceClip[] = [];
+      const summaries: SceneSourceSummary[] = [];
+      for (let ti = 0; ti < tracks.length; ti++) {
+        const track = tracks[ti]!;
+        if (!(track instanceof MidiTrack)) continue;
+        const slot = track.clipSlots[sceneIndex];
+        const clip = slot?.clip;
+        if (!(clip instanceof MidiClip)) continue;
+
+        snapshot.push({
+          trackIndex: ti,
+          track,
+          notes: clip.notes.map(coerceNote),
+          bounds: clipBoundsFor(clip),
+          duration: Number(clip.loopEnd),
+        });
+
+        const slotsBelow: boolean[] = [];
+        for (let si = sceneIndex + 1; si < totalScenes; si++) {
+          slotsBelow.push(track.clipSlots[si]?.clip != null);
+        }
+        summaries.push({
+          trackIndex: ti,
+          trackName: String(track.name),
+          clipName: String(clip.name),
+          noteCount: clip.notes.length,
+          slotsBelowOccupied: slotsBelow,
+        });
+      }
+
+      if (snapshot.length === 0) {
+        console.log(`Mutate: scene "${scene.name}" has no MIDI clips`);
+        return;
+      }
+
+      const payload: SceneModePayload = {
+        mode: "scene",
+        sceneIndex,
+        sceneName: String(scene.name),
+        totalScenesInSong: totalScenes,
+        sources: summaries,
+      };
+
+      let result: DialogResult;
+      try {
+        result = await showMutateDialog(payload);
+      } catch (e) {
+        console.error("Mutate: scene dialog failed to show:", e);
+        return;
+      }
+      if (result.action !== "apply") return;
+
+      const sceneSource: SceneSource = { kind: "scene", sceneIndex, sources: snapshot };
+      try {
+        await applyScene(
+          context,
+          sceneSource,
+          result.controls,
+          result.variations,
+          result.baseSeed,
+          result.fillMode,
+        );
+        console.log(
+          `Mutate: scene "${scene.name}" — wrote ${result.variations * snapshot.length} clip(s)`,
+        );
+      } catch (e) {
+        console.error("Mutate: applyScene failed:", e);
+      }
+    })(),
   );
 
   context.commands.registerCommand(

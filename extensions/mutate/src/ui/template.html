@@ -220,6 +220,86 @@
       border-radius: 2px;
       display: block;
     }
+
+    .scene-header {
+      padding: 10px 12px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border-dim);
+      flex-shrink: 0;
+    }
+    .scene-header .title-line {
+      font-size: 12px;
+      font-weight: 500;
+      margin-bottom: 2px;
+    }
+    .scene-header .subtitle-line {
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .indicator-panel {
+      flex: 1;
+      overflow: auto;
+      padding: 12px;
+      background: var(--bg);
+    }
+    .indicator-grid {
+      display: inline-block;
+    }
+    .grid-col-labels {
+      display: flex;
+      gap: 2px;
+      margin-bottom: 4px;
+      height: 48px;
+      align-items: flex-end;
+    }
+    .grid-col-label {
+      font-size: 9px;
+      color: var(--text-dim);
+      writing-mode: vertical-lr;
+      transform: rotate(180deg);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-height: 48px;
+    }
+    .grid-body {
+      display: flex;
+      flex-direction: column;
+    }
+    .grid-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 2px;
+    }
+    .grid-row-label {
+      width: 86px;
+      padding-right: 4px;
+      font-size: 10px;
+      color: var(--text-dim);
+      text-align: right;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .grid-row-label.new-scene {
+      color: var(--accent);
+    }
+    .grid-cell {
+      border-radius: 2px;
+      border: 1px solid transparent;
+    }
+    .grid-cell--write-empty {
+      background: var(--accent);
+    }
+    .grid-cell--write-overwrite {
+      background: var(--accent);
+      border-color: #ff3333;
+    }
+    .grid-cell--skip {
+      background: var(--surface);
+      opacity: 0.35;
+    }
   </style>
 </head>
 <body>

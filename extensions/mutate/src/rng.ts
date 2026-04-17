@@ -16,3 +16,12 @@ export function mulberry32(seed: number): Rng {
 export function deriveSeed(baseSeed: number, variationIndex: number): number {
   return ((baseSeed >>> 0) ^ Math.imul(variationIndex >>> 0, 0x9e3779b9)) >>> 0;
 }
+
+// Two-dimensional variant for scene-mode (per-track × per-variation). Uses a
+// different mixing constant for each axis so collisions like (3, 0) vs (0, 3)
+// can't happen — `deriveSeed` chained twice would collide because XOR is
+// commutative and both calls share one constant.
+export function deriveSeed2D(baseSeed: number, a: number, b: number): number {
+  const x = (baseSeed >>> 0) ^ Math.imul(a >>> 0, 0x9e3779b9);
+  return (x ^ Math.imul(b >>> 0, 0x85ebca6b)) >>> 0;
+}

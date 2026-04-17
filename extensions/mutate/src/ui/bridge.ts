@@ -14,7 +14,8 @@ export type CloseMessage = { action: "close" };
 
 export type DialogResult = ApplyMessage | CloseMessage;
 
-export type DialogPayload = {
+export type ClipModePayload = {
+  mode: "clip";
   sourceNotes: Note[];
   bounds: ClipBounds;
   sourceClipName: string;
@@ -22,6 +23,25 @@ export type DialogPayload = {
   availableSlotsBelow: number;
   slotsBelowOccupied: boolean[];
 };
+
+export type SceneSourceSummary = {
+  trackIndex: number;
+  trackName: string;
+  clipName: string;
+  noteCount: number;
+  // length = totalScenesInSong - sceneIndex - 1 (i.e. existing scenes below source)
+  slotsBelowOccupied: boolean[];
+};
+
+export type SceneModePayload = {
+  mode: "scene";
+  sceneIndex: number;
+  sceneName: string;
+  totalScenesInSong: number;
+  sources: SceneSourceSummary[];
+};
+
+export type DialogPayload = ClipModePayload | SceneModePayload;
 
 declare global {
   interface Window {
@@ -31,18 +51,23 @@ declare global {
   }
 }
 
+const FALLBACK_PAYLOAD: ClipModePayload = {
+  mode: "clip",
+  sourceNotes: [],
+  bounds: { start: 0, end: 4 },
+  sourceClipName: "",
+  trackName: "",
+  availableSlotsBelow: 0,
+  slotsBelowOccupied: [],
+};
+
 export function getMutateData(): DialogPayload {
   try {
-    return JSON.parse(window.__MUTATE_DATA__ || "{}");
+    const parsed = JSON.parse(window.__MUTATE_DATA__ || "{}") as DialogPayload;
+    if (parsed && (parsed.mode === "clip" || parsed.mode === "scene")) return parsed;
+    return FALLBACK_PAYLOAD;
   } catch {
-    return {
-      sourceNotes: [],
-      bounds: { start: 0, end: 4 },
-      sourceClipName: "",
-      trackName: "",
-      availableSlotsBelow: 0,
-      slotsBelowOccupied: [],
-    };
+    return FALLBACK_PAYLOAD;
   }
 }
 

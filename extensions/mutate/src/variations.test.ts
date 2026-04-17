@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { deriveSeed2D, mulberry32 } from "./rng.js";
 import type { ClipBounds, Note } from "./transforms.js";
 import { generateVariations, ZERO_CONTROLS, type MutateControls } from "./variations.js";
 
@@ -65,5 +66,20 @@ describe("generateVariations", () => {
     const snapshot = source.map((n) => ({ ...n }));
     generateVariations(source, ACTIVE, 3, 1, BOUNDS);
     expect(source).toEqual(snapshot);
+  });
+
+  // Scene-mode seed derivation: deriveSeed2D uses different mixing constants
+  // per axis so (t, v) pairs can't collide via XOR commutativity.
+  test("scene-mode 2D seed derivation produces distinct streams", () => {
+    const baseSeed = 42;
+    const firstDraws = new Map<string, number>();
+    for (let t = 0; t < 5; t++) {
+      for (let v = 0; v < 5; v++) {
+        const seed = deriveSeed2D(baseSeed, t, v);
+        firstDraws.set(`${t},${v}`, mulberry32(seed)());
+      }
+    }
+    const values = Array.from(firstDraws.values());
+    expect(new Set(values).size).toBe(values.length);
   });
 });
