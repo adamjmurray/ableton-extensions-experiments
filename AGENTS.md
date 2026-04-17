@@ -127,6 +127,13 @@ multi-clip entry points render each clip on its own staff in a score layout.
 - The alpha SDK reports `clip.endMarker` at the absolute clip end rather than the
   playback end, so renderers use `clip.loopEnd` as the effective end regardless of
   whether the clip is looping.
+- A Drum Rack only classifies correctly when it sits at the top level of a track.
+  Once wrapped inside an Instrument Rack, the host stops tagging its pad chains as
+  `DrumChain`, the nested `RackDevice.chains` accessor returns empty, and probing
+  `dataModelInstance.getObjectIsOfClass(handle, "DrumChain")` against every
+  `ObjectClass` value also returns false — nothing surfaces a drum tag. The
+  notation extension falls back to a track/rack name heuristic (`drums` / `kit`,
+  case-insensitive) for the wrapped case; see [extensions/notation/src/extension.ts](extensions/notation/src/extension.ts).
 
 ### Clip render region
 The shared helper `getClipRenderRegion(clip, beatsPerMeasure)` in [src/ui/musicxml.ts](extensions/notation/src/ui/musicxml.ts)
