@@ -8,7 +8,7 @@ function getFifths(rootNote: number, scaleName: string): number {
   const majorFifths = [0, -5, 2, -3, 4, -1, 6, 1, -4, 3, -2, 5];
   const minorFifths = [-3, 4, -1, -6, 1, -4, 3, -2, 5, 0, -5, 2];
   const isMinor = scaleName.toLowerCase().includes("minor");
-  return isMinor ? minorFifths[rootNote % 12] : majorFifths[rootNote % 12];
+  return isMinor ? minorFifths[rootNote % 12]! : majorFifths[rootNote % 12]!;
 }
 
 function midiToPitch(midi: number, fifths: number): { step: string; alter: number; octave: number } {
@@ -25,7 +25,7 @@ function midiToPitch(midi: number, fifths: number): { step: string; alter: numbe
     ["F", 0], ["G", -1], ["G", 0], ["A", -1], ["A", 0], ["B", -1], ["B", 0],
   ];
 
-  const [step, alter] = useFlats ? FLAT_MAP[pc] : SHARP_MAP[pc];
+  const [step, alter] = (useFlats ? FLAT_MAP[pc] : SHARP_MAP[pc])!;
   return { step, alter, octave };
 }
 
@@ -172,11 +172,12 @@ function generatePartMeasures(
 
   if (legato) {
     for (let i = 0; i < absNotes.length; i++) {
-      const startDiv = absNotes[i].startDiv;
+      const note = absNotes[i]!;
+      const startDiv = note.startDiv;
       const barEnd = (Math.floor(startDiv / measureDivisions) + 1) * measureDivisions;
       const nextStart = absNotes.find((_n, j) => j > i && _n.startDiv > startDiv)?.startDiv;
       const limit = nextStart !== undefined ? Math.min(nextStart, barEnd) : barEnd;
-      absNotes[i].durationDiv = limit - startDiv;
+      note.durationDiv = limit - startDiv;
     }
   }
 
@@ -245,11 +246,11 @@ function generatePartMeasures(
       const minDur = Math.min(...chord.map((e) => e.durationDiv));
 
       for (let i = 0; i < chord.length; i++) {
-        const ev = chord[i];
+        const ev = chord[i]!;
         const components = decomposeDuration(ev.durationDiv);
 
         for (let c = 0; c < components.length; c++) {
-          const comp = components[c];
+          const comp = components[c]!;
           const isChordMember = i > 0 && c === 0;
           const tieStop = ev.tiedFrom && c === 0;
           const tieStart = ev.tiedTo && c === components.length - 1;
@@ -291,19 +292,21 @@ function generatePartMeasures(
 
     // Second pass: inject tuplet brackets in groups of 3
     for (let i = 0; i < noteElements.length; i++) {
-      if (!noteElements[i].triplet) continue;
+      if (!noteElements[i]!.triplet) continue;
 
       // Collect the consecutive triplet run
       let j = i;
-      while (j < noteElements.length && noteElements[j].triplet) j++;
+      while (j < noteElements.length && noteElements[j]!.triplet) j++;
       const runLength = j - i;
 
       // Split into groups of 3
       for (let g = 0; g < runLength; g += 3) {
         const groupStart = i + g;
         const groupEnd = Math.min(i + g + 2, j - 1); // last in this group of 3
-        noteElements[groupStart].xml = injectTuplet(noteElements[groupStart].xml, "start");
-        noteElements[groupEnd].xml = injectTuplet(noteElements[groupEnd].xml, "stop");
+        const startEl = noteElements[groupStart]!;
+        const endEl = noteElements[groupEnd]!;
+        startEl.xml = injectTuplet(startEl.xml, "start");
+        endEl.xml = injectTuplet(endEl.xml, "stop");
       }
 
       i = j - 1;
@@ -410,7 +413,7 @@ export function notesToMusicXML(
   const parts: { id: string; name: string; measures: string[] }[] = [];
   let unnamedCount = 0;
   for (let i = 0; i < clips.length; i++) {
-    const c = clips[i];
+    const c = clips[i]!;
     const id = `P${i + 1}`;
     const clipName = (c.clip.name ?? "").trim();
     const label = clipName || `(unnamed ${++unnamedCount})`;

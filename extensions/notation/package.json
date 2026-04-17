@@ -1,7 +1,8 @@
 {
   "main": "dist/extension.js",
   "scripts": {
-    "build": "node esbuild.js"
+    "build": "node esbuild.js",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@ableton/extensions-sdk": "file:../../extensions-sdk",
@@ -9,6 +10,7 @@
     "preact": "^10.25.4"
   },
   "devDependencies": {
-    "esbuild": "^0.25.10"
+    "esbuild": "^0.25.10",
+    "typescript": "^5.6.3"
   }
 }

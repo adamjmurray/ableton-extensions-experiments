@@ -97,11 +97,11 @@ function App() {
           drawPartNames: quantizedClips.length > 1,
           autoResize: true,
         });
-        osmdRef.current.rules.InstrumentLabelTextHeight = 1.5;
-        osmdRef.current.rules.PageTopMargin = 1;
-        osmdRef.current.rules.PageBottomMargin = 1;
-        osmdRef.current.rules.PageLeftMargin = 2;
-        osmdRef.current.rules.PageRightMargin = 2;
+        osmdRef.current.EngravingRules.InstrumentLabelTextHeight = 1.5;
+        osmdRef.current.EngravingRules.PageTopMargin = 1;
+        osmdRef.current.EngravingRules.PageBottomMargin = 1;
+        osmdRef.current.EngravingRules.PageLeftMargin = 2;
+        osmdRef.current.EngravingRules.PageRightMargin = 2;
       } else if (quantizedClips.length > 1) {
         osmdRef.current.setOptions({ drawPartNames: true });
       }
