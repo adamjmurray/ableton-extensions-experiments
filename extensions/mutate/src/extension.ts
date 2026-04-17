@@ -11,13 +11,9 @@ import {
 } from "@ableton/extensions-sdk";
 
 import stubInterface from "./stub.html";
-import {
-  deleteTenPercent,
-  randomizeVelocity,
-  shuffleDrums,
-  swapNotes,
-  type Note,
-} from "./mutations.js";
+import { shuffleDrums, type Note } from "./mutations.js";
+import { dropNotes, swapNotes, transformVelocity } from "./transforms.js";
+import { mulberry32, type Rng } from "./rng.js";
 
 type DialogMode = "clip" | "scene" | "range" | "drums";
 
@@ -71,53 +67,63 @@ export function activate(activation: ActivationContext) {
     );
   }
 
-  function applyToClipSlotSelection(
-    selection: ClipSlotSelection,
-    fn: MutationFn,
-    label: string,
-  ) {
-    let touched = 0;
-    for (const handle of selection.selected_clip_slots) {
-      const slot = context.objects.getObjectFromHandle(handle, ClipSlot);
-      const clip = slot.clip;
-      if (clip instanceof MidiClip) {
-        applyToClip(clip, fn, label);
-        touched++;
+  function collectMidiClipsFromArg(arg: unknown): MidiClip<"0.0.5">[] {
+    if (!arg || typeof arg !== "object") return [];
+
+    if ("selected_clip_slots" in arg) {
+      const sel = arg as ClipSlotSelection;
+      const clips: MidiClip<"0.0.5">[] = [];
+      for (const handle of sel.selected_clip_slots) {
+        const slot = context.objects.getObjectFromHandle(handle, ClipSlot);
+        if (slot.clip instanceof MidiClip) clips.push(slot.clip);
       }
+      return clips;
     }
-    console.log(`Mutate: ${label} — applied to ${touched} clip(s) in selection`);
-  }
 
-  function applyToArrangementRange(
-    selection: ArrangementSelection,
-    fn: MutationFn,
-    label: string,
-  ) {
-    const start = Number(selection.time_selection_start);
-    const end = Number(selection.time_selection_end);
-    const tracks = selection.selected_lanes
-      .map((handle) => context.objects.getObjectFromHandle(handle, DataModelObject))
-      .filter((obj): obj is MidiTrack<"0.0.5"> => obj instanceof MidiTrack);
-
-    let touched = 0;
-    for (const track of tracks) {
-      for (const clip of track.arrangementClips) {
-        if (!(clip instanceof MidiClip)) continue;
-        const clipStart = Number(clip.startTime);
-        const clipEnd = Number(clip.endTime);
-        if (clipStart < end && clipEnd > start) {
-          applyToClip(clip, fn, label);
-          touched++;
+    if ("selected_lanes" in arg && "time_selection_start" in arg) {
+      const sel = arg as ArrangementSelection;
+      const start = Number(sel.time_selection_start);
+      const end = Number(sel.time_selection_end);
+      const clips: MidiClip<"0.0.5">[] = [];
+      for (const h of sel.selected_lanes) {
+        const obj = context.objects.getObjectFromHandle(h, DataModelObject);
+        if (!(obj instanceof MidiTrack)) continue;
+        for (const clip of obj.arrangementClips) {
+          if (!(clip instanceof MidiClip)) continue;
+          if (Number(clip.startTime) < end && Number(clip.endTime) > start) clips.push(clip);
         }
       }
+      return clips;
     }
-    console.log(`Mutate: ${label} — applied to ${touched} arrangement clip(s) in range`);
+
+    if ("id" in arg) {
+      return [context.objects.getObjectFromHandle(arg as Handle, MidiClip)];
+    }
+
+    return [];
+  }
+
+  function runQuickAction(
+    arg: unknown,
+    label: string,
+    transform: (notes: Note[], rng: Rng) => Note[],
+  ) {
+    const clips = collectMidiClipsFromArg(arg);
+    if (clips.length === 0) {
+      console.log(`Mutate: ${label} — no MIDI clips in selection`);
+      return;
+    }
+    const rng = mulberry32(Date.now() >>> 0);
+    context.withinTransaction(() => {
+      for (const clip of clips) {
+        clip.notes = transform(clip.notes as Note[], rng);
+      }
+    });
+    console.log(`Mutate: ${label} — applied to ${clips.length} clip(s)`);
   }
 
   // -------------------------------------------------------------------
-  // MidiClip scope — only the dialog mode lives here. Quick actions
-  // operate via ClipSlotSelection so a single right-clicked clip and a
-  // multi-clip selection take the same handler path.
+  // Dialog commands (MidiClip / Scene / MidiTrack.ArrangementSelection / MidiTrack)
   // -------------------------------------------------------------------
 
   context.commands.registerCommand(
@@ -128,32 +134,6 @@ export function activate(activation: ActivationContext) {
       })(arg as Handle),
   );
 
-  // -------------------------------------------------------------------
-  // ClipSlotSelection scope (Session, one or more clip slots)
-  // -------------------------------------------------------------------
-
-  context.commands.registerCommand(
-    "mutate.selectionRandomizeVelocity",
-    (arg: unknown) =>
-      applyToClipSlotSelection(arg as ClipSlotSelection, randomizeVelocity, "Randomize Velocity"),
-  );
-
-  context.commands.registerCommand(
-    "mutate.selectionSwapNotes",
-    (arg: unknown) =>
-      applyToClipSlotSelection(arg as ClipSlotSelection, swapNotes, "Swap Notes"),
-  );
-
-  context.commands.registerCommand(
-    "mutate.selectionDeleteTenPercent",
-    (arg: unknown) =>
-      applyToClipSlotSelection(arg as ClipSlotSelection, deleteTenPercent, "Delete 10%"),
-  );
-
-  // -------------------------------------------------------------------
-  // Scene scope
-  // -------------------------------------------------------------------
-
   context.commands.registerCommand(
     "mutate.sceneDialog",
     (arg: unknown) =>
@@ -161,10 +141,6 @@ export function activate(activation: ActivationContext) {
         await openDialog("scene");
       })(arg as Handle),
   );
-
-  // -------------------------------------------------------------------
-  // MidiTrack.ArrangementSelection scope
-  // -------------------------------------------------------------------
 
   context.commands.registerCommand(
     "mutate.rangeDialog",
@@ -174,22 +150,28 @@ export function activate(activation: ActivationContext) {
       })(arg as ArrangementSelection),
   );
 
-  context.commands.registerCommand(
-    "mutate.rangeRandomizeVelocity",
-    (arg: unknown) =>
-      applyToArrangementRange(arg as ArrangementSelection, randomizeVelocity, "Randomize Velocity"),
+  // -------------------------------------------------------------------
+  // Quick actions — registered on MidiClip, ClipSlotSelection, and
+  // MidiTrack.ArrangementSelection. One command id per action works on
+  // all three scopes via collectMidiClipsFromArg's duck-typing.
+  // -------------------------------------------------------------------
+
+  context.commands.registerCommand("mutate.quick.randomizeVelocity", (arg: unknown) =>
+    runQuickAction(arg, "Randomize Velocity", (notes, rng) =>
+      transformVelocity(notes, { offset: 0, range: 15 }, rng),
+    ),
   );
 
-  context.commands.registerCommand(
-    "mutate.rangeSwapNotes",
-    (arg: unknown) =>
-      applyToArrangementRange(arg as ArrangementSelection, swapNotes, "Swap Notes"),
+  context.commands.registerCommand("mutate.quick.swapNotes", (arg: unknown) =>
+    runQuickAction(arg, "Swap Notes", (notes, rng) =>
+      swapNotes(notes, { offset: 0.25, range: 0 }, rng),
+    ),
   );
 
-  context.commands.registerCommand(
-    "mutate.rangeDeleteTenPercent",
-    (arg: unknown) =>
-      applyToArrangementRange(arg as ArrangementSelection, deleteTenPercent, "Delete 10%"),
+  context.commands.registerCommand("mutate.quick.deleteTenPercent", (arg: unknown) =>
+    runQuickAction(arg, "Delete 10%", (notes, rng) =>
+      dropNotes(notes, { offset: 0.1, range: 0 }, rng),
+    ),
   );
 
   // -------------------------------------------------------------------
@@ -227,17 +209,18 @@ export function activate(activation: ActivationContext) {
   // -------------------------------------------------------------------
 
   context.ui.registerContextMenuAction("MidiClip", "Clip...", "mutate.clipDialog");
-
-  context.ui.registerContextMenuAction("ClipSlotSelection", "Randomize Velocity", "mutate.selectionRandomizeVelocity");
-  context.ui.registerContextMenuAction("ClipSlotSelection", "Swap Notes", "mutate.selectionSwapNotes");
-  context.ui.registerContextMenuAction("ClipSlotSelection", "Delete 10%", "mutate.selectionDeleteTenPercent");
-
   context.ui.registerContextMenuAction("Scene", "Scene...", "mutate.sceneDialog");
-
   context.ui.registerContextMenuAction("MidiTrack.ArrangementSelection", "Range...", "mutate.rangeDialog");
-  context.ui.registerContextMenuAction("MidiTrack.ArrangementSelection", "Randomize Velocity", "mutate.rangeRandomizeVelocity");
-  context.ui.registerContextMenuAction("MidiTrack.ArrangementSelection", "Swap Notes", "mutate.rangeSwapNotes");
-  context.ui.registerContextMenuAction("MidiTrack.ArrangementSelection", "Delete 10%", "mutate.rangeDeleteTenPercent");
+
+  for (const scope of [
+    "MidiClip",
+    "ClipSlotSelection",
+    "MidiTrack.ArrangementSelection",
+  ] as const) {
+    context.ui.registerContextMenuAction(scope, "Randomize Velocity", "mutate.quick.randomizeVelocity");
+    context.ui.registerContextMenuAction(scope, "Swap Notes", "mutate.quick.swapNotes");
+    context.ui.registerContextMenuAction(scope, "Delete 10%", "mutate.quick.deleteTenPercent");
+  }
 
   context.ui.registerContextMenuAction("MidiTrack", "Drums...", "mutate.drumsDialog");
   context.ui.registerContextMenuAction("MidiTrack", "Shuffle Drums", "mutate.shuffleDrums");
