@@ -4,6 +4,7 @@ import { OpenSheetMusicDisplay } from "opensheetmusicdisplay";
 import { getNotationData, closeDialog, exportFile, type NotationData, type ClipData } from "./bridge.js";
 import { quantizeNotes, type QuantizeGrid } from "./quantize.js";
 import { notesToMusicXML, sortClipsForScore, type SortMode } from "./musicxml.js";
+import { assignUnnamedIndices, buildFullPartName } from "./part-name.js";
 
 const GRIDS: { value: QuantizeGrid; label: string }[] = [
   { value: "16th", label: "16th" },
@@ -20,31 +21,6 @@ const SORT_MODES: { value: SortMode; label: string; title: string }[] = [
 // PNG export renders the SVG onto a canvas at this multiple of its native
 // dimensions so the bitmap stays sharp on retina/high-DPI displays.
 const PNG_SCALE_FACTOR = 2;
-
-function buildFullPartName(trackName: string, label: string, index: number): string {
-  const t = (trackName ?? "").trim();
-  const c = label.trim();
-  if (t && c) return `[${t}] ${c}`;
-  if (t) return `[${t}]`;
-  if (c) return c;
-  return `Part ${index + 1}`;
-}
-
-// Assign a stable 1-based index to each clip that will display the
-// "(unnamed #N)" fallback label — i.e. clips with no clip name AND no track
-// name. This matches the gating in notesToMusicXML so the numbering here
-// and downstream stays consistent. Mutates the input in place so the tag
-// rides on every derived view of the clip (quantized, sorted, etc.).
-// AJM-189: keeps the label stable across sort-mode changes.
-function assignUnnamedIndices(data: NotationData): NotationData {
-  let seq = 0;
-  for (const c of data.clips) {
-    const hasName = (c.clip.name ?? "").trim() !== "";
-    const hasTrackName = (c.clip.trackName ?? "").trim() !== "";
-    if (!hasName && !hasTrackName) c.clip.unnamedIndex = ++seq;
-  }
-  return data;
-}
 
 // Walk SVG text nodes ending with "…" and match them to their original full
 // part name by prefix, then add an SVG <title> child so browsers show a
