@@ -57,6 +57,8 @@ function App() {
   const containerRef = useRef<HTMLDivElement>(null);
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
 
+  const hasDrumClip = data.current.clips.some((c) => c.isDrumRack);
+
   const [grid, setGrid] = useState<QuantizeGrid>("16th");
   const [status, setStatus] = useState("Loading...");
   const [debugXML, setDebugXML] = useState("");
@@ -65,15 +67,17 @@ function App() {
   const [timeSigDen, setTimeSigDen] = useState(data.current.timeSignature.denominator);
   const [legato, setLegato] = useState(false);
   const [showTempo, setShowTempo] = useState(false);
+  const [drumHeads, setDrumHeads] = useState(hasDrumClip);
 
-  const renderNotation = useCallback(async (g: QuantizeGrid, tsNum: number, tsDen: number, legato: boolean, showTempo: boolean) => {
+  const renderNotation = useCallback(async (g: QuantizeGrid, tsNum: number, tsDen: number, legato: boolean, showTempo: boolean, drumHeads: boolean) => {
     if (emptyStateMessage) return;
     if (!containerRef.current) return;
 
-    const quantizedClips: ClipData[] = data.current.clips.map((c) => ({
-      notes: quantizeNotes(c.notes, g),
-      clip: c.clip,
-    }));
+    const quantizedClips: ClipData[] = data.current.clips.map((c) => {
+      const qc: ClipData = { notes: quantizeNotes(c.notes, g), clip: c.clip };
+      if (c.isDrumRack && drumHeads) qc.isDrumRack = true;
+      return qc;
+    });
 
     const totalNotes = quantizedClips.reduce((sum, c) => sum + c.notes.length, 0);
     const musicXML = notesToMusicXML(
@@ -118,8 +122,8 @@ function App() {
   }, []);
 
   useEffect(() => {
-    renderNotation(grid, timeSigNum, timeSigDen, legato, showTempo);
-  }, [grid, timeSigNum, timeSigDen, legato, showTempo, renderNotation]);
+    renderNotation(grid, timeSigNum, timeSigDen, legato, showTempo, drumHeads);
+  }, [grid, timeSigNum, timeSigDen, legato, showTempo, drumHeads, renderNotation]);
 
   const clipName = data.current.clips.length === 1
     ? (data.current.clips[0]?.clip.name || "notation")
@@ -202,6 +206,11 @@ function App() {
             <button class={showTempo ? "active" : ""} onClick={() => setShowTempo((v) => !v)} title={`Show tempo marking (${Math.round(data.current.tempo)} BPM)`}>
               Tempo
             </button>
+            {hasDrumClip && (
+              <button class={drumHeads ? "active" : ""} onClick={() => setDrumHeads((v) => !v)} title="Render drum-rack clips with x noteheads">
+                Drums
+              </button>
+            )}
           </div>
         </div>
 

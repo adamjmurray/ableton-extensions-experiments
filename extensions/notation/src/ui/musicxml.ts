@@ -151,6 +151,7 @@ function generatePartMeasures(
   tempoDirection: string,
   leadingMeasures: number,
   trailingMeasures: number,
+  isDrumRack: boolean,
 ): string[] {
   const clef = detectClef(notes);
   const beatsPerMeasure = timeSignature.numerator * (4 / timeSignature.denominator);
@@ -261,6 +262,7 @@ function generatePartMeasures(
               isChordMember,
               tieStop || (c > 0),
               tieStart || (c < components.length - 1),
+              isDrumRack,
             ),
             triplet: comp.triplet,
             // Chord members don't advance time
@@ -365,6 +367,7 @@ export function notesToMusicXML(
     return {
       clip: c.clip,
       notes: c.notes,
+      isDrumRack: c.isDrumRack ?? false,
       filterStart,
       renderEnd: c.clip.loopEnd,
       arrangementStart,
@@ -423,6 +426,7 @@ export function notesToMusicXML(
       i === 0 ? tempoDirection : "",
       r.leadingMeasures,
       r.trailingMeasures,
+      r.isDrumRack,
     );
     return { id, name, measures };
   });
@@ -477,6 +481,7 @@ function renderNote(
   isChord: boolean,
   tieStop: boolean,
   tieStart: boolean,
+  isDrumRack: boolean,
 ): string {
   const p = midiToPitch(pitch, fifths);
   let xml = `      <note>\n`;
@@ -509,6 +514,10 @@ function renderNote(
     xml += `          <actual-notes>3</actual-notes>\n`;
     xml += `          <normal-notes>2</normal-notes>\n`;
     xml += `        </time-modification>\n`;
+  }
+
+  if (isDrumRack) {
+    xml += `        <notehead>x</notehead>\n`;
   }
 
   if (tieStart || tieStop) {

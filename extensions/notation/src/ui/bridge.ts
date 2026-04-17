@@ -27,6 +27,10 @@ export interface ClipData {
     loopEnd: number;
     arrangementStartTime?: number;
   };
+  // True when the clip's track has a drum rack (or contains one in a nested
+  // instrument rack). Drum-rack clips render with x noteheads to make them
+  // visually distinct from pitched parts.
+  isDrumRack?: boolean;
 }
 
 export interface NotationData {

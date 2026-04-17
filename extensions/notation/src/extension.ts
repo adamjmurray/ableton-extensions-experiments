@@ -2,8 +2,11 @@ import {
   initialize,
   ClipSlot,
   DataModelObject,
+  Device,
+  DrumChain,
   MidiClip,
   MidiTrack,
+  RackDevice,
   Scene,
   type ActivationContext,
   type ArrangementSelection,
@@ -50,6 +53,7 @@ interface ClipInfo {
     loopEnd: number;
     arrangementStartTime?: number;
   };
+  isDrumRack?: boolean;
 }
 
 function findMidiTrack(obj: DataModelObject<"0.0.5"> | null): MidiTrack<"0.0.5"> | null {
@@ -60,12 +64,30 @@ function findMidiTrack(obj: DataModelObject<"0.0.5"> | null): MidiTrack<"0.0.5">
   return current;
 }
 
+// Recursively check whether the device tree contains any drum-rack chain.
+// Handles the common Instrument Rack → Drum Rack nesting case.
+function hasDrumChain(devices: Device<"0.0.5">[]): boolean {
+  for (const d of devices) {
+    if (!(d instanceof RackDevice)) continue;
+    for (const chain of d.chains) {
+      if (chain instanceof DrumChain) return true;
+      if (hasDrumChain(chain.devices)) return true;
+    }
+  }
+  return false;
+}
+
+function isDrumRackTrack(track: MidiTrack<"0.0.5"> | null): boolean {
+  return track ? hasDrumChain(track.devices) : false;
+}
+
 function readMidiClip(
   clip: MidiClip<any>,
   trackName: string,
+  isDrumRack: boolean,
   arrangementStartTime?: number,
 ): ClipInfo {
-  return {
+  const info: ClipInfo = {
     notes: clip.notes.map((n) => ({
       pitch: Number(n.pitch),
       startTime: Number(n.startTime),
@@ -83,6 +105,8 @@ function readMidiClip(
       ...(arrangementStartTime !== undefined ? { arrangementStartTime } : {}),
     },
   };
+  if (isDrumRack) info.isDrumRack = true;
+  return info;
 }
 
 export function activate(activation: ActivationContext) {
@@ -169,8 +193,9 @@ export function activate(activation: ActivationContext) {
     (arg: unknown) =>
       void (async (handle: Handle) => {
         const clip = context.objects.getObjectFromHandle(handle, MidiClip);
-        const trackName = String(findMidiTrack(clip)?.name ?? "");
-        const clipData = readMidiClip(clip, trackName);
+        const track = findMidiTrack(clip);
+        const trackName = String(track?.name ?? "");
+        const clipData = readMidiClip(clip, trackName, isDrumRackTrack(track));
 
         if (clipData.notes.length === 0) {
           await showNotationDialog([], "No notes in this clip.");
@@ -192,8 +217,9 @@ export function activate(activation: ActivationContext) {
           const slot = context.objects.getObjectFromHandle(handle, ClipSlot);
           const clip = slot.clip;
           if (clip && clip instanceof MidiClip) {
-            const trackName = String(findMidiTrack(slot)?.name ?? "");
-            const clipData = readMidiClip(clip, trackName);
+            const track = findMidiTrack(slot);
+            const trackName = String(track?.name ?? "");
+            const clipData = readMidiClip(clip, trackName, isDrumRackTrack(track));
             if (clipData.notes.length > 0) {
               clips.push(clipData);
             }
@@ -227,7 +253,8 @@ export function activate(activation: ActivationContext) {
           const slot = track.clipSlots[sceneIndex];
           const clip = slot?.clip;
           if (clip && clip instanceof MidiClip) {
-            const clipData = readMidiClip(clip, String(track.name));
+            const midiTrack = track instanceof MidiTrack ? track : null;
+            const clipData = readMidiClip(clip, String(track.name), isDrumRackTrack(midiTrack));
             if (clipData.notes.length > 0) {
               clips.push(clipData);
             }
@@ -261,12 +288,13 @@ export function activate(activation: ActivationContext) {
         const end = Number(selection.time_selection_end);
         const clips: ClipInfo[] = [];
         for (const track of tracks) {
+          const isDrum = isDrumRackTrack(track);
           for (const clip of track.arrangementClips) {
             if (!(clip instanceof MidiClip)) continue;
             const clipStart = Number(clip.startTime);
             const clipEnd = Number(clip.endTime);
             if (clipStart < end && clipEnd > start) {
-              const clipData = readMidiClip(clip, String(track.name), clipStart);
+              const clipData = readMidiClip(clip, String(track.name), isDrum, clipStart);
               if (clipData.notes.length > 0) {
                 clips.push(clipData);
               }
