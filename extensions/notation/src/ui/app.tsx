@@ -156,18 +156,28 @@ function App() {
     const img = new Image();
 
     img.onload = () => {
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d")!;
-      canvas.width = img.width * PNG_SCALE_FACTOR;
-      canvas.height = img.height * PNG_SCALE_FACTOR;
-      ctx.scale(PNG_SCALE_FACTOR, PNG_SCALE_FACTOR);
-      ctx.fillStyle = "white";
-      ctx.fillRect(0, 0, img.width, img.height);
-      ctx.drawImage(img, 0, 0);
+      try {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d")!;
+        canvas.width = img.width * PNG_SCALE_FACTOR;
+        canvas.height = img.height * PNG_SCALE_FACTOR;
+        ctx.scale(PNG_SCALE_FACTOR, PNG_SCALE_FACTOR);
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, img.width, img.height);
+        ctx.drawImage(img, 0, 0);
 
-      const dataUrl = canvas.toDataURL("image/png");
-      const base64 = dataUrl.replace(/^data:image\/png;base64,/, "");
-      exportFile(base64, `${clipName}.png`, "base64");
+        const dataUrl = canvas.toDataURL("image/png");
+        const base64 = dataUrl.replace(/^data:image\/png;base64,/, "");
+        exportFile(base64, `${clipName}.png`, "base64");
+      } catch (e) {
+        console.error("PNG export failed during canvas encode:", e);
+        setStatus(`PNG export failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    };
+
+    img.onerror = (e) => {
+      console.error("PNG export failed: could not load SVG into Image:", e);
+      setStatus("PNG export failed: could not render SVG");
     };
 
     img.src = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgData)))}`;
