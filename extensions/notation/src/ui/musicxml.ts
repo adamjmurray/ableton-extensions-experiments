@@ -105,7 +105,8 @@ function generatePartMeasures(
   timeSignature: { numerator: number; denominator: number },
   fifths: number,
   mode: string,
-  startMarker: number,
+  renderStart: number,
+  renderLengthDiv: number,
   numMeasures: number,
   legato: boolean,
   tempoDirection: string,
@@ -117,11 +118,11 @@ function generatePartMeasures(
   const absNotes = notes
     .map((n) => ({
       pitch: n.pitch,
-      startDiv: Math.round((n.startTime - startMarker) * DIVISIONS),
+      startDiv: Math.round((n.startTime - renderStart) * DIVISIONS),
       durationDiv: Math.max(1, Math.round(n.duration * DIVISIONS)),
       velocity: n.velocity,
     }))
-    .filter((n) => n.startDiv >= 0 && n.startDiv < numMeasures * measureDivisions)
+    .filter((n) => n.startDiv >= 0 && n.startDiv < renderLengthDiv)
     .sort((a, b) => a.startDiv - b.startDiv || a.pitch - b.pitch);
 
   if (legato) {
@@ -294,17 +295,14 @@ export function notesToMusicXML(
   const mode = scaleName.toLowerCase().includes("minor") ? "minor" : "major";
   const beatsPerMeasure = timeSignature.numerator * (4 / timeSignature.denominator);
 
-  // Per-clip effective end: loopEnd if looping (content past loopEnd is unheard), else endMarker
-  const clipEnds = clips.map((c) =>
-    c.clip.looping ? c.clip.loopEnd : c.clip.endMarker,
+  // Per-clip render window. The alpha SDK currently reports endMarker at
+  // the absolute clip end rather than the playback end, so we always use
+  // loopEnd as the effective end. When looping, include any loop region
+  // content that precedes startMarker.
+  const renderStarts = clips.map((c) =>
+    c.clip.looping ? Math.min(c.clip.loopStart, c.clip.startMarker) : c.clip.startMarker,
   );
-
-  // Global measure count covers the longest rendered clip
-  let numMeasures = 1;
-  for (let i = 0; i < clips.length; i++) {
-    const clipLength = clipEnds[i] - clips[i].clip.startMarker;
-    numMeasures = Math.max(numMeasures, Math.ceil(clipLength / beatsPerMeasure));
-  }
+  const renderEnds = clips.map((c) => c.clip.loopEnd);
 
   const tempoDirection = tempo && tempo > 0 ? buildTempoDirection(tempo) : "";
 
@@ -317,12 +315,19 @@ export function notesToMusicXML(
     const label = clipName || `(unnamed ${++unnamedCount})`;
     const name = buildPartName(c.clip.trackName, label, i);
 
+    const renderStart = renderStarts[i]!;
+    const renderEnd = renderEnds[i]!;
+    const clipLength = renderEnd - renderStart;
+    const numMeasures = Math.max(1, Math.ceil(clipLength / beatsPerMeasure));
+    const renderLengthDiv = Math.round(clipLength * DIVISIONS);
+
     const measures = generatePartMeasures(
       c.notes,
       timeSignature,
       fifths,
       mode,
-      c.clip.startMarker,
+      renderStart,
+      renderLengthDiv,
       numMeasures,
       legato ?? false,
       i === 0 ? tempoDirection : "",
