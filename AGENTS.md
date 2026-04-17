@@ -93,12 +93,18 @@ multi-clip entry points render each clip on its own staff in a score layout.
 ### Architecture
 - `src/extension.ts` — reads clip notes + song metadata, opens dialog in a loop
   (export actions write a temp file, open it with system `open` command, then re-show the dialog).
-  Registers four context menu actions:
+  Registers six context menu actions:
   - `MidiClip` → "Render Clip" (single clip, Session or Arrangement)
   - `ClipSlotSelection` → "Render Selection" (Session, one or more slots)
   - `Scene` → "Render Scene" (all MIDI clips in a scene's row)
   - `MidiTrack.ArrangementSelection` → "Render Selection" (Arrangement time range;
     MIDI clips overlapping the range via `track.arrangementClips`)
+  - `MidiTrack` → "Render Track (Session)" (all clipSlots flattened onto one staff;
+    empty slots become bar rests, trailing empties trimmed)
+  - `MidiTrack` → "Render Track (Arrangement)" (all arrangementClips flattened onto
+    one staff aligned to the arrangement bar grid; gaps become rest measures).
+    Session vs arrangement is exposed as two menu items because the SDK currently
+    provides no way to detect which view the user right-clicked from.
 - `src/ui/app.tsx` — Preact UI with toolbar (quantize, time sig, view toggle, export)
 - `src/ui/musicxml.ts` — converts quantized MIDI notes to MusicXML
 - `src/ui/quantize.ts` — snaps notes to grid (16th, mixed 16th/triplet, 32nd)
@@ -118,6 +124,27 @@ multi-clip entry points render each clip on its own staff in a score layout.
   file export goes through extension host via `close_and_send`, Cmd+C doesn't work
 - SDK properties may return BigInt — always coerce with `Number()` / `String()` before serializing
 - Dialog communication is one-way: data injected before show, single JSON result on close
+- The alpha SDK reports `clip.endMarker` at the absolute clip end rather than the
+  playback end, so renderers use `clip.loopEnd` as the effective end regardless of
+  whether the clip is looping.
+
+### Clip render region
+The shared helper `getClipRenderRegion(clip, beatsPerMeasure)` in [src/ui/musicxml.ts](extensions/notation/src/ui/musicxml.ts)
+is the single source of truth for how a clip's playback region maps onto the
+notated staff. It returns `{ filterStart, renderEnd, renderStart, barCount }`:
+- `filterStart` — `min(loopStart, startMarker)` if looping (the loop region plays
+  even when it precedes startMarker), else `startMarker`. Notes before this time
+  are dropped.
+- `renderEnd` — always `clip.loopEnd` (see the alpha-SDK endMarker caveat above).
+- `renderStart` — `floor(filterStart / beatsPerMeasure) * beatsPerMeasure`; the
+  first notated bar rounds back to the previous barline so the staff grid aligns
+  to the song, with any sub-bar offset rendered as leading rests.
+- `barCount` — `max(1, ceil((renderEnd - renderStart) / beatsPerMeasure))`; the
+  number of notated measures the clip occupies, rounded up so partial-bar clips
+  leave trailing rests.
+
+The "Render Track" handlers reuse this helper to compute per-clip bar spans
+when flattening a track's clips into a single staff.
 
 ### Development workflow
 Always rebuild after making changes: `cd extensions/notation && npm run build`

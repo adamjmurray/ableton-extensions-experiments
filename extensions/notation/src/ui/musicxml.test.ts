@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { notesToMusicXML } from "./musicxml.js";
+import { getClipRenderRegion, notesToMusicXML } from "./musicxml.js";
 import type { ClipData, NoteData } from "./bridge.js";
 
 function note(pitch: number, startTime: number, duration: number, velocity = 100): NoteData {
@@ -202,6 +202,16 @@ describe("notesToMusicXML", () => {
     expect(xml).toContain("<part-name>(unnamed 1)</part-name>");
   });
 
+  test("part name is bare [TrackName] when clip name is empty but track name is set", () => {
+    const xml = notesToMusicXML(
+      [clip([note(60, 0, 1)], { name: "", trackName: "Lead" })],
+      TS_4_4,
+      0,
+      "Major",
+    );
+    expect(xml).toContain("<part-name>[Lead]</part-name>");
+  });
+
   test("empty clip still renders at least one measure with a whole rest", () => {
     const xml = notesToMusicXML([clip([])], TS_4_4, 0, "Major");
     expect(xml).toContain('<measure number="1">');
@@ -278,5 +288,87 @@ describe("notesToMusicXML", () => {
     // Part A's content is in measure 1; measures 2-3 are trailing rests.
     const firstMeasureA = parts[0]!.match(/<measure number="1">[\s\S]*?<\/measure>/)?.[0] ?? "";
     expect(firstMeasureA).toMatch(/<pitch>\s*<step>C<\/step>/);
+  });
+});
+
+describe("getClipRenderRegion", () => {
+  test("unlooped clip: filterStart = startMarker, renderEnd = loopEnd", () => {
+    const region = getClipRenderRegion(
+      { startMarker: 0, loopStart: 0, loopEnd: 4, looping: false },
+      4,
+    );
+    expect(region).toEqual({ filterStart: 0, renderEnd: 4, renderStart: 0, barCount: 1 });
+  });
+
+  test("unlooped clip with mid-bar startMarker: renderStart floors to previous bar", () => {
+    // startMarker at beat 2 of a 4/4 bar → renderStart=0, barCount covers [0, loopEnd].
+    const region = getClipRenderRegion(
+      { startMarker: 2, loopStart: 0, loopEnd: 4, looping: false },
+      4,
+    );
+    expect(region.filterStart).toBe(2);
+    expect(region.renderEnd).toBe(4);
+    expect(region.renderStart).toBe(0);
+    expect(region.barCount).toBe(1);
+  });
+
+  test("looped clip with loopStart < startMarker: filterStart = loopStart", () => {
+    const region = getClipRenderRegion(
+      { startMarker: 4, loopStart: 0, loopEnd: 8, looping: true },
+      4,
+    );
+    // filterStart = min(0, 4) = 0; renderEnd = loopEnd = 8; barCount covers 2 bars.
+    expect(region.filterStart).toBe(0);
+    expect(region.renderEnd).toBe(8);
+    expect(region.renderStart).toBe(0);
+    expect(region.barCount).toBe(2);
+  });
+
+  test("looped clip with loopStart >= startMarker: filterStart = startMarker", () => {
+    const region = getClipRenderRegion(
+      { startMarker: 0, loopStart: 2, loopEnd: 6, looping: true },
+      4,
+    );
+    // filterStart = min(2, 0) = 0; renderEnd = 6; renderStart = 0; barCount = ceil(6/4) = 2.
+    expect(region.filterStart).toBe(0);
+    expect(region.renderEnd).toBe(6);
+    expect(region.renderStart).toBe(0);
+    expect(region.barCount).toBe(2);
+  });
+
+  test("partial-bar clip length rounds up to a whole bar", () => {
+    // Length 3.5 beats in 4/4 → 1 bar (ceil).
+    const region = getClipRenderRegion(
+      { startMarker: 0, loopStart: 0, loopEnd: 3.5, looping: false },
+      4,
+    );
+    expect(region.barCount).toBe(1);
+  });
+
+  test("multi-bar clip rounds up partial-bar tail", () => {
+    // Length 5.5 beats in 4/4 → 2 bars (ceil).
+    const region = getClipRenderRegion(
+      { startMarker: 0, loopStart: 0, loopEnd: 5.5, looping: false },
+      4,
+    );
+    expect(region.barCount).toBe(2);
+  });
+
+  test("zero-length clip still renders at least 1 bar", () => {
+    const region = getClipRenderRegion(
+      { startMarker: 0, loopStart: 0, loopEnd: 0, looping: false },
+      4,
+    );
+    expect(region.barCount).toBe(1);
+  });
+
+  test("3/4 time signature uses beatsPerMeasure=3", () => {
+    // 6 beats of content in 3/4 → 2 bars.
+    const region = getClipRenderRegion(
+      { startMarker: 0, loopStart: 0, loopEnd: 6, looping: false },
+      3,
+    );
+    expect(region.barCount).toBe(2);
+    expect(region.renderStart).toBe(0);
   });
 });

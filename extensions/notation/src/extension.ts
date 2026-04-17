@@ -19,6 +19,7 @@ import * as os from "node:os";
 import { exec } from "node:child_process";
 
 import notationInterface from "./notation.html";
+import { getClipRenderRegion } from "./ui/musicxml.js";
 
 interface ExportAction {
   action: "export";
@@ -79,6 +80,50 @@ function hasDrumChain(devices: Device<"0.0.5">[]): boolean {
 
 function isDrumRackTrack(track: MidiTrack<"0.0.5"> | null): boolean {
   return track ? hasDrumChain(track.devices) : false;
+}
+
+function beatsPerMeasure(ts: { numerator: number; denominator: number }): number {
+  return ts.numerator * (4 / ts.denominator);
+}
+
+// Shift and filter a clip's notes into the flattened-track timeline.
+// Notes outside [filterStart, renderEnd] are dropped; the rest are
+// translated by `shift` so that clip-local time t becomes t + shift.
+function shiftClipNotes(
+  info: ClipInfo,
+  filterStart: number,
+  renderEnd: number,
+  shift: number,
+): ClipInfo["notes"] {
+  return info.notes
+    .filter((n) => n.startTime >= filterStart && n.startTime < renderEnd)
+    .map((n) => ({ ...n, startTime: n.startTime + shift }));
+}
+
+// Synthetic single-clip envelope used by "Render Track" handlers. Empty
+// `name` triggers a bare `[TrackName]` part name via buildPartName
+// (musicxml.ts); startMarker=0/loopEnd=totalLength makes the standalone
+// renderer cover the whole flattened timeline.
+function buildFlattenedClipInfo(
+  trackName: string,
+  isDrumRack: boolean,
+  notes: ClipInfo["notes"],
+  totalLength: number,
+): ClipInfo {
+  const info: ClipInfo = {
+    notes,
+    clip: {
+      name: "",
+      trackName,
+      startMarker: 0,
+      endMarker: totalLength,
+      looping: false,
+      loopStart: 0,
+      loopEnd: totalLength,
+    },
+  };
+  if (isDrumRack) info.isDrumRack = true;
+  return info;
 }
 
 function readMidiClip(
@@ -311,6 +356,144 @@ export function activate(activation: ActivationContext) {
       })(arg as ArrangementSelection),
   );
 
+  // Track (session): flatten all MIDI clips in the track's clipSlots into
+  // one continuous staff. Empty slots become one bar of rest; trailing
+  // empty slots are trimmed.
+  context.commands.registerCommand(
+    "notation.showTrackSession",
+    (arg: unknown) =>
+      void (async (handle: Handle) => {
+        const track = context.objects.getObjectFromHandle(handle, MidiTrack);
+        const trackName = String(track.name);
+        const isDrum = isDrumRackTrack(track);
+        const bpm = beatsPerMeasure(getSongMetadata().timeSignature);
+
+        type Entry = { kind: "clip"; info: ClipInfo; shift: number; filterStart: number; renderEnd: number } | { kind: "empty" };
+        const entries: Entry[] = [];
+        let lastNonEmpty = -1;
+        let offset = 0;
+
+        const slots = track.clipSlots;
+        for (let i = 0; i < slots.length; i++) {
+          const slot = slots[i];
+          const clip = slot?.clip;
+          if (clip && clip instanceof MidiClip) {
+            const info = readMidiClip(clip, trackName, isDrum);
+            const region = getClipRenderRegion(info.clip, bpm);
+            entries.push({
+              kind: "clip",
+              info,
+              shift: offset - region.renderStart,
+              filterStart: region.filterStart,
+              renderEnd: region.renderEnd,
+            });
+            offset += region.barCount * bpm;
+            lastNonEmpty = i;
+          } else {
+            entries.push({ kind: "empty" });
+            offset += bpm;
+          }
+        }
+
+        if (lastNonEmpty < 0) {
+          await showNotationDialog([], "No MIDI clips on this track.");
+          return;
+        }
+
+        // Trim trailing empty slots and recompute total length.
+        const trimmed = entries.slice(0, lastNonEmpty + 1);
+        let totalLength = 0;
+        const notes: ClipInfo["notes"] = [];
+        for (const e of trimmed) {
+          if (e.kind === "clip") {
+            const region = getClipRenderRegion(e.info.clip, bpm);
+            notes.push(...shiftClipNotes(e.info, e.filterStart, e.renderEnd, e.shift));
+            totalLength += region.barCount * bpm;
+          } else {
+            totalLength += bpm;
+          }
+        }
+
+        const flattened = buildFlattenedClipInfo(trackName, isDrum, notes, totalLength);
+        if (flattened.notes.length === 0) {
+          await showNotationDialog([], "No notes on this track's session clips.");
+          return;
+        }
+
+        await showNotationDialog([flattened]);
+      })(arg as Handle),
+  );
+
+  // Track (arrangement): flatten all MIDI arrangement clips on the track
+  // onto one staff aligned to the arrangement bar grid. Gaps between
+  // clips become rest measures. Overlapping clips (unusual) merge with
+  // a console warning.
+  context.commands.registerCommand(
+    "notation.showTrackArrangement",
+    (arg: unknown) =>
+      void (async (handle: Handle) => {
+        const track = context.objects.getObjectFromHandle(handle, MidiTrack);
+        const trackName = String(track.name);
+        const isDrum = isDrumRackTrack(track);
+        const bpm = beatsPerMeasure(getSongMetadata().timeSignature);
+
+        type Clip = { info: ClipInfo; arrangementStart: number; filterStart: number; renderEnd: number };
+        const clips: Clip[] = [];
+        for (const clip of track.arrangementClips) {
+          if (!(clip instanceof MidiClip)) continue;
+          const arrangementStart = Number(clip.startTime);
+          const info = readMidiClip(clip, trackName, isDrum);
+          const region = getClipRenderRegion(info.clip, bpm);
+          clips.push({
+            info,
+            arrangementStart,
+            filterStart: region.filterStart,
+            renderEnd: region.renderEnd,
+          });
+        }
+
+        if (clips.length === 0) {
+          await showNotationDialog([], "No MIDI clips on this track.");
+          return;
+        }
+
+        clips.sort((a, b) => a.arrangementStart - b.arrangementStart);
+
+        // Overlap detection against previously-placed flattened ranges.
+        // Anchor at arrangement time 0 so the output begins at bar 1 of the
+        // arrangement timeline; leading arrangement space renders as rest
+        // measures before the first clip.
+        const placedRanges: { start: number; end: number }[] = [];
+        const notes: ClipInfo["notes"] = [];
+        let totalLength = 0;
+
+        for (const c of clips) {
+          const shift = c.arrangementStart - c.info.clip.startMarker;
+          const flatStart = c.filterStart + shift;
+          const flatEnd = c.renderEnd + shift;
+
+          const overlap = placedRanges.find((r) => r.start < flatEnd && r.end > flatStart);
+          if (overlap) {
+            console.warn(
+              `Notation: overlapping arrangement clips on track "${trackName}" merged into single voice (ranges ${overlap.start.toFixed(2)}-${overlap.end.toFixed(2)} and ${flatStart.toFixed(2)}-${flatEnd.toFixed(2)} in beats).`,
+            );
+          }
+          placedRanges.push({ start: flatStart, end: flatEnd });
+
+          notes.push(...shiftClipNotes(c.info, c.filterStart, c.renderEnd, shift));
+          totalLength = Math.max(totalLength, flatEnd);
+        }
+
+        const flattened = buildFlattenedClipInfo(trackName, isDrum, notes, totalLength);
+        if (flattened.notes.length === 0) {
+          await showNotationDialog([], "No notes on this track's arrangement clips.");
+          return;
+        }
+
+        await showNotationDialog([flattened]);
+      })(arg as Handle),
+  );
+
   context.ui.registerContextMenuAction("MidiClip", "Render Clip", "notation.showClip");
   context.ui.registerContextMenuAction("ClipSlotSelection", "Render Selection", "notation.showSelection");
   context.ui.registerContextMenuAction("Scene", "Render Scene", "notation.showScene");
@@ -319,4 +502,6 @@ export function activate(activation: ActivationContext) {
     "Render Selection",
     "notation.showArrangementSelection",
   );
+  context.ui.registerContextMenuAction("MidiTrack", "Render Track (Session)", "notation.showTrackSession");
+  context.ui.registerContextMenuAction("MidiTrack", "Render Track (Arrangement)", "notation.showTrackArrangement");
 }

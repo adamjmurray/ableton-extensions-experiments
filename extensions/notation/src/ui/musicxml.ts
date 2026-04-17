@@ -360,6 +360,28 @@ function generatePartMeasures(
   return measures;
 }
 
+// The clip render region used by standalone rendering and by callers that
+// flatten a track's clips into one synthetic part (see the "Render Track"
+// handlers in extension.ts). The alpha SDK currently reports endMarker at
+// the absolute clip end rather than the playback end, so we always use
+// loopEnd as the effective end. The filter anchor is startMarker (or
+// min(loopStart, startMarker) for loops, since the loop region plays
+// even if it precedes startMarker). When that anchor is mid-measure,
+// the render anchor rounds back to the previous bar boundary so bar
+// lines align to the song's musical grid; the gap becomes leading rests.
+export function getClipRenderRegion(
+  clip: Pick<ClipData["clip"], "startMarker" | "loopStart" | "loopEnd" | "looping">,
+  beatsPerMeasure: number,
+): { filterStart: number; renderEnd: number; renderStart: number; barCount: number } {
+  const filterStart = clip.looping
+    ? Math.min(clip.loopStart, clip.startMarker)
+    : clip.startMarker;
+  const renderEnd = clip.loopEnd;
+  const renderStart = Math.floor(filterStart / beatsPerMeasure) * beatsPerMeasure;
+  const barCount = Math.max(1, Math.ceil((renderEnd - renderStart) / beatsPerMeasure));
+  return { filterStart, renderEnd, renderStart, barCount };
+}
+
 export function notesToMusicXML(
   clips: ClipData[],
   timeSignature: { numerator: number; denominator: number },
@@ -381,27 +403,18 @@ export function notesToMusicXML(
   // then produces any sub-bar offset inside the first rendered measure.
   const align = clips.length > 0 && clips.every((c) => c.clip.arrangementStartTime !== undefined);
 
-  // Per-clip render window. The alpha SDK currently reports endMarker at
-  // the absolute clip end rather than the playback end, so we always use
-  // loopEnd as the effective end. The filter anchor is startMarker (or
-  // min(loopStart, startMarker) for loops, since the loop region plays
-  // even if it precedes startMarker). When that anchor is mid-measure,
-  // the render anchor rounds back to the previous bar boundary so bar
-  // lines align to the song's musical grid; the gap becomes leading rests.
   const base = clips.map((c) => {
-    const filterStart = c.clip.looping
-      ? Math.min(c.clip.loopStart, c.clip.startMarker)
-      : c.clip.startMarker;
-    // Only meaningful when align is true; harmless placeholder otherwise.
+    const region = getClipRenderRegion(c.clip, beatsPerMeasure);
     const arrangementStart = c.clip.arrangementStartTime ?? 0;
     return {
       clip: c.clip,
       notes: c.notes,
       isDrumRack: c.isDrumRack ?? false,
-      filterStart,
-      renderEnd: c.clip.loopEnd,
+      filterStart: region.filterStart,
+      renderEnd: region.renderEnd,
+      standaloneRenderStart: region.renderStart,
       arrangementStart,
-      arrangementFilterStart: arrangementStart + filterStart - c.clip.startMarker,
+      arrangementFilterStart: arrangementStart + region.filterStart - c.clip.startMarker,
     };
   });
 
@@ -418,7 +431,7 @@ export function notesToMusicXML(
       : 0;
     const renderStart = align
       ? r.clip.startMarker + (globalOrigin + leadingMeasures * beatsPerMeasure - r.arrangementStart)
-      : Math.floor(r.filterStart / beatsPerMeasure) * beatsPerMeasure;
+      : r.standaloneRenderStart;
     const clipMeasureCount = Math.max(1, Math.ceil((r.renderEnd - renderStart) / beatsPerMeasure));
     return { ...r, leadingMeasures, renderStart, clipMeasureCount };
   });
@@ -436,7 +449,10 @@ export function notesToMusicXML(
   const parts = renders.map((r, i) => {
     const id = `P${i + 1}`;
     const clipName = (r.clip.name ?? "").trim();
-    const label = clipName || `(unnamed ${++unnamedCount})`;
+    // If the track name provides enough identity, skip the "(unnamed N)"
+    // fallback so flattened track renders show a bare "[TrackName]" part
+    // name instead of "[TrackName] (unnamed 1)".
+    const label = clipName || (r.clip.trackName ? "" : `(unnamed ${++unnamedCount})`);
     const name = buildPartName(r.clip.trackName, label, i);
 
     const clipLength = r.renderEnd - r.renderStart;
