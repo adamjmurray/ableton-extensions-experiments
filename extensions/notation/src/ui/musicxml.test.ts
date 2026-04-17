@@ -58,6 +58,95 @@ describe("notesToMusicXML", () => {
     expect(xml).toMatch(/<step>B<\/step>\s*<alter>-1<\/alter>/);
   });
 
+  // AJM-186: key signature derivation from Live's rootNote + scaleName.
+  // Each case asserts the expected <fifths> and <mode> values produced by the
+  // SCALE_TABLE lookup in musicxml.ts. Modal scales share their relative
+  // major's signature; exotic/unknown scales fall back to 0 fifths + major.
+  describe("key signature derivation", () => {
+    function keySig(rootNote: number, scaleName: string) {
+      const xml = notesToMusicXML([clip([note(60, 0, 1)])], TS_4_4, rootNote, scaleName);
+      const fifths = xml.match(/<fifths>(-?\d+)<\/fifths>/)?.[1];
+      const mode = xml.match(/<mode>(\w+)<\/mode>/)?.[1];
+      return { fifths, mode };
+    }
+
+    test("diatonic modes with C-major parent render as 0 fifths", () => {
+      expect(keySig(2, "Dorian")).toEqual({ fifths: "0", mode: "minor" });
+      expect(keySig(4, "Phrygian")).toEqual({ fifths: "0", mode: "minor" });
+      expect(keySig(5, "Lydian")).toEqual({ fifths: "0", mode: "major" });
+      expect(keySig(7, "Mixolydian")).toEqual({ fifths: "0", mode: "major" });
+      expect(keySig(11, "Locrian")).toEqual({ fifths: "0", mode: "minor" });
+    });
+
+    test("diatonic modes transpose correctly off C", () => {
+      // A Dorian → G major (1 sharp)
+      expect(keySig(9, "Dorian")).toEqual({ fifths: "1", mode: "minor" });
+      // E Dorian → D major (2 sharps)
+      expect(keySig(4, "Dorian")).toEqual({ fifths: "2", mode: "minor" });
+      // Bb Mixolydian → Eb major (3 flats)
+      expect(keySig(10, "Mixolydian")).toEqual({ fifths: "-3", mode: "major" });
+      // F# Lydian → enharmonic Db/C# major; table resolves to Db major (-5 flats)
+      expect(keySig(6, "Lydian")).toEqual({ fifths: "-5", mode: "major" });
+    });
+
+    test("harmonic and melodic minor share natural minor key signature", () => {
+      // C harmonic / melodic minor → Eb major (3 flats)
+      expect(keySig(0, "Harmonic Minor")).toEqual({ fifths: "-3", mode: "minor" });
+      expect(keySig(0, "Melodic Minor")).toEqual({ fifths: "-3", mode: "minor" });
+      expect(keySig(0, "Hungarian Minor")).toEqual({ fifths: "-3", mode: "minor" });
+    });
+
+    test("pentatonic and blues scales share parent diatonic signature", () => {
+      // A minor pentatonic → C major (0 fifths), mode minor
+      expect(keySig(9, "Minor Pentatonic")).toEqual({ fifths: "0", mode: "minor" });
+      // C major pentatonic → C major (0 fifths)
+      expect(keySig(0, "Major Pentatonic")).toEqual({ fifths: "0", mode: "major" });
+      // C minor blues → Eb major (3 flats), mode minor
+      expect(keySig(0, "Minor Blues")).toEqual({ fifths: "-3", mode: "minor" });
+    });
+
+    test("modes of melodic minor approximate to closest diatonic mode", () => {
+      // F Lydian Augmented / Dominant → C major (0 fifths)
+      expect(keySig(5, "Lydian Augmented")).toEqual({ fifths: "0", mode: "major" });
+      expect(keySig(5, "Lydian Dominant")).toEqual({ fifths: "0", mode: "major" });
+      // B Super Locrian → C major (0 fifths)
+      expect(keySig(11, "Super Locrian")).toEqual({ fifths: "0", mode: "minor" });
+    });
+
+    test("modes of harmonic minor approximate to closest diatonic mode", () => {
+      // D Dorian #4 → C major (0 fifths), shares Dorian's key sig
+      expect(keySig(2, "Dorian #4")).toEqual({ fifths: "0", mode: "minor" });
+      // E Phrygian Dominant → C major (0 fifths); major 3rd → mode major
+      expect(keySig(4, "Phrygian Dominant")).toEqual({ fifths: "0", mode: "major" });
+    });
+
+    test("exotic scales fall back to 0 fifths with major mode", () => {
+      expect(keySig(0, "Whole Tone")).toEqual({ fifths: "0", mode: "major" });
+      expect(keySig(2, "Half-whole Dim.")).toEqual({ fifths: "0", mode: "major" });
+      expect(keySig(2, "Whole-half Dim.")).toEqual({ fifths: "0", mode: "major" });
+      expect(keySig(4, "8-Tone Spanish")).toEqual({ fifths: "0", mode: "major" });
+      expect(keySig(0, "Bhairav")).toEqual({ fifths: "0", mode: "major" });
+      expect(keySig(0, "Hirajoshi")).toEqual({ fifths: "0", mode: "major" });
+      expect(keySig(0, "In-Sen")).toEqual({ fifths: "0", mode: "major" });
+      expect(keySig(0, "Iwato")).toEqual({ fifths: "0", mode: "major" });
+      expect(keySig(0, "Kumoi")).toEqual({ fifths: "0", mode: "major" });
+      expect(keySig(0, "Pelog Selisir")).toEqual({ fifths: "0", mode: "major" });
+      expect(keySig(0, "Pelog Tembung")).toEqual({ fifths: "0", mode: "major" });
+      expect(keySig(0, "Messiaen 3")).toEqual({ fifths: "0", mode: "major" });
+      expect(keySig(0, "Messiaen 7")).toEqual({ fifths: "0", mode: "major" });
+    });
+
+    test("unknown scale names fall back to 0 fifths with major mode", () => {
+      expect(keySig(7, "Bebop Dominant")).toEqual({ fifths: "0", mode: "major" });
+      expect(keySig(0, "")).toEqual({ fifths: "0", mode: "major" });
+    });
+
+    test("scale name matching is case- and whitespace-insensitive", () => {
+      expect(keySig(9, "  MINOR  ")).toEqual({ fifths: "0", mode: "minor" });
+      expect(keySig(2, "dorian")).toEqual({ fifths: "0", mode: "minor" });
+    });
+  });
+
   test("time signature propagates to <time>", () => {
     const xml = notesToMusicXML([clip([note(60, 0, 1)])], { numerator: 3, denominator: 4 }, 0, "Major");
     expect(xml).toContain("<beats>3</beats>");

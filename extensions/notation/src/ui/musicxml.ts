@@ -4,11 +4,42 @@ import type { NoteData, ClipData } from "./bridge.js";
 // LCM(8, 6) = 24 supports 32nd notes (3 divisions) and triplet 16ths (4 divisions).
 const DIVISIONS = 24;
 
-function getFifths(rootNote: number, scaleName: string): number {
-  const majorFifths = [0, -5, 2, -3, 4, -1, 6, 1, -4, 3, -2, 5];
-  const minorFifths = [-3, 4, -1, -6, 1, -4, 3, -2, 5, 0, -5, 2];
-  const isMinor = scaleName.toLowerCase().includes("minor");
-  return isMinor ? minorFifths[rootNote % 12]! : majorFifths[rootNote % 12]!;
+// Circle-of-fifths value for each major-key tonic, indexed by pitch class:
+// C=0, G=1, D=2, A=3, E=4, B=5, F#=6, F=-1, Bb=-2, Eb=-3, Ab=-4, Db=-5.
+const MAJOR_FIFTHS = [0, -5, 2, -3, 4, -1, 6, 1, -4, 3, -2, 5];
+
+type Mode = "major" | "minor";
+
+// offset: semitones from the scale's tonic up to its relative major tonic.
+// Scales not listed (symmetric scales, exotic non-diatonic scales, unknown
+// custom scales) fall through to <fifths>0</fifths> with per-note accidentals.
+const SCALE_TABLE: Record<string, { offset: number; mode: Mode }> = {
+  "major":             { offset: 0,  mode: "major" },
+  "minor":             { offset: 3,  mode: "minor" },
+  "dorian":            { offset: 10, mode: "minor" },
+  "phrygian":          { offset: 8,  mode: "minor" },
+  "lydian":            { offset: 7,  mode: "major" },
+  "mixolydian":        { offset: 5,  mode: "major" },
+  "locrian":           { offset: 1,  mode: "minor" },
+  "harmonic minor":    { offset: 3,  mode: "minor" },
+  "melodic minor":     { offset: 3,  mode: "minor" },
+  "hungarian minor":   { offset: 3,  mode: "minor" },
+  "harmonic major":    { offset: 0,  mode: "major" },
+  "major pentatonic":  { offset: 0,  mode: "major" },
+  "minor pentatonic":  { offset: 3,  mode: "minor" },
+  "minor blues":       { offset: 3,  mode: "minor" },
+  "lydian augmented":  { offset: 7,  mode: "major" },
+  "lydian dominant":   { offset: 7,  mode: "major" },
+  "super locrian":     { offset: 1,  mode: "minor" },
+  "dorian #4":         { offset: 10, mode: "minor" },
+  "phrygian dominant": { offset: 8,  mode: "major" },
+};
+
+function getKeySignature(rootNote: number, scaleName: string): { fifths: number; mode: Mode } {
+  const info = SCALE_TABLE[scaleName.trim().toLowerCase()];
+  if (!info) return { fifths: 0, mode: "major" };
+  const relativeMajorRoot = (((rootNote % 12) + info.offset) % 12 + 12) % 12;
+  return { fifths: MAJOR_FIFTHS[relativeMajorRoot]!, mode: info.mode };
 }
 
 function midiToPitch(midi: number, fifths: number): { step: string; alter: number; octave: number } {
@@ -337,8 +368,7 @@ export function notesToMusicXML(
   legato?: boolean,
   tempo?: number,
 ): string {
-  const fifths = getFifths(rootNote, scaleName);
-  const mode = scaleName.toLowerCase().includes("minor") ? "minor" : "major";
+  const { fifths, mode } = getKeySignature(rootNote, scaleName);
   const beatsPerMeasure = timeSignature.numerator * (4 / timeSignature.denominator);
   const tempoDirection = tempo && tempo > 0 ? buildTempoDirection(tempo) : "";
 
