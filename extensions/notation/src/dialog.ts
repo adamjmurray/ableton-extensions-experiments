@@ -6,7 +6,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
-import { exec } from "node:child_process";
+import { execFile } from "node:child_process";
 
 import notationInterface from "./notation.html";
 import type { ClipInfo } from "./clip-utils.js";
@@ -53,8 +53,16 @@ const DIALOG_HEIGHT = 800;
 function openFile(filePath: string): Promise<Error | null> {
   return new Promise((resolve) => {
     const platform = os.platform();
-    const cmd = platform === "win32" ? "start" : "open";
-    exec(`${cmd} "${filePath}"`, (err) => resolve(err));
+    // execFile passes arguments as a separate argv array so filePath is never
+    // parsed by a shell — no need to escape quotes/backticks/`$()`. On Windows
+    // "start" is a cmd.exe builtin rather than a real executable, so we go
+    // through cmd.exe with /c. The extra "" is "start"'s window-title arg so
+    // paths with spaces don't get swallowed as the title.
+    if (platform === "win32") {
+      execFile("cmd.exe", ["/c", "start", "", filePath], (err) => resolve(err));
+    } else {
+      execFile("open", [filePath], (err) => resolve(err));
+    }
   });
 }
 
