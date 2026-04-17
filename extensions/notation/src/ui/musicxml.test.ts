@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { notesToMusicXML } from "../src/ui/musicxml.js";
-import type { ClipData, NoteData } from "../src/ui/bridge.js";
+import { notesToMusicXML } from "./musicxml.js";
+import type { ClipData, NoteData } from "./bridge.js";
 
 function note(pitch: number, startTime: number, duration: number, velocity = 100): NoteData {
   return { pitch, startTime, duration, velocity };

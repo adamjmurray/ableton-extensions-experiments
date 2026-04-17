@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { quantizeNotes } from "../src/ui/quantize.js";
-import type { NoteData } from "../src/ui/bridge.js";
+import { quantizeNotes } from "./quantize.js";
+import type { NoteData } from "./bridge.js";
 
 function note(startTime: number, duration: number, pitch = 60, velocity = 100): NoteData {
   return { pitch, startTime, duration, velocity };
