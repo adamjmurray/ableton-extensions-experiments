@@ -20,6 +20,15 @@ import { exec } from "node:child_process";
 
 import notationInterface from "./notation.html";
 import { getClipRenderRegion } from "./ui/musicxml.js";
+import {
+  beatsPerMeasure,
+  buildFlattenedClipInfo,
+  buildRangeClipInfo,
+  nameSuggestsDrums,
+  readMidiClip,
+  shiftClipNotes,
+  type ClipInfo,
+} from "./clip-utils.js";
 
 interface ExportAction {
   action: "export";
@@ -40,22 +49,6 @@ function openFile(filePath: string) {
   exec(`${cmd} "${filePath}"`, (err) => {
     if (err) console.error("Notation: Failed to open file:", err);
   });
-}
-
-interface ClipInfo {
-  notes: { pitch: number; startTime: number; duration: number; velocity: number }[];
-  clip: {
-    name: string;
-    trackName: string;
-    trackIndex?: number;
-    startMarker: number;
-    endMarker: number;
-    looping: boolean;
-    loopStart: number;
-    loopEnd: number;
-    arrangementStartTime?: number;
-  };
-  isDrumRack?: boolean;
 }
 
 function findMidiTrack(obj: DataModelObject<"0.0.5"> | null): MidiTrack<"0.0.5"> | null {
@@ -88,16 +81,11 @@ function hasTopLevelDrumRack(devices: Device<"0.0.5">[]): boolean {
   return false;
 }
 
-// Name-based fallback for wrapped drum racks. If the track or its first rack
-// device is named like a drum track ("Drums", "Kit"), assume drums. Matches
-// the common naming convention ("Drums 1", "808 Kit", etc.) and covers the
-// wrapped-in-instrument-rack case the SDK can't surface structurally.
-const DRUM_NAME_TOKENS = ["drums", "kit"];
-
-function nameSuggestsDrums(name: string): boolean {
-  const lower = name.toLowerCase();
-  return DRUM_NAME_TOKENS.some((t) => lower.includes(t));
-}
+// Name-based fallback for wrapped drum racks lives in clip-utils.ts. If the
+// track or its first rack device is named like a drum track ("Drums", "Kit"),
+// assume drums. Matches the common naming convention ("Drums 1", "808 Kit",
+// etc.) and covers the wrapped-in-instrument-rack case the SDK can't surface
+// structurally.
 
 function isDrumRackTrack(track: MidiTrack<"0.0.5"> | null): boolean {
   if (!track) return false;
@@ -106,50 +94,6 @@ function isDrumRackTrack(track: MidiTrack<"0.0.5"> | null): boolean {
   const firstRack = track.devices.find((d): d is RackDevice<"0.0.5"> => d instanceof RackDevice);
   if (firstRack && nameSuggestsDrums(String(firstRack.name))) return true;
   return false;
-}
-
-function beatsPerMeasure(ts: { numerator: number; denominator: number }): number {
-  return ts.numerator * (4 / ts.denominator);
-}
-
-// Shift and filter a clip's notes into the flattened-track timeline.
-// Notes outside [filterStart, renderEnd] are dropped; the rest are
-// translated by `shift` so that clip-local time t becomes t + shift.
-function shiftClipNotes(
-  info: ClipInfo,
-  filterStart: number,
-  renderEnd: number,
-  shift: number,
-): ClipInfo["notes"] {
-  return info.notes
-    .filter((n) => n.startTime >= filterStart && n.startTime < renderEnd)
-    .map((n) => ({ ...n, startTime: n.startTime + shift }));
-}
-
-// Synthetic single-clip envelope used by "Render Track" handlers. Empty
-// `name` triggers a bare `[TrackName]` part name via buildPartName
-// (musicxml.ts); startMarker=0/loopEnd=totalLength makes the standalone
-// renderer cover the whole flattened timeline.
-function buildFlattenedClipInfo(
-  trackName: string,
-  isDrumRack: boolean,
-  notes: ClipInfo["notes"],
-  totalLength: number,
-): ClipInfo {
-  const info: ClipInfo = {
-    notes,
-    clip: {
-      name: "",
-      trackName,
-      startMarker: 0,
-      endMarker: totalLength,
-      looping: false,
-      loopStart: 0,
-      loopEnd: totalLength,
-    },
-  };
-  if (isDrumRack) info.isDrumRack = true;
-  return info;
 }
 
 // Flatten a contiguous range of a track's clipSlots into one ClipInfo.
@@ -180,66 +124,6 @@ function flattenTrackSlots(
     offset += sceneWidth;
   }
   return buildFlattenedClipInfo(trackName, isDrum, notes, offset);
-}
-
-// Synthetic single-clip envelope for "Render Range". Like
-// buildFlattenedClipInfo but with startMarker=leadingOffset so a sub-bar
-// range start becomes leading rest inside bar 1. Notes passed in are
-// already shifted to anchor-local time (anchor = bar boundary at or
-// before time_selection_start).
-function buildRangeClipInfo(
-  trackName: string,
-  trackIndex: number | undefined,
-  isDrumRack: boolean,
-  notes: ClipInfo["notes"],
-  leadingOffset: number,
-  renderLength: number,
-): ClipInfo {
-  const info: ClipInfo = {
-    notes,
-    clip: {
-      name: "",
-      trackName,
-      startMarker: leadingOffset,
-      endMarker: renderLength,
-      looping: false,
-      loopStart: 0,
-      loopEnd: renderLength,
-      ...(trackIndex !== undefined ? { trackIndex } : {}),
-    },
-  };
-  if (isDrumRack) info.isDrumRack = true;
-  return info;
-}
-
-function readMidiClip(
-  clip: MidiClip<any>,
-  trackName: string,
-  isDrumRack: boolean,
-  arrangementStartTime?: number,
-  trackIndex?: number,
-): ClipInfo {
-  const info: ClipInfo = {
-    notes: clip.notes.map((n) => ({
-      pitch: Number(n.pitch),
-      startTime: Number(n.startTime),
-      duration: Number(n.duration),
-      velocity: Number(n.velocity ?? 64),
-    })),
-    clip: {
-      name: String(clip.name),
-      trackName,
-      startMarker: Number(clip.startMarker),
-      endMarker: Number(clip.endMarker),
-      looping: Boolean(clip.looping),
-      loopStart: Number(clip.loopStart),
-      loopEnd: Number(clip.loopEnd),
-      ...(arrangementStartTime !== undefined ? { arrangementStartTime } : {}),
-      ...(trackIndex !== undefined ? { trackIndex } : {}),
-    },
-  };
-  if (isDrumRack) info.isDrumRack = true;
-  return info;
 }
 
 export function activate(activation: ActivationContext) {
