@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Mutate</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body {
+        margin: 0;
+        height: 100%;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #1e1e1e;
+        color: #e0e0e0;
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+        padding: 2rem;
+        box-sizing: border-box;
+      }
+      h1 { margin: 0; font-size: 1.4rem; font-weight: 500; }
+      .mode {
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        font-size: 0.95rem;
+        color: #9aa0a6;
+      }
+      .note {
+        font-size: 0.85rem;
+        color: #6b7075;
+        max-width: 28rem;
+        text-align: center;
+      }
+      button {
+        appearance: none;
+        border: 1px solid #3a3a3a;
+        background: #2a2a2a;
+        color: inherit;
+        padding: 0.5rem 1.25rem;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.9rem;
+      }
+      button:hover { background: #333; }
+    </style>
+  </head>
+  <body>
+    <h1>Mutate</h1>
+    <div class="mode" id="mode">…</div>
+    <div class="note">Stub dialog — UI not yet implemented.</div>
+    <button id="close">Close</button>
+    <script>
+      (function () {
+        var data = {};
+        try { data = JSON.parse(window.__MUTATE_DATA__ || "{}"); } catch (e) {}
+        document.getElementById("mode").textContent = "mode: " + (data.mode || "unknown");
+        document.getElementById("close").addEventListener("click", function () {
+          var msg = { name: "close_and_send", args: [JSON.stringify({ action: "close" })] };
+          if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.live) {
+            window.webkit.messageHandlers.live.postMessage(msg);
+          } else if (window.chrome && window.chrome.webview) {
+            window.chrome.webview.postMessage(msg);
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>
