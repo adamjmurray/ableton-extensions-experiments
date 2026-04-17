@@ -47,6 +47,7 @@ interface ClipInfo {
   clip: {
     name: string;
     trackName: string;
+    trackIndex?: number;
     startMarker: number;
     endMarker: number;
     looping: boolean;
@@ -131,6 +132,7 @@ function readMidiClip(
   trackName: string,
   isDrumRack: boolean,
   arrangementStartTime?: number,
+  trackIndex?: number,
 ): ClipInfo {
   const info: ClipInfo = {
     notes: clip.notes.map((n) => ({
@@ -148,6 +150,7 @@ function readMidiClip(
       loopStart: Number(clip.loopStart),
       loopEnd: Number(clip.loopEnd),
       ...(arrangementStartTime !== undefined ? { arrangementStartTime } : {}),
+      ...(trackIndex !== undefined ? { trackIndex } : {}),
     },
   };
   if (isDrumRack) info.isDrumRack = true;
@@ -257,6 +260,7 @@ export function activate(activation: ActivationContext) {
     (arg: unknown) =>
       void (async (selection: ClipSlotSelection) => {
         const clips: ClipInfo[] = [];
+        const songTracks = context.application.song.tracks;
 
         for (const handle of selection.selected_clip_slots) {
           const slot = context.objects.getObjectFromHandle(handle, ClipSlot);
@@ -264,7 +268,8 @@ export function activate(activation: ActivationContext) {
           if (clip && clip instanceof MidiClip) {
             const track = findMidiTrack(slot);
             const trackName = String(track?.name ?? "");
-            const clipData = readMidiClip(clip, trackName, isDrumRackTrack(track));
+            const trackIndex = track ? songTracks.findIndex((t) => t.handle.id === track.handle.id) : -1;
+            const clipData = readMidiClip(clip, trackName, isDrumRackTrack(track), undefined, trackIndex >= 0 ? trackIndex : undefined);
             if (clipData.notes.length > 0) {
               clips.push(clipData);
             }
@@ -294,12 +299,14 @@ export function activate(activation: ActivationContext) {
         }
 
         const clips: ClipInfo[] = [];
-        for (const track of context.application.song.tracks) {
+        const songTracks = context.application.song.tracks;
+        for (let trackIndex = 0; trackIndex < songTracks.length; trackIndex++) {
+          const track = songTracks[trackIndex]!;
           const slot = track.clipSlots[sceneIndex];
           const clip = slot?.clip;
           if (clip && clip instanceof MidiClip) {
             const midiTrack = track instanceof MidiTrack ? track : null;
-            const clipData = readMidiClip(clip, String(track.name), isDrumRackTrack(midiTrack));
+            const clipData = readMidiClip(clip, String(track.name), isDrumRackTrack(midiTrack), undefined, trackIndex);
             if (clipData.notes.length > 0) {
               clips.push(clipData);
             }
@@ -332,14 +339,16 @@ export function activate(activation: ActivationContext) {
         const start = Number(selection.time_selection_start);
         const end = Number(selection.time_selection_end);
         const clips: ClipInfo[] = [];
+        const songTracks = context.application.song.tracks;
         for (const track of tracks) {
           const isDrum = isDrumRackTrack(track);
+          const trackIndex = songTracks.findIndex((t) => t.handle.id === track.handle.id);
           for (const clip of track.arrangementClips) {
             if (!(clip instanceof MidiClip)) continue;
             const clipStart = Number(clip.startTime);
             const clipEnd = Number(clip.endTime);
             if (clipStart < end && clipEnd > start) {
-              const clipData = readMidiClip(clip, String(track.name), isDrum, clipStart);
+              const clipData = readMidiClip(clip, String(track.name), isDrum, clipStart, trackIndex >= 0 ? trackIndex : undefined);
               if (clipData.notes.length > 0) {
                 clips.push(clipData);
               }

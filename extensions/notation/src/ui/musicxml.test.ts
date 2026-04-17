@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { getClipRenderRegion, notesToMusicXML } from "./musicxml.js";
+import { getClipRenderRegion, notesToMusicXML, sortClipsForScore } from "./musicxml.js";
 import type { ClipData, NoteData } from "./bridge.js";
 
 function note(pitch: number, startTime: number, duration: number, velocity = 100): NoteData {
@@ -370,5 +370,88 @@ describe("getClipRenderRegion", () => {
     );
     expect(region.barCount).toBe(2);
     expect(region.renderStart).toBe(0);
+  });
+});
+
+describe("sortClipsForScore", () => {
+  // Each clip is tagged with a unique name so we can assert order by name
+  // rather than by object identity.
+  function namedClip(name: string, pitches: number[], trackIndex?: number): ClipData {
+    const notes = pitches.map((p, i) => note(p, i, 1));
+    const overrides: Partial<ClipData["clip"]> = { name };
+    if (trackIndex !== undefined) overrides.trackIndex = trackIndex;
+    return clip(notes, overrides);
+  }
+
+  function names(result: ClipData[]): string[] {
+    return result.map((c) => c.clip.name);
+  }
+
+  test("pitch mode puts treble above bass regardless of input order", () => {
+    const bass = namedClip("bass", [36, 40, 43]);   // avg 39.67 → F clef
+    const lead = namedClip("lead", [72, 74, 76]);   // avg 74 → G clef
+    expect(names(sortClipsForScore([bass, lead], "pitch"))).toEqual(["lead", "bass"]);
+    expect(names(sortClipsForScore([lead, bass], "pitch"))).toEqual(["lead", "bass"]);
+  });
+
+  test("pitch mode sorts descending within the same clef tier", () => {
+    const low = namedClip("low", [60, 62, 64]);    // avg 62
+    const mid = namedClip("mid", [67, 69, 71]);    // avg 69
+    const high = namedClip("high", [79, 81, 83]);  // avg 81
+    expect(names(sortClipsForScore([low, high, mid], "pitch"))).toEqual(["high", "mid", "low"]);
+  });
+
+  test("pitch mode is stable on ties", () => {
+    const a = namedClip("a", [60, 64, 67]); // avg 63.67
+    const b = namedClip("b", [60, 64, 67]); // avg 63.67 (same)
+    expect(names(sortClipsForScore([a, b], "pitch"))).toEqual(["a", "b"]);
+    expect(names(sortClipsForScore([b, a], "pitch"))).toEqual(["b", "a"]);
+  });
+
+  test("track mode sorts by trackIndex ascending", () => {
+    const t0 = namedClip("first", [60], 0);
+    const t2 = namedClip("third", [60], 2);
+    const t1 = namedClip("second", [60], 1);
+    expect(names(sortClipsForScore([t2, t0, t1], "track"))).toEqual(["first", "second", "third"]);
+  });
+
+  test("track mode stable tiebreak preserves arrangement time order within same track", () => {
+    // Two clips on track 0, then one on track 1. In "track" mode the two
+    // track-0 clips must keep their input order.
+    const t0a = namedClip("t0-early", [60], 0);
+    const t0b = namedClip("t0-late", [60], 0);
+    const t1 = namedClip("t1", [60], 1);
+    expect(names(sortClipsForScore([t0a, t0b, t1], "track"))).toEqual(["t0-early", "t0-late", "t1"]);
+  });
+
+  test("track mode sinks clips without trackIndex to the end", () => {
+    const t1 = namedClip("t1", [60], 1);
+    const missing = namedClip("missing", [60]);
+    const t0 = namedClip("t0", [60], 0);
+    expect(names(sortClipsForScore([missing, t1, t0], "track"))).toEqual(["t0", "t1", "missing"]);
+  });
+
+  test("native mode preserves input order", () => {
+    const a = namedClip("a", [36], 2);
+    const b = namedClip("b", [84], 0);
+    const c = namedClip("c", [60], 1);
+    expect(names(sortClipsForScore([a, b, c], "native"))).toEqual(["a", "b", "c"]);
+  });
+
+  test("returns a new array; input is not mutated", () => {
+    const input = [namedClip("bass", [36]), namedClip("lead", [84])];
+    const snapshot = input.map((c) => c.clip.name);
+    const result = sortClipsForScore(input, "pitch");
+    expect(input.map((c) => c.clip.name)).toEqual(snapshot);
+    expect(result).not.toBe(input);
+  });
+
+  test("single-clip input is returned as a shallow copy in all modes", () => {
+    const single = [namedClip("only", [60], 0)];
+    for (const mode of ["pitch", "track", "native"] as const) {
+      const result = sortClipsForScore(single, mode);
+      expect(result).not.toBe(single);
+      expect(result).toEqual(single);
+    }
   });
 });

@@ -60,11 +60,54 @@ function midiToPitch(midi: number, fifths: number): { step: string; alter: numbe
   return { step, alter, octave };
 }
 
+// Empty note lists default to middle C so downstream clef detection picks
+// treble. Callers filter empty clips upstream; this is only a safe fallback.
+function avgPitch(notes: NoteData[]): number {
+  if (notes.length === 0) return 60;
+  return notes.reduce((sum, n) => sum + n.pitch, 0) / notes.length;
+}
+
 function detectClef(notes: NoteData[]): { sign: string; line: number } {
-  if (notes.length === 0) return { sign: "G", line: 2 };
-  const avgPitch = notes.reduce((sum, n) => sum + n.pitch, 0) / notes.length;
-  if (avgPitch < 60) return { sign: "F", line: 4 };
+  if (avgPitch(notes) < 60) return { sign: "F", line: 4 };
   return { sign: "G", line: 2 };
+}
+
+export type SortMode = "pitch" | "track" | "native";
+
+// Reorder clips for score layout. Returns a new array; input is not mutated.
+//   - "pitch": treble (avg >= 60) above bass, then avg pitch DESC within tier.
+//   - "track": ascending trackIndex; clips without trackIndex sink to the end.
+//   - "native": input order preserved.
+// All modes are stable: clips that tie on the primary key keep their
+// original relative order.
+export function sortClipsForScore(clips: ClipData[], mode: SortMode): ClipData[] {
+  if (mode === "native" || clips.length < 2) return clips.slice();
+
+  const decorated = clips.map((clip, i) => ({
+    clip,
+    i,
+    avg: avgPitch(clip.notes),
+    trackIndex: clip.clip.trackIndex,
+  }));
+
+  if (mode === "pitch") {
+    decorated.sort((a, b) => {
+      const aTier = a.avg >= 60 ? 0 : 1;
+      const bTier = b.avg >= 60 ? 0 : 1;
+      if (aTier !== bTier) return aTier - bTier;
+      if (a.avg !== b.avg) return b.avg - a.avg;
+      return a.i - b.i;
+    });
+  } else {
+    decorated.sort((a, b) => {
+      const aKey = a.trackIndex ?? Number.POSITIVE_INFINITY;
+      const bKey = b.trackIndex ?? Number.POSITIVE_INFINITY;
+      if (aKey !== bKey) return aKey - bKey;
+      return a.i - b.i;
+    });
+  }
+
+  return decorated.map((d) => d.clip);
 }
 
 // --- Duration decomposition ---

@@ -3,12 +3,18 @@ import { useState, useEffect, useRef, useCallback } from "preact/hooks";
 import { OpenSheetMusicDisplay } from "opensheetmusicdisplay";
 import { getNotationData, closeDialog, exportFile, type NotationData, type ClipData } from "./bridge.js";
 import { quantizeNotes, type QuantizeGrid } from "./quantize.js";
-import { notesToMusicXML } from "./musicxml.js";
+import { notesToMusicXML, sortClipsForScore, type SortMode } from "./musicxml.js";
 
 const GRIDS: { value: QuantizeGrid; label: string }[] = [
   { value: "16th", label: "16th" },
   { value: "16th-triplet", label: "16th triplet" },
   { value: "32nd", label: "32nd" },
+];
+
+const SORT_MODES: { value: SortMode; label: string; title: string }[] = [
+  { value: "pitch", label: "Pitch", title: "Sort parts by pitch (treble above bass, then high to low)" },
+  { value: "track", label: "Track", title: "Sort parts by track order" },
+  { value: "native", label: "Native", title: "Preserve selection order" },
 ];
 
 function buildFullPartName(trackName: string, label: string, index: number): string {
@@ -59,6 +65,8 @@ function App() {
 
   const hasDrumClip = data.current.clips.some((c) => c.isDrumRack);
 
+  const isMultiClip = data.current.clips.length > 1;
+
   const [grid, setGrid] = useState<QuantizeGrid>("16th");
   const [status, setStatus] = useState("Loading...");
   const [debugXML, setDebugXML] = useState("");
@@ -68,8 +76,9 @@ function App() {
   const [legato, setLegato] = useState(false);
   const [showTempo, setShowTempo] = useState(false);
   const [drumHeads, setDrumHeads] = useState(hasDrumClip);
+  const [sortMode, setSortMode] = useState<SortMode>("pitch");
 
-  const renderNotation = useCallback(async (g: QuantizeGrid, tsNum: number, tsDen: number, legato: boolean, showTempo: boolean, drumHeads: boolean) => {
+  const renderNotation = useCallback(async (g: QuantizeGrid, tsNum: number, tsDen: number, legato: boolean, showTempo: boolean, drumHeads: boolean, sortMode: SortMode) => {
     if (emptyStateMessage) return;
     if (!containerRef.current) return;
 
@@ -79,9 +88,10 @@ function App() {
       return qc;
     });
 
-    const totalNotes = quantizedClips.reduce((sum, c) => sum + c.notes.length, 0);
+    const orderedClips = sortClipsForScore(quantizedClips, sortMode);
+    const totalNotes = orderedClips.reduce((sum, c) => sum + c.notes.length, 0);
     const musicXML = notesToMusicXML(
-      quantizedClips,
+      orderedClips,
       { numerator: tsNum, denominator: tsDen },
       data.current.rootNote,
       data.current.scaleName,
@@ -98,7 +108,7 @@ function App() {
           drawTitle: false,
           drawComposer: false,
           drawCredits: false,
-          drawPartNames: quantizedClips.length > 1,
+          drawPartNames: orderedClips.length > 1,
           autoResize: true,
         });
         osmdRef.current.EngravingRules.InstrumentLabelTextHeight = 1.5;
@@ -106,14 +116,14 @@ function App() {
         osmdRef.current.EngravingRules.PageBottomMargin = 1;
         osmdRef.current.EngravingRules.PageLeftMargin = 2;
         osmdRef.current.EngravingRules.PageRightMargin = 2;
-      } else if (quantizedClips.length > 1) {
+      } else if (orderedClips.length > 1) {
         osmdRef.current.setOptions({ drawPartNames: true });
       }
 
       await osmdRef.current.load(musicXML);
       osmdRef.current.render();
-      injectPartNameTooltips(containerRef.current, quantizedClips);
-      const partsLabel = quantizedClips.length > 1 ? ` | ${quantizedClips.length} parts` : "";
+      injectPartNameTooltips(containerRef.current, orderedClips);
+      const partsLabel = orderedClips.length > 1 ? ` | ${orderedClips.length} parts` : "";
       setStatus(`${totalNotes} notes${partsLabel} | ${g} quantization | ${tsNum}/${tsDen}${legato ? " | legato" : ""}`);
     } catch (e) {
       console.error("OSMD render error:", e);
@@ -122,8 +132,8 @@ function App() {
   }, []);
 
   useEffect(() => {
-    renderNotation(grid, timeSigNum, timeSigDen, legato, showTempo, drumHeads);
-  }, [grid, timeSigNum, timeSigDen, legato, showTempo, drumHeads, renderNotation]);
+    renderNotation(grid, timeSigNum, timeSigDen, legato, showTempo, drumHeads, sortMode);
+  }, [grid, timeSigNum, timeSigDen, legato, showTempo, drumHeads, sortMode, renderNotation]);
 
   const clipName = data.current.clips.length === 1
     ? (data.current.clips[0]?.clip.name || "notation")
@@ -213,6 +223,23 @@ function App() {
             )}
           </div>
         </div>
+
+        {isMultiClip && (
+          <div class="toolbar-group">
+            <div class="btn-group">
+              {SORT_MODES.map((m) => (
+                <button
+                  key={m.value}
+                  class={sortMode === m.value ? "active" : ""}
+                  onClick={() => setSortMode(m.value)}
+                  title={m.title}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div class="toolbar-group">
           <select

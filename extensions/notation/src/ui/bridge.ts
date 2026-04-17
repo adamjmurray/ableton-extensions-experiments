@@ -20,6 +20,7 @@ export interface ClipData {
   clip: {
     name: string;
     trackName: string;
+    trackIndex?: number;
     startMarker: number;
     endMarker: number;
     looping: boolean;
