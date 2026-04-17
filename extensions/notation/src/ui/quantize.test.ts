@@ -52,4 +52,38 @@ describe("quantizeNotes", () => {
   test("handles empty input", () => {
     expect(quantizeNotes([], "16th")).toEqual([]);
   });
+
+  test("preserves array length and per-note order", () => {
+    const notes = [note(0.1, 0.3, 60), note(0.4, 0.1, 64), note(0.9, 0.2, 67)];
+    const result = quantizeNotes(notes, "16th");
+    expect(result).toHaveLength(3);
+    expect(result.map((n) => n.pitch)).toEqual([60, 64, 67]);
+  });
+
+  test("does not mutate input notes", () => {
+    const input = [note(0.13, 0.27)];
+    const snapshot = JSON.stringify(input);
+    quantizeNotes(input, "16th");
+    expect(JSON.stringify(input)).toBe(snapshot);
+  });
+
+  test("16th-triplet chooses closer grid per-value, not per-note", () => {
+    // startTime near 1/6 (triplet), duration near 0.25 (straight)
+    const [n] = quantizeNotes([note(1 / 6 + 0.01, 0.24)], "16th-triplet");
+    expect(n?.startTime).toBeCloseTo(1 / 6, 10);
+    expect(n?.duration).toBe(0.25);
+  });
+
+  test("startTime 0 maps to 0 on all grids", () => {
+    for (const grid of ["16th", "16th-triplet", "32nd"] as const) {
+      const [n] = quantizeNotes([note(0, 0.5)], grid);
+      expect(n?.startTime).toBe(0);
+    }
+  });
+
+  test("snaps values well past 1 beat on 16th grid", () => {
+    const [n] = quantizeNotes([note(3.37, 1.13)], "16th");
+    expect(n?.startTime).toBe(3.25);
+    expect(n?.duration).toBe(1.25);
+  });
 });
