@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mutate</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #1e1e1e;
+      --panel: #2a2a2a;
+      --surface: #333;
+      --surface-hover: #3a3a3a;
+      --accent: #ff6611;
+      --accent-hover: #ff8833;
+      --text: #e0e0e0;
+      --text-dim: #999;
+      --border: #444;
+      --border-dim: #333;
+      --input-bg: #1a1a1a;
+    }
+
+    html, body {
+      background: var(--bg);
+      font-family: 'Lucida Grande', 'Lucida Sans Unicode', 'Segoe UI', sans-serif;
+      color: var(--text);
+      font-size: 11px;
+      height: 100vh;
+      overflow: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    #app { height: 100%; }
+
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .toolbar .title {
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .toolbar .subtitle {
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+    .toolbar-right { margin-left: auto; display: flex; gap: 6px; }
+
+    .btn {
+      padding: 5px 14px;
+      font-family: inherit;
+      font-size: 11px;
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border-dim);
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.1s;
+    }
+    .btn:hover { background: var(--surface-hover); }
+    .btn.primary {
+      background: var(--accent);
+      color: #000;
+      border-color: var(--accent-hover);
+      font-weight: 700;
+    }
+    .btn.primary:hover { background: var(--accent-hover); }
+
+    .source-panel {
+      padding: 10px 12px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border-dim);
+      flex-shrink: 0;
+    }
+    .source-panel .label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-dim);
+      margin-bottom: 6px;
+    }
+
+    .controls-panel {
+      display: flex;
+      padding: 12px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border-dim);
+      flex-shrink: 0;
+      gap: 24px;
+    }
+    .controls-grid {
+      display: grid;
+      grid-template-columns: auto auto auto;
+      column-gap: 10px;
+      row-gap: 6px;
+      align-items: center;
+    }
+    .controls-grid .row-label {
+      font-size: 11px;
+      color: var(--text-dim);
+      text-align: right;
+      padding-right: 8px;
+    }
+    .controls-grid .field {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .controls-grid .field-label {
+      font-size: 10px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .controls-grid input[type="number"] {
+      width: 60px;
+      padding: 3px 6px;
+      background: var(--input-bg);
+      color: var(--text);
+      border: 1px solid var(--border-dim);
+      border-radius: 2px;
+      font-family: inherit;
+      font-size: 11px;
+    }
+
+    .right-pane {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .right-pane .section-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-dim);
+      margin-bottom: 4px;
+    }
+    .right-pane .field { display: flex; align-items: center; gap: 6px; }
+    .right-pane input[type="number"] {
+      width: 52px;
+      padding: 3px 6px;
+      background: var(--input-bg);
+      color: var(--text);
+      border: 1px solid var(--border-dim);
+      border-radius: 2px;
+      font-family: inherit;
+      font-size: 11px;
+    }
+
+    .btn-group { display: flex; gap: 2px; }
+    .btn-group .tab {
+      padding: 4px 10px;
+      font-size: 10px;
+      font-family: inherit;
+      background: var(--surface);
+      color: var(--text-dim);
+      border: 1px solid var(--border-dim);
+      border-radius: 2px;
+      cursor: pointer;
+      letter-spacing: 0.3px;
+    }
+    .btn-group .tab.active {
+      background: var(--accent);
+      color: #000;
+      border-color: var(--accent-hover);
+      font-weight: 700;
+    }
+    .btn-group .tab:hover:not(.active) { background: var(--surface-hover); color: var(--text); }
+
+    .variations {
+      flex: 1;
+      overflow: auto;
+      padding: 12px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 10px;
+      align-content: start;
+    }
+    .variation {
+      background: var(--panel);
+      border: 1px solid var(--border-dim);
+      border-radius: 3px;
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .variation .label {
+      font-size: 10px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .variation.dimmed { opacity: 0.35; }
+    .variation .status {
+      font-size: 9px;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .piano-roll {
+      background: var(--input-bg);
+      border: 1px solid var(--border-dim);
+      border-radius: 2px;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script>
+    /* __UI_BUNDLE__ */
+  </script>
+</body>
+</html>
