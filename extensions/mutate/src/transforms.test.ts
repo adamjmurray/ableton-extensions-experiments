@@ -1,5 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
+  dropNotes,
+  swapNotes,
   transformDuration,
   transformProbability,
   transformStart,
@@ -185,5 +187,94 @@ describe("transformProbability", () => {
     expect(out.map((n) => n.startTime)).toEqual([1, 2]);
     expect(out.map((n) => n.duration)).toEqual([0.5, 1]);
     expect(out.map((n) => n.velocity)).toEqual([80, 90]);
+  });
+});
+
+describe("dropNotes", () => {
+  test("ctrl = {0, 0} keeps all notes", () => {
+    const input = Array.from({ length: 10 }, (_, i) => note(60 + i));
+    expect(dropNotes(input, ZERO, mulberry32(1))).toHaveLength(10);
+  });
+
+  test("ctrl = {1, 0} drops all notes", () => {
+    const input = Array.from({ length: 10 }, (_, i) => note(60 + i));
+    expect(dropNotes(input, { offset: 1, range: 0 }, mulberry32(1))).toHaveLength(0);
+  });
+
+  test("ctrl = {0.5, 0} over 1000 notes drops roughly half", () => {
+    const input = Array.from({ length: 1000 }, (_, i) => note(60 + (i % 12)));
+    const out = dropNotes(input, { offset: 0.5, range: 0 }, mulberry32(42));
+    expect(out.length).toBeGreaterThan(350);
+    expect(out.length).toBeLessThan(650);
+  });
+
+  test("preserves data of surviving notes", () => {
+    const input = [note(60, 0, 1, 80, 0.5), note(62, 1, 0.25, 100, 0.9), note(64, 2, 2, 64, 0.3)];
+    const out = dropNotes(input, { offset: 0.5, range: 0.5 }, mulberry32(3));
+    for (const n of out) {
+      const original = input.find((o) => o.pitch === n.pitch)!;
+      expect(n).toEqual(original);
+    }
+  });
+
+  test("deterministic with same seed", () => {
+    const input = Array.from({ length: 100 }, (_, i) => note(60 + (i % 12)));
+    const a = dropNotes(input, { offset: 0.4, range: 0.2 }, mulberry32(99));
+    const b = dropNotes(input, { offset: 0.4, range: 0.2 }, mulberry32(99));
+    expect(a).toEqual(b);
+  });
+
+  test("empty input returns empty", () => {
+    expect(dropNotes([], { offset: 0.5, range: 0 }, mulberry32(1))).toEqual([]);
+  });
+});
+
+describe("swapNotes", () => {
+  test("ctrl = {0, 0} leaves all pitches unchanged", () => {
+    const input = [note(60), note(62), note(64), note(65)];
+    const out = swapNotes(input, ZERO, mulberry32(1));
+    expect(out.map((n) => n.pitch)).toEqual([60, 62, 64, 65]);
+  });
+
+  test("ctrl = {1, 0} over 20 notes permutes pitches but preserves multiset", () => {
+    const input = Array.from({ length: 20 }, (_, i) => note(60 + i));
+    const out = swapNotes(input, { offset: 1, range: 0 }, mulberry32(7));
+    const before = input.map((n) => n.pitch).sort((a, b) => a - b);
+    const after = out.map((n) => n.pitch).sort((a, b) => a - b);
+    expect(after).toEqual(before);
+    expect(out.map((n) => n.pitch)).not.toEqual(input.map((n) => n.pitch));
+  });
+
+  test("odd-length input preserves pitch multiset", () => {
+    const input = [note(60), note(62), note(64)];
+    const out = swapNotes(input, { offset: 1, range: 0 }, mulberry32(5));
+    expect(out.map((n) => n.pitch).sort((a, b) => a - b)).toEqual([60, 62, 64]);
+  });
+
+  test("only pitch is exchanged — other fields stay with original index", () => {
+    const input = [
+      note(60, 0, 1, 80, 0.4),
+      note(62, 1, 2, 90, 0.5),
+      note(64, 2, 3, 100, 0.6),
+      note(65, 3, 4, 110, 0.7),
+    ];
+    const out = swapNotes(input, { offset: 1, range: 0 }, mulberry32(11));
+    for (let i = 0; i < out.length; i++) {
+      expect(out[i]!.startTime).toBe(input[i]!.startTime);
+      expect(out[i]!.duration).toBe(input[i]!.duration);
+      expect(out[i]!.velocity).toBe(input[i]!.velocity);
+      expect(out[i]!.probability).toBe(input[i]!.probability);
+    }
+  });
+
+  test("deterministic with same seed", () => {
+    const input = Array.from({ length: 16 }, (_, i) => note(60 + i));
+    const a = swapNotes(input, { offset: 0.6, range: 0.3 }, mulberry32(21));
+    const b = swapNotes(input, { offset: 0.6, range: 0.3 }, mulberry32(21));
+    expect(a).toEqual(b);
+  });
+
+  test("empty input returns empty", () => {
+    expect(swapNotes([], { offset: 1, range: 0 }, mulberry32(1))).toEqual([]);
   });
 });
