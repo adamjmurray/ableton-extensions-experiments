@@ -643,12 +643,17 @@ export function activate(activation: ActivationContext) {
       })(arg as Handle),
   );
 
-  context.ui.registerContextMenuAction("MidiClip", "Render Clip", "notation.showClip");
-  context.ui.registerContextMenuAction("ClipSlotSelection", "Render Selection", "notation.showSelection");
+  // MidiClip scope intentionally unregistered: the ClipSlotSelection +
+  // ArrangementSelection scopes already cover single-clip right-clicks in
+  // Session and Arrangement views, so exposing "Render Clip" as well
+  // produced redundant menu items. The notation.showClip command is still
+  // registered above in case we want to wire it back up.
+  //   context.ui.registerContextMenuAction("MidiClip", "Render Clip", "notation.showClip");
+  context.ui.registerContextMenuAction("ClipSlotSelection", "Render Clip(s)", "notation.showSelection");
   context.ui.registerContextMenuAction("Scene", "Render Scene", "notation.showScene");
   context.ui.registerContextMenuAction(
     "MidiTrack.ArrangementSelection",
-    "Render Clips",
+    "Render Clip(s)",
     "notation.showArrangementSelection",
   );
   context.ui.registerContextMenuAction(

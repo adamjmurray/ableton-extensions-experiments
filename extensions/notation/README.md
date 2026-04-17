@@ -10,12 +10,11 @@ quantization, time signature, and export.
 
 | Right-click on… | Action | What it does |
 | --- | --- | --- |
-| MIDI clip (Session or Arrangement) | Render Clip | One clip on one staff. |
-| Clip slot selection (Session) | Render Selection | Each selected clip on its own staff in a score. |
+| Clip slot selection (Session) | Render Clip(s) | Each selected clip on its own staff in a score. Right-clicking a single clip slot counts as a selection of one. |
 | Scene | Render Scene | All MIDI clips in that scene row, one staff per track. |
 | MIDI track | Render Track (Session) | All clip slots on the track flattened onto one staff; empty slots become bar rests. |
 | MIDI track | Render Track (Arrangement) | All arrangement clips on the track flattened onto one staff, aligned to the bar grid; gaps become rest measures. |
-| Arrangement time selection | Render Clips | MIDI clips that overlap the selected range, each on its own staff. |
+| Arrangement time selection | Render Clip(s) | MIDI clips that overlap the selected range, each on its own staff. |
 | Arrangement time selection | Render Range | The selected time range flattened onto one staff per track. |
 
 Session View and Arrangement View are exposed as separate "Render Track" items
