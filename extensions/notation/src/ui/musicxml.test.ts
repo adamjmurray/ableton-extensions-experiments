@@ -197,9 +197,31 @@ describe("notesToMusicXML", () => {
     expect(xml).toContain("<part-name>[Synth] Lead</part-name>");
   });
 
-  test("part name falls back to unnamed counter when both are blank", () => {
+  test("part name falls back to (unnamed #N) counter when both are blank", () => {
     const xml = notesToMusicXML([clip([note(60, 0, 1)])], TS_4_4, 0, "Major");
-    expect(xml).toContain("<part-name>(unnamed 1)</part-name>");
+    expect(xml).toContain("<part-name>(unnamed #1)</part-name>");
+  });
+
+  test("part name prefers clip.unnamedIndex over the running counter", () => {
+    // Two unnamed clips tagged with explicit stable indices 7 and 9.
+    const c1 = clip([note(60, 0, 1)], { unnamedIndex: 7 });
+    const c2 = clip([note(60, 0, 1)], { unnamedIndex: 9 });
+    const xml = notesToMusicXML([c1, c2], TS_4_4, 0, "Major");
+    expect(xml).toContain("<part-name>(unnamed #7)</part-name>");
+    expect(xml).toContain("<part-name>(unnamed #9)</part-name>");
+  });
+
+  test("unnamedIndex keeps labels stable across sortClipsForScore reorder (AJM-189)", () => {
+    // Two unnamed clips — one bass-register (low avg pitch), one treble.
+    // With sortClipsForScore("pitch"), the treble clip will move to the top.
+    // Their "(unnamed #N)" numbers must NOT swap with them.
+    const bass = clip([note(36, 0, 1), note(40, 1, 1)], { unnamedIndex: 1 });
+    const lead = clip([note(72, 0, 1), note(76, 1, 1)], { unnamedIndex: 2 });
+    const sorted = sortClipsForScore([bass, lead], "pitch");
+    const xml = notesToMusicXML(sorted, TS_4_4, 0, "Major");
+    // Part order is lead-first (treble above bass), so P1 is #2 and P2 is #1.
+    const partNames = [...xml.matchAll(/<part-name>([^<]+)<\/part-name>/g)].map((m) => m[1]);
+    expect(partNames).toEqual(["(unnamed #2)", "(unnamed #1)"]);
   });
 
   test("part name is bare [TrackName] when clip name is empty but track name is set", () => {

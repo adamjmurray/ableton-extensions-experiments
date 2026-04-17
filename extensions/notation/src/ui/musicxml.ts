@@ -484,10 +484,12 @@ export function notesToMusicXML(
   const parts = renders.map((r, i) => {
     const id = `P${i + 1}`;
     const clipName = (r.clip.name ?? "").trim();
-    // If the track name provides enough identity, skip the "(unnamed N)"
+    // If the track name provides enough identity, skip the "(unnamed #N)"
     // fallback so flattened track renders show a bare "[TrackName]" part
-    // name instead of "[TrackName] (unnamed 1)".
-    const label = clipName || (r.clip.trackName ? "" : `(unnamed ${++unnamedCount})`);
+    // name instead of "[TrackName] (unnamed #1)". Prefer the stable
+    // `unnamedIndex` assigned at dialog-open time so the number does not
+    // shift when sort mode reorders parts (AJM-189).
+    const label = clipName || (r.clip.trackName ? "" : `(unnamed #${r.clip.unnamedIndex ?? ++unnamedCount})`);
     const name = buildPartName(r.clip.trackName, label, i);
 
     const clipLength = r.renderEnd - r.renderStart;

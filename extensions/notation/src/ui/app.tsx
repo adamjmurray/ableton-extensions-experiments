@@ -26,6 +26,22 @@ function buildFullPartName(trackName: string, label: string, index: number): str
   return `Part ${index + 1}`;
 }
 
+// Assign a stable 1-based index to each clip that will display the
+// "(unnamed #N)" fallback label — i.e. clips with no clip name AND no track
+// name. This matches the gating in notesToMusicXML so the numbering here
+// and downstream stays consistent. Mutates the input in place so the tag
+// rides on every derived view of the clip (quantized, sorted, etc.).
+// AJM-189: keeps the label stable across sort-mode changes.
+function assignUnnamedIndices(data: NotationData): NotationData {
+  let seq = 0;
+  for (const c of data.clips) {
+    const hasName = (c.clip.name ?? "").trim() !== "";
+    const hasTrackName = (c.clip.trackName ?? "").trim() !== "";
+    if (!hasName && !hasTrackName) c.clip.unnamedIndex = ++seq;
+  }
+  return data;
+}
+
 // Walk SVG text nodes ending with "…" and match them to their original full
 // part name by prefix, then add an SVG <title> child so browsers show a
 // native tooltip on hover. OSMD does not tag part-name labels, so we rely on
@@ -36,10 +52,12 @@ function injectPartNameTooltips(container: HTMLDivElement | null, clips: ClipDat
   if (!svg) return;
 
   const SVG_NS = "http://www.w3.org/2000/svg";
+  // Mirror the gating in notesToMusicXML: clips with a track name skip the
+  // "(unnamed #N)" fallback; only when both are blank is the label used.
   let unnamedCount = 0;
   const fullNames = clips.map((c, i) => {
     const clipName = (c.clip.name ?? "").trim();
-    const label = clipName || `(unnamed ${++unnamedCount})`;
+    const label = clipName || (c.clip.trackName ? "" : `(unnamed #${c.clip.unnamedIndex ?? ++unnamedCount})`);
     return buildFullPartName(c.clip.trackName, label, i);
   });
 
@@ -58,7 +76,7 @@ function injectPartNameTooltips(container: HTMLDivElement | null, clips: ClipDat
 }
 
 function App() {
-  const data = useRef<NotationData>(getNotationData());
+  const data = useRef<NotationData>(assignUnnamedIndices(getNotationData()));
   const emptyStateMessage = data.current.emptyStateMessage;
   const containerRef = useRef<HTMLDivElement>(null);
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);

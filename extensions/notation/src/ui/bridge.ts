@@ -21,6 +21,10 @@ export interface ClipData {
     name: string;
     trackName: string;
     trackIndex?: number;
+    // Sequential 1-based index assigned at dialog-open time, counting only
+    // clips with no name. Used so the "(unnamed #N)" fallback label stays
+    // stable across sort-mode changes (AJM-189).
+    unnamedIndex?: number;
     startMarker: number;
     endMarker: number;
     looping: boolean;
