@@ -71,3 +71,10 @@ Notation rendering is provided by [OpenSheetMusicDisplay](https://opensheetmusic
 A few `npm audit` advisories surface against `tar`/`node-gyp`/`gl`, all pulled
 in as optional transitive build dependencies of OSMD. They are not bundled into
 the shipped extension.
+
+## License
+
+The extension is MIT-licensed — see [LICENSE](LICENSE). It bundles third-party
+libraries (preact, opensheetmusicdisplay, and its transitive dependencies
+vexflow, jszip, loglevel, typescript-collections); their notices are in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
