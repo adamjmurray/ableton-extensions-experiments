@@ -208,12 +208,14 @@ export function activate(activation: ActivationContext) {
   // Context menu wiring
   // -------------------------------------------------------------------
 
-  context.ui.registerContextMenuAction("MidiClip", "Clip...", "mutate.clipDialog");
+  context.ui.registerContextMenuAction("ClipSlotSelection", "Clip(s)...", "mutate.clipDialog");
   context.ui.registerContextMenuAction("Scene", "Scene...", "mutate.sceneDialog");
   context.ui.registerContextMenuAction("MidiTrack.ArrangementSelection", "Range...", "mutate.rangeDialog");
 
+  // ClipSlotSelection covers the single-clip case too (Live always wraps a
+  // right-clicked clip in a selection of size 1), so registering on MidiClip
+  // would just duplicate the menu entry.
   for (const scope of [
-    "MidiClip",
     "ClipSlotSelection",
     "MidiTrack.ArrangementSelection",
   ] as const) {
