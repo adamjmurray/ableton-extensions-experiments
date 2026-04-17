@@ -281,9 +281,19 @@ export function activate(activation: ActivationContext) {
       ...(emptyStateMessage ? { emptyStateMessage } : {}),
     });
 
+    // Escape sequences that would prematurely terminate the <script> block or
+    // break HTML/JS parsing if they appear inside clip/track/scale names.
+    // JSON.stringify does not escape `<`, `>`, or U+2028/U+2029.
+    const safePayload = payload
+      .replace(/\\/g, "\\\\")
+      .replace(/'/g, "\\'")
+      .replace(/</g, "\\u003c")
+      .replace(/>/g, "\\u003e")
+      .replace(/\u2028/g, "\\u2028")
+      .replace(/\u2029/g, "\\u2029");
     const html = notationInterface.replace(
       "</head>",
-      `<script>window.__NOTATION_DATA__='${payload.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}';</script></head>`,
+      `<script>window.__NOTATION_DATA__='${safePayload}';</script></head>`,
     );
     const dataUrl = `data:text/html,${encodeURIComponent(html)}`;
 
