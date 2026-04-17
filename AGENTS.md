@@ -87,17 +87,17 @@ Valid scopes for `context.ui.registerContextMenuAction()`:
 ## Active Focus: Notation Extension
 
 The current focus is `extensions/notation/` — an extension that renders MIDI clips as
-sheet music notation. Right-click → "Notation: Generate for …" opens a modal dialog;
+sheet music notation. Right-click → "Notation: Render …" opens a modal dialog;
 multi-clip entry points render each clip on its own staff in a score layout.
 
 ### Architecture
 - `src/extension.ts` — reads clip notes + song metadata, opens dialog in a loop
   (export actions write a temp file, open it with system `open` command, then re-show the dialog).
   Registers four context menu actions:
-  - `MidiClip` → "Generate for Clip" (single clip, Session or Arrangement)
-  - `ClipSlotSelection` → "Generate for Selection" (Session, one or more slots)
-  - `Scene` → "Generate for Scene" (all MIDI clips in a scene's row)
-  - `MidiTrack.ArrangementSelection` → "Generate for Selection" (Arrangement time range;
+  - `MidiClip` → "Render Clip" (single clip, Session or Arrangement)
+  - `ClipSlotSelection` → "Render Selection" (Session, one or more slots)
+  - `Scene` → "Render Scene" (all MIDI clips in a scene's row)
+  - `MidiTrack.ArrangementSelection` → "Render Selection" (Arrangement time range;
     MIDI clips overlapping the range via `track.arrangementClips`)
 - `src/ui/app.tsx` — Preact UI with toolbar (quantize, time sig, view toggle, export)
 - `src/ui/musicxml.ts` — converts quantized MIDI notes to MusicXML

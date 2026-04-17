@@ -311,12 +311,12 @@ export function activate(activation: ActivationContext) {
       })(arg as ArrangementSelection),
   );
 
-  context.ui.registerContextMenuAction("MidiClip", "Generate for Clip", "notation.showClip");
-  context.ui.registerContextMenuAction("ClipSlotSelection", "Generate for Selection", "notation.showSelection");
-  context.ui.registerContextMenuAction("Scene", "Generate for Scene", "notation.showScene");
+  context.ui.registerContextMenuAction("MidiClip", "Render Clip", "notation.showClip");
+  context.ui.registerContextMenuAction("ClipSlotSelection", "Render Selection", "notation.showSelection");
+  context.ui.registerContextMenuAction("Scene", "Render Scene", "notation.showScene");
   context.ui.registerContextMenuAction(
     "MidiTrack.ArrangementSelection",
-    "Generate for Selection",
+    "Render Selection",
     "notation.showArrangementSelection",
   );
 }
