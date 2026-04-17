@@ -25,6 +25,7 @@ export interface ClipData {
     looping: boolean;
     loopStart: number;
     loopEnd: number;
+    arrangementStartTime?: number;
   };
 }
 

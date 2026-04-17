@@ -48,6 +48,7 @@ interface ClipInfo {
     looping: boolean;
     loopStart: number;
     loopEnd: number;
+    arrangementStartTime?: number;
   };
 }
 
@@ -59,7 +60,11 @@ function findMidiTrack(obj: DataModelObject<"0.0.5"> | null): MidiTrack<"0.0.5">
   return current;
 }
 
-function readMidiClip(clip: MidiClip<any>, trackName: string): ClipInfo {
+function readMidiClip(
+  clip: MidiClip<any>,
+  trackName: string,
+  arrangementStartTime?: number,
+): ClipInfo {
   return {
     notes: clip.notes.map((n) => ({
       pitch: Number(n.pitch),
@@ -75,6 +80,7 @@ function readMidiClip(clip: MidiClip<any>, trackName: string): ClipInfo {
       looping: Boolean(clip.looping),
       loopStart: Number(clip.loopStart),
       loopEnd: Number(clip.loopEnd),
+      ...(arrangementStartTime !== undefined ? { arrangementStartTime } : {}),
     },
   };
 }
@@ -260,7 +266,7 @@ export function activate(activation: ActivationContext) {
             const clipStart = Number(clip.startTime);
             const clipEnd = Number(clip.endTime);
             if (clipStart < end && clipEnd > start) {
-              const clipData = readMidiClip(clip, String(track.name));
+              const clipData = readMidiClip(clip, String(track.name), clipStart);
               if (clipData.notes.length > 0) {
                 clips.push(clipData);
               }

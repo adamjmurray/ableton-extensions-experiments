@@ -100,6 +100,45 @@ interface MeasureEvent {
   tiedTo?: boolean;
 }
 
+function buildAttributesBlock(
+  clef: { sign: string; line: number },
+  fifths: number,
+  mode: string,
+  timeSignature: { numerator: number; denominator: number },
+): string {
+  let xml = `      <attributes>\n`;
+  xml += `        <divisions>${DIVISIONS}</divisions>\n`;
+  xml += `        <key>\n`;
+  xml += `          <fifths>${fifths}</fifths>\n`;
+  xml += `          <mode>${mode}</mode>\n`;
+  xml += `        </key>\n`;
+  xml += `        <time>\n`;
+  xml += `          <beats>${timeSignature.numerator}</beats>\n`;
+  xml += `          <beat-type>${timeSignature.denominator}</beat-type>\n`;
+  xml += `        </time>\n`;
+  xml += `        <clef>\n`;
+  xml += `          <sign>${clef.sign}</sign>\n`;
+  xml += `          <line>${clef.line}</line>\n`;
+  xml += `        </clef>\n`;
+  xml += `      </attributes>\n`;
+  return xml;
+}
+
+function renderWholeRestMeasure(
+  measureNumber: number,
+  measureDivisions: number,
+  header: string,
+): string {
+  let xml = `    <measure number="${measureNumber}">\n`;
+  xml += header;
+  xml += `      <note>\n`;
+  xml += `        <rest measure="yes"/>\n`;
+  xml += `        <duration>${measureDivisions}</duration>\n`;
+  xml += `      </note>\n`;
+  xml += `    </measure>\n`;
+  return xml;
+}
+
 function generatePartMeasures(
   notes: NoteData[],
   timeSignature: { numerator: number; denominator: number },
@@ -111,10 +150,15 @@ function generatePartMeasures(
   numMeasures: number,
   legato: boolean,
   tempoDirection: string,
+  leadingMeasures: number,
+  trailingMeasures: number,
 ): string[] {
   const clef = detectClef(notes);
   const beatsPerMeasure = timeSignature.numerator * (4 / timeSignature.denominator);
   const measureDivisions = beatsPerMeasure * DIVISIONS;
+
+  const attributesBlock = buildAttributesBlock(clef, fifths, mode, timeSignature);
+  const firstMeasureHeader = attributesBlock + tempoDirection;
 
   const absNotes = notes
     .map((n) => ({
@@ -137,6 +181,13 @@ function generatePartMeasures(
   }
 
   const measures: string[] = [];
+  let measureNumber = 1;
+
+  for (let k = 0; k < leadingMeasures; k++) {
+    const header = k === 0 ? firstMeasureHeader : "";
+    measures.push(renderWholeRestMeasure(measureNumber, measureDivisions, header));
+    measureNumber++;
+  }
 
   for (let m = 0; m < numMeasures; m++) {
     const mStart = m * measureDivisions;
@@ -165,25 +216,10 @@ function generatePartMeasures(
 
     events.sort((a, b) => a.startDiv - b.startDiv || (a.pitch ?? 0) - (b.pitch ?? 0));
 
-    let xml = `    <measure number="${m + 1}">\n`;
+    let xml = `    <measure number="${measureNumber}">\n`;
 
-    if (m === 0) {
-      xml += `      <attributes>\n`;
-      xml += `        <divisions>${DIVISIONS}</divisions>\n`;
-      xml += `        <key>\n`;
-      xml += `          <fifths>${fifths}</fifths>\n`;
-      xml += `          <mode>${mode}</mode>\n`;
-      xml += `        </key>\n`;
-      xml += `        <time>\n`;
-      xml += `          <beats>${timeSignature.numerator}</beats>\n`;
-      xml += `          <beat-type>${timeSignature.denominator}</beat-type>\n`;
-      xml += `        </time>\n`;
-      xml += `        <clef>\n`;
-      xml += `          <sign>${clef.sign}</sign>\n`;
-      xml += `          <line>${clef.line}</line>\n`;
-      xml += `        </clef>\n`;
-      xml += `      </attributes>\n`;
-      xml += tempoDirection;
+    if (m === 0 && leadingMeasures === 0) {
+      xml += firstMeasureHeader;
     }
 
     // First pass: collect all rendered note elements with triplet flags
@@ -279,6 +315,12 @@ function generatePartMeasures(
 
     xml += `    </measure>\n`;
     measures.push(xml);
+    measureNumber++;
+  }
+
+  for (let k = 0; k < trailingMeasures; k++) {
+    measures.push(renderWholeRestMeasure(measureNumber, measureDivisions, ""));
+    measureNumber++;
   }
 
   return measures;
@@ -306,12 +348,64 @@ export function notesToMusicXML(
   const filterStarts = clips.map((c) =>
     c.clip.looping ? Math.min(c.clip.loopStart, c.clip.startMarker) : c.clip.startMarker,
   );
-  const renderStarts = filterStarts.map(
-    (anchor) => Math.floor(anchor / beatsPerMeasure) * beatsPerMeasure,
-  );
   const renderEnds = clips.map((c) => c.clip.loopEnd);
 
   const tempoDirection = tempo && tempo > 0 ? buildTempoDirection(tempo) : "";
+
+  // Arrangement-timeline alignment: when every clip carries an
+  // arrangementStartTime (set only by the arrangement-selection entry point),
+  // anchor all parts to a shared origin — the closest barline at or before
+  // the earliest clip's first-sounding-note arrangement position — and pick
+  // each clip's renderStart so its first emitted content measure lands on
+  // that same arrangement bar grid. AJM-178's in-staff leading-rest machinery
+  // then produces any sub-bar offset inside the first rendered measure.
+  const arrangementStarts = clips.map((c) => c.clip.arrangementStartTime);
+  const align = arrangementStarts.every((t) => t !== undefined);
+  const numClips = clips.length;
+  const leadingMeasuresPerClip = new Array<number>(numClips).fill(0);
+  const trailingMeasuresPerClip = new Array<number>(numClips).fill(0);
+
+  // arrangement time of each clip's filter anchor
+  const arrangementFilterStarts = align
+    ? clips.map((c, i) => arrangementStarts[i]! + filterStarts[i]! - c.clip.startMarker)
+    : [];
+
+  let globalOrigin = 0;
+  if (align && numClips > 0) {
+    const earliest = Math.min(...arrangementFilterStarts);
+    globalOrigin = Math.floor(earliest / beatsPerMeasure) * beatsPerMeasure;
+    for (let i = 0; i < numClips; i++) {
+      leadingMeasuresPerClip[i] = Math.max(
+        0,
+        Math.floor((arrangementFilterStarts[i]! - globalOrigin) / beatsPerMeasure),
+      );
+    }
+  }
+
+  // Per-clip renderStart: in aligned mode, map the arrangement position of
+  // the clip's first emitted content measure back to clip-local time. In
+  // standalone mode, keep the clip-local bar floor (AJM-178).
+  const renderStarts = clips.map((c, i) => {
+    if (align) {
+      const renderStartArrangement = globalOrigin + leadingMeasuresPerClip[i]! * beatsPerMeasure;
+      return c.clip.startMarker + (renderStartArrangement - arrangementStarts[i]!);
+    }
+    return Math.floor(filterStarts[i]! / beatsPerMeasure) * beatsPerMeasure;
+  });
+
+  const clipMeasureCounts = renderStarts.map((rs, i) =>
+    Math.max(1, Math.ceil((renderEnds[i]! - rs) / beatsPerMeasure)),
+  );
+
+  if (align && numClips > 0) {
+    let totalMeasures = 0;
+    for (let i = 0; i < numClips; i++) {
+      totalMeasures = Math.max(totalMeasures, leadingMeasuresPerClip[i]! + clipMeasureCounts[i]!);
+    }
+    for (let i = 0; i < numClips; i++) {
+      trailingMeasuresPerClip[i] = totalMeasures - leadingMeasuresPerClip[i]! - clipMeasureCounts[i]!;
+    }
+  }
 
   const parts: { id: string; name: string; measures: string[] }[] = [];
   let unnamedCount = 0;
@@ -326,7 +420,7 @@ export function notesToMusicXML(
     const filterStart = filterStarts[i]!;
     const renderEnd = renderEnds[i]!;
     const clipLength = renderEnd - renderStart;
-    const numMeasures = Math.max(1, Math.ceil(clipLength / beatsPerMeasure));
+    const numMeasures = clipMeasureCounts[i]!;
     const renderLengthDiv = Math.round(clipLength * DIVISIONS);
     const filterStartDiv = Math.round((filterStart - renderStart) * DIVISIONS);
 
@@ -341,6 +435,8 @@ export function notesToMusicXML(
       numMeasures,
       legato ?? false,
       i === 0 ? tempoDirection : "",
+      leadingMeasuresPerClip[i]!,
+      trailingMeasuresPerClip[i]!,
     );
     parts.push({ id, name, measures });
   }
