@@ -282,12 +282,12 @@ function App() {
         <div class="toolbar-group toolbar-right">
           {view === "notation" && (
             <>
-              <button class="btn-export" onClick={handleExportSVG} title="Export as SVG">&#8595; SVG</button>
-              <button class="btn-export" onClick={handleExportPNG} title="Export as PNG">&#8595; PNG</button>
+              <button class="btn-export" onClick={handleExportSVG} title="Export as SVG">&#8599; SVG</button>
+              <button class="btn-export" onClick={handleExportPNG} title="Export as PNG">&#8599; PNG</button>
             </>
           )}
           {view === "xml" && (
-            <button class="btn-export" onClick={handleExportXML} title="Export as MusicXML">&#8595; XML</button>
+            <button class="btn-export" onClick={handleExportXML} title="Export as MusicXML">&#8599; XML</button>
           )}
           <button class="btn-close" onClick={closeDialog} title="Close">&#10005;</button>
         </div>
