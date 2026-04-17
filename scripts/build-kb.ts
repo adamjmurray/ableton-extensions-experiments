@@ -196,6 +196,33 @@ for (const [src, out] of typeFiles) {
 copy("package.json", "sdk--package.json");
 copy("tsconfig.json", "sdk--tsconfig.json");
 
+// --- Notation extension (our primary extension source) ---
+const NOTATION = "extensions/notation";
+const notationSkipDirs = new Set(["node_modules", "dist"]);
+const notationSkipFiles = new Set(["package-lock.json"]);
+const notationExts = new Set([".ts", ".tsx", ".js", ".cjs", ".mjs", ".html", ".json"]);
+
+function walkNotation(dir: string): string[] {
+  const results: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (notationSkipDirs.has(entry.name)) continue;
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      results.push(...walkNotation(full));
+    } else {
+      results.push(full);
+    }
+  }
+  return results;
+}
+
+for (const file of walkNotation(NOTATION)) {
+  if (notationSkipFiles.has(basename(file))) continue;
+  if (!notationExts.has(extname(file))) continue;
+  const rel = relative(".", file);
+  cpSync(file, join(OUT, outputName(flatten(rel))));
+}
+
 // Summary
 const count = readdirSync(OUT).length;
 console.log(`Built knowledge base: ${count} files in ${OUT}/`);
