@@ -127,6 +127,36 @@ function buildFlattenedClipInfo(
   return info;
 }
 
+// Synthetic single-clip envelope for "Render Range". Like
+// buildFlattenedClipInfo but with startMarker=leadingOffset so a sub-bar
+// range start becomes leading rest inside bar 1. Notes passed in are
+// already shifted to anchor-local time (anchor = bar boundary at or
+// before time_selection_start).
+function buildRangeClipInfo(
+  trackName: string,
+  trackIndex: number | undefined,
+  isDrumRack: boolean,
+  notes: ClipInfo["notes"],
+  leadingOffset: number,
+  renderLength: number,
+): ClipInfo {
+  const info: ClipInfo = {
+    notes,
+    clip: {
+      name: "",
+      trackName,
+      startMarker: leadingOffset,
+      endMarker: renderLength,
+      looping: false,
+      loopStart: 0,
+      loopEnd: renderLength,
+      ...(trackIndex !== undefined ? { trackIndex } : {}),
+    },
+  };
+  if (isDrumRack) info.isDrumRack = true;
+  return info;
+}
+
 function readMidiClip(
   clip: MidiClip<any>,
   trackName: string,
@@ -365,6 +395,84 @@ export function activate(activation: ActivationContext) {
       })(arg as ArrangementSelection),
   );
 
+  // Arrangement time selection, range mode: render only the notes inside
+  // [time_selection_start, time_selection_end). All clips on a track are
+  // flattened onto one staff; each selected track is one part. Anchors at
+  // the bar boundary at or before the selection start so the first rendered
+  // measure aligns to the arrangement bar grid.
+  context.commands.registerCommand(
+    "notation.showArrangementRange",
+    (arg: unknown) =>
+      void (async (selection: ArrangementSelection) => {
+        const tracks = selection.selected_lanes
+          .map((handle) => context.objects.getObjectFromHandle(handle, DataModelObject))
+          .filter((obj): obj is MidiTrack<"0.0.5"> => obj instanceof MidiTrack);
+
+        if (tracks.length === 0) {
+          await showNotationDialog([], "No MIDI tracks in the selection.");
+          return;
+        }
+
+        const rangeStart = Number(selection.time_selection_start);
+        const rangeEnd = Number(selection.time_selection_end);
+        const bpm = beatsPerMeasure(getSongMetadata().timeSignature);
+        const anchor = Math.floor(rangeStart / bpm) * bpm;
+        const leadingOffset = rangeStart - anchor;
+        const renderLength = rangeEnd - anchor;
+
+        const clips: ClipInfo[] = [];
+        const songTracks = context.application.song.tracks;
+
+        for (const track of tracks) {
+          const isDrum = isDrumRackTrack(track);
+          const trackIndex = songTracks.findIndex((t) => t.handle.id === track.handle.id);
+          const notes: ClipInfo["notes"] = [];
+
+          for (const clip of track.arrangementClips) {
+            if (!(clip instanceof MidiClip)) continue;
+            const clipStart = Number(clip.startTime);
+            const clipEnd = Number(clip.endTime);
+            if (!(clipStart < rangeEnd && clipEnd > rangeStart)) continue;
+
+            const startMarker = Number(clip.startMarker);
+            for (const n of clip.notes) {
+              const localStart = Number(n.startTime);
+              const duration = Number(n.duration);
+              const arrStart = clipStart + localStart - startMarker;
+              if (arrStart < rangeStart || arrStart >= rangeEnd) continue;
+              const truncated = Math.min(duration, rangeEnd - arrStart);
+              notes.push({
+                pitch: Number(n.pitch),
+                startTime: arrStart - anchor,
+                duration: truncated,
+                velocity: Number(n.velocity ?? 64),
+              });
+            }
+          }
+
+          if (notes.length === 0) continue;
+
+          clips.push(
+            buildRangeClipInfo(
+              String(track.name),
+              trackIndex >= 0 ? trackIndex : undefined,
+              isDrum,
+              notes,
+              leadingOffset,
+              renderLength,
+            ),
+          );
+        }
+
+        if (clips.length === 0) {
+          await showNotationDialog([], "No notes in the selected time range.");
+          return;
+        }
+
+        await showNotationDialog(clips);
+      })(arg as ArrangementSelection),
+  );
+
   // Track (session): flatten all MIDI clips in the track's clipSlots into
   // one continuous staff. Empty slots become one bar of rest; trailing
   // empty slots are trimmed.
@@ -508,8 +616,13 @@ export function activate(activation: ActivationContext) {
   context.ui.registerContextMenuAction("Scene", "Render Scene", "notation.showScene");
   context.ui.registerContextMenuAction(
     "MidiTrack.ArrangementSelection",
-    "Render Selection",
+    "Render Clips",
     "notation.showArrangementSelection",
+  );
+  context.ui.registerContextMenuAction(
+    "MidiTrack.ArrangementSelection",
+    "Render Range",
+    "notation.showArrangementRange",
   );
   context.ui.registerContextMenuAction("MidiTrack", "Render Track (Session)", "notation.showTrackSession");
   context.ui.registerContextMenuAction("MidiTrack", "Render Track (Arrangement)", "notation.showTrackArrangement");
