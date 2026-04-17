@@ -106,6 +106,7 @@ function generatePartMeasures(
   fifths: number,
   mode: string,
   renderStart: number,
+  filterStartDiv: number,
   renderLengthDiv: number,
   numMeasures: number,
   legato: boolean,
@@ -122,7 +123,7 @@ function generatePartMeasures(
       durationDiv: Math.max(1, Math.round(n.duration * DIVISIONS)),
       velocity: n.velocity,
     }))
-    .filter((n) => n.startDiv >= 0 && n.startDiv < renderLengthDiv)
+    .filter((n) => n.startDiv >= filterStartDiv && n.startDiv < renderLengthDiv)
     .sort((a, b) => a.startDiv - b.startDiv || a.pitch - b.pitch);
 
   if (legato) {
@@ -297,10 +298,16 @@ export function notesToMusicXML(
 
   // Per-clip render window. The alpha SDK currently reports endMarker at
   // the absolute clip end rather than the playback end, so we always use
-  // loopEnd as the effective end. When looping, include any loop region
-  // content that precedes startMarker.
-  const renderStarts = clips.map((c) =>
+  // loopEnd as the effective end. The filter anchor is startMarker (or
+  // min(loopStart, startMarker) for loops, since the loop region plays
+  // even if it precedes startMarker). When that anchor is mid-measure,
+  // the render anchor rounds back to the previous bar boundary so bar
+  // lines align to the song's musical grid; the gap becomes leading rests.
+  const filterStarts = clips.map((c) =>
     c.clip.looping ? Math.min(c.clip.loopStart, c.clip.startMarker) : c.clip.startMarker,
+  );
+  const renderStarts = filterStarts.map(
+    (anchor) => Math.floor(anchor / beatsPerMeasure) * beatsPerMeasure,
   );
   const renderEnds = clips.map((c) => c.clip.loopEnd);
 
@@ -316,10 +323,12 @@ export function notesToMusicXML(
     const name = buildPartName(c.clip.trackName, label, i);
 
     const renderStart = renderStarts[i]!;
+    const filterStart = filterStarts[i]!;
     const renderEnd = renderEnds[i]!;
     const clipLength = renderEnd - renderStart;
     const numMeasures = Math.max(1, Math.ceil(clipLength / beatsPerMeasure));
     const renderLengthDiv = Math.round(clipLength * DIVISIONS);
+    const filterStartDiv = Math.round((filterStart - renderStart) * DIVISIONS);
 
     const measures = generatePartMeasures(
       c.notes,
@@ -327,6 +336,7 @@ export function notesToMusicXML(
       fifths,
       mode,
       renderStart,
+      filterStartDiv,
       renderLengthDiv,
       numMeasures,
       legato ?? false,
