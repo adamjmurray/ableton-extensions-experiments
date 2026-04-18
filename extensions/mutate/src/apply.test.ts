@@ -17,9 +17,9 @@ describe("nextMutateLaneIndex", () => {
   });
 
   test("returns 1 when no lane matches 'Mutate N'", () => {
-    expect(
-      nextMutateLaneIndex(fakeTrack(["Take 1", "Mute", "Mutator", "mutate 3"]) as never),
-    ).toBe(1);
+    expect(nextMutateLaneIndex(fakeTrack(["Take 1", "Mute", "Mutator", "mutate 3"]) as never)).toBe(
+      1,
+    );
   });
 
   test("continues after the highest matching suffix", () => {
@@ -33,15 +33,11 @@ describe("nextMutateLaneIndex", () => {
   });
 
   test("handles out-of-order lane names by picking the max", () => {
-    expect(
-      nextMutateLaneIndex(fakeTrack(["Mutate 10", "Mutate 2", "Mutate 7"]) as never),
-    ).toBe(11);
+    expect(nextMutateLaneIndex(fakeTrack(["Mutate 10", "Mutate 2", "Mutate 7"]) as never)).toBe(11);
   });
 
   test("requires an exact 'Mutate N' match — no trailing text allowed", () => {
-    expect(
-      nextMutateLaneIndex(fakeTrack(["Mutate 3 (backup)", "Mutate 1"]) as never),
-    ).toBe(2);
+    expect(nextMutateLaneIndex(fakeTrack(["Mutate 3 (backup)", "Mutate 1"]) as never)).toBe(2);
   });
 });
 

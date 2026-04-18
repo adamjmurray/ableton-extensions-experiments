@@ -148,7 +148,12 @@ describe("notesToMusicXML", () => {
   });
 
   test("time signature propagates to <time>", () => {
-    const xml = notesToMusicXML([clip([note(60, 0, 1)])], { numerator: 3, denominator: 4 }, 0, "Major");
+    const xml = notesToMusicXML(
+      [clip([note(60, 0, 1)])],
+      { numerator: 3, denominator: 4 },
+      0,
+      "Major",
+    );
     expect(xml).toContain("<beats>3</beats>");
     expect(xml).toContain("<beat-type>4</beat-type>");
   });
@@ -249,11 +254,7 @@ describe("notesToMusicXML", () => {
 
   test("three consecutive triplets emit tuplet start/stop brackets", () => {
     const xml = notesToMusicXML(
-      [clip([
-        note(60, 0, 1 / 6),
-        note(60, 1 / 6, 1 / 6),
-        note(60, 2 / 6, 1 / 6),
-      ])],
+      [clip([note(60, 0, 1 / 6), note(60, 1 / 6, 1 / 6), note(60, 2 / 6, 1 / 6)])],
       TS_4_4,
       0,
       "Major",
@@ -264,12 +265,7 @@ describe("notesToMusicXML", () => {
 
   test("note crossing a bar line is tied", () => {
     // 2-beat note starting at beat 3 of a 4/4 bar crosses into bar 2.
-    const xml = notesToMusicXML(
-      [clip([note(60, 3, 2)], { loopEnd: 8 })],
-      TS_4_4,
-      0,
-      "Major",
-    );
+    const xml = notesToMusicXML([clip([note(60, 3, 2)], { loopEnd: 8 })], TS_4_4, 0, "Major");
     expect(xml).toContain('<tie type="start"/>');
     expect(xml).toContain('<tie type="stop"/>');
     expect(xml).toContain('<tied type="start"');
@@ -304,7 +300,10 @@ describe("notesToMusicXML", () => {
     expect(measuresB).toEqual([1, 2, 3]);
 
     // Part B's first two measures should be whole-measure leading rests.
-    const firstTwoB = parts[1]!.match(/<measure number="1">[\s\S]*?<\/measure>\s*<measure number="2">[\s\S]*?<\/measure>/)?.[0] ?? "";
+    const firstTwoB =
+      parts[1]!.match(
+        /<measure number="1">[\s\S]*?<\/measure>\s*<measure number="2">[\s\S]*?<\/measure>/,
+      )?.[0] ?? "";
     expect(firstTwoB.match(/<rest measure="yes"\/>/g)?.length).toBe(2);
 
     // Part A's content is in measure 1; measures 2-3 are trailing rests.
@@ -373,12 +372,7 @@ describe("notesToMusicXML", () => {
     test("tie across barline preserves voice assignment on both sides", () => {
       // Voice 1: whole note on beat 1. Voice 2: 4-beat note starting at beat 3
       // (overlaps voice 1 in bar 1, then crosses into bar 2 where voice 1 is silent).
-      const overlap = [
-        clip([
-          note(72, 0, 4),
-          note(60, 2, 4),
-        ], { loopEnd: 8 }),
-      ];
+      const overlap = [clip([note(72, 0, 4), note(60, 2, 4)], { loopEnd: 8 })];
       const xml = notesToMusicXML(overlap, TS_4_4, 0, "Major");
       const m1 = xml.match(/<measure number="1">[\s\S]*?<\/measure>/)?.[0] ?? "";
       const m2 = xml.match(/<measure number="2">[\s\S]*?<\/measure>/)?.[0] ?? "";
@@ -514,16 +508,16 @@ describe("sortClipsForScore", () => {
   }
 
   test("pitch mode puts treble above bass regardless of input order", () => {
-    const bass = namedClip("bass", [36, 40, 43]);   // avg 39.67 → F clef
-    const lead = namedClip("lead", [72, 74, 76]);   // avg 74 → G clef
+    const bass = namedClip("bass", [36, 40, 43]); // avg 39.67 → F clef
+    const lead = namedClip("lead", [72, 74, 76]); // avg 74 → G clef
     expect(names(sortClipsForScore([bass, lead], "pitch"))).toEqual(["lead", "bass"]);
     expect(names(sortClipsForScore([lead, bass], "pitch"))).toEqual(["lead", "bass"]);
   });
 
   test("pitch mode sorts descending within the same clef tier", () => {
-    const low = namedClip("low", [60, 62, 64]);    // avg 62
-    const mid = namedClip("mid", [67, 69, 71]);    // avg 69
-    const high = namedClip("high", [79, 81, 83]);  // avg 81
+    const low = namedClip("low", [60, 62, 64]); // avg 62
+    const mid = namedClip("mid", [67, 69, 71]); // avg 69
+    const high = namedClip("high", [79, 81, 83]); // avg 81
     expect(names(sortClipsForScore([low, high, mid], "pitch"))).toEqual(["high", "mid", "low"]);
   });
 
@@ -547,7 +541,11 @@ describe("sortClipsForScore", () => {
     const t0a = namedClip("t0-early", [60], 0);
     const t0b = namedClip("t0-late", [60], 0);
     const t1 = namedClip("t1", [60], 1);
-    expect(names(sortClipsForScore([t0a, t0b, t1], "track"))).toEqual(["t0-early", "t0-late", "t1"]);
+    expect(names(sortClipsForScore([t0a, t0b, t1], "track"))).toEqual([
+      "t0-early",
+      "t0-late",
+      "t1",
+    ]);
   });
 
   test("track mode sinks clips without trackIndex to the end", () => {

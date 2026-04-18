@@ -24,7 +24,10 @@ describe("activate", () => {
     await harness.activateExtension(activate);
 
     const titlesByScope = (scope: string) =>
-      harness.actions.getContextMenuActions(scope).map((a) => a.title).sort();
+      harness.actions
+        .getContextMenuActions(scope)
+        .map((a) => a.title)
+        .sort();
 
     expect(titlesByScope("ClipSlotSelection")).toEqual(["Render Clip(s)"]);
     expect(titlesByScope("Scene")).toEqual(["Render Scene"]);

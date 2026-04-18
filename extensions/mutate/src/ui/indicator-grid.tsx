@@ -24,11 +24,7 @@ export function IndicatorGrid({
     const newFlag = rowIsNewScene(row) ? " (new scene)" : "";
     const state = stateAt(row, col);
     const verb =
-      state === "skip"
-        ? "skip (occupied)"
-        : state === "write-overwrite"
-          ? "overwrite"
-          : "write";
+      state === "skip" ? "skip (occupied)" : state === "write-overwrite" ? "overwrite" : "write";
     return `${scene}${newFlag} · ${track} — ${verb}`;
   };
 

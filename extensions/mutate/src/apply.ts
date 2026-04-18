@@ -105,9 +105,7 @@ export async function applySession(
   const slotsBelow = source.track.clipSlots.slice(source.slotIndex + 1);
   const n = Math.min(slotsBelow.length, variations);
   if (n < variations) {
-    console.log(
-      `Mutate: only ${n} of ${variations} slot(s) available below source — truncating`,
-    );
+    console.log(`Mutate: only ${n} of ${variations} slot(s) available below source — truncating`);
   }
 
   const work = context.withinTransaction(() =>

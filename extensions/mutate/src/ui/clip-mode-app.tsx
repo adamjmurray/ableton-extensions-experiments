@@ -28,15 +28,31 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
   }, [controls, variations]);
 
   const inPlaceNotes = useMemo(
-    () => (mutateSource
-      ? generateVariations(data.sourceNotes, controls, 1, deriveSeed(baseSeed, 0), data.bounds)[0]!
-      : null),
+    () =>
+      mutateSource
+        ? generateVariations(
+            data.sourceNotes,
+            controls,
+            1,
+            deriveSeed(baseSeed, 0),
+            data.bounds,
+          )[0]!
+        : null,
     [data, controls, baseSeed, mutateSource],
   );
   const variationNotes = useMemo(
-    () => Array.from({ length: variations }, (_, i) =>
-      generateVariations(data.sourceNotes, controls, 1, deriveSeed(baseSeed, i + 1), data.bounds)[0]!,
-    ),
+    () =>
+      Array.from(
+        { length: variations },
+        (_, i) =>
+          generateVariations(
+            data.sourceNotes,
+            controls,
+            1,
+            deriveSeed(baseSeed, i + 1),
+            data.bounds,
+          )[0]!,
+      ),
     [data, controls, variations, baseSeed],
   );
 
@@ -69,11 +85,7 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
           <button class="btn" onClick={() => closeDialog()}>
             Cancel
           </button>
-          <button
-            class="btn primary"
-            onClick={handleApply}
-            disabled={!canApply}
-          >
+          <button class="btn primary" onClick={handleApply} disabled={!canApply}>
             Apply
           </button>
         </div>
@@ -113,14 +125,18 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
                 step={1}
                 value={variations}
                 onInput={(e) => {
-                  const n = Math.max(0, Math.min(MAX_VARIATIONS, Number((e.target as HTMLInputElement).value) | 0));
+                  const n = Math.max(
+                    0,
+                    Math.min(MAX_VARIATIONS, Number((e.target as HTMLInputElement).value) | 0),
+                  );
                   setVariations(n);
                 }}
               />
             </div>
             {!isArrangement && variations > data.availableSlotsBelow && (
               <div class="hint warn">
-                Only {data.availableSlotsBelow} slot{data.availableSlotsBelow === 1 ? "" : "s"} below — extras will be skipped
+                Only {data.availableSlotsBelow} slot{data.availableSlotsBelow === 1 ? "" : "s"}{" "}
+                below — extras will be skipped
               </div>
             )}
           </div>

@@ -29,7 +29,7 @@ describe("escapeDialogPayload", () => {
     const original = '{"name":"</script>\\"tricky\'\\\\"}';
     const escaped = escapeDialogPayload(original);
     // Roundtrip: embed in a single-quoted JS literal and evaluate.
-    const restored = (new Function(`return '${escaped}'`))();
+    const restored = new Function(`return '${escaped}'`)();
     expect(restored).toBe(original);
   });
 
@@ -38,7 +38,7 @@ describe("escapeDialogPayload", () => {
     const escaped = escapeDialogPayload(payload);
     expect(escaped).not.toContain("</script>");
     expect(escaped).not.toContain("\n"); // real newlines were never present (JSON.stringify escapes them)
-    const restored = (new Function(`return '${escaped}'`))();
+    const restored = new Function(`return '${escaped}'`)();
     expect(JSON.parse(restored)).toEqual({ name: '</script>\\n"hi"', notes: [] });
   });
 });

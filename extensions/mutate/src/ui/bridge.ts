@@ -112,7 +112,10 @@ function send(message: unknown) {
 }
 
 export function closeDialog(): void {
-  send({ name: "close_and_send", args: [JSON.stringify({ action: "close" } satisfies CloseMessage)] });
+  send({
+    name: "close_and_send",
+    args: [JSON.stringify({ action: "close" } satisfies CloseMessage)],
+  });
 }
 
 export function applyMutations(msg: ApplyMessage): void {

@@ -103,12 +103,7 @@ describe("assignUnnamedIndices", () => {
       makeClip({ name: "", trackName: "" }),
     ]);
     assignUnnamedIndices(data);
-    expect(data.clips.map((c) => c.clip.unnamedIndex)).toEqual([
-      undefined,
-      1,
-      undefined,
-      2,
-    ]);
+    expect(data.clips.map((c) => c.clip.unnamedIndex)).toEqual([undefined, 1, undefined, 2]);
   });
 
   it("treats whitespace-only names and track names as blank", () => {
@@ -126,9 +121,7 @@ describe("assignUnnamedIndices", () => {
   });
 
   it("preserves existing unnamedIndex on named clips (no-op path leaves the property alone)", () => {
-    const data = makeData([
-      makeClip({ name: "Clip A", trackName: "", unnamedIndex: 99 }),
-    ]);
+    const data = makeData([makeClip({ name: "Clip A", trackName: "", unnamedIndex: 99 })]);
     assignUnnamedIndices(data);
     expect(data.clips[0]!.clip.unnamedIndex).toBe(99);
   });

@@ -17,7 +17,9 @@ import { sanitizeFilename } from "./filename.js";
 // only need a thin surface here, but naming it as an inline type keeps the
 // dialog module decoupled from the full SDK type import.
 export interface DialogHost {
-  createModalDialog: () => { show: (url: string, width: number, height: number) => Promise<string> };
+  createModalDialog: () => {
+    show: (url: string, width: number, height: number) => Promise<string>;
+  };
   environment: { tempDirectory: string | undefined };
 }
 

@@ -100,7 +100,6 @@ export function activate(activation: ActivationContext) {
     };
   }
 
-
   function collectMidiClipsFromArg(arg: unknown): MidiClip<"0.0.5">[] {
     if (!arg || typeof arg !== "object") return [];
 
@@ -204,154 +203,158 @@ export function activate(activation: ActivationContext) {
     }
   }
 
-  context.commands.registerCommand("mutate.clipDialog", (arg: unknown) =>
-    void (async () => {
-      const clips = collectMidiClipsFromArg(arg);
-      if (clips.length === 0) {
-        console.log("Mutate: Clip(s)... — no MIDI clips in selection");
-        return;
-      }
-      if (clips.length !== 1) {
-        console.log(
-          `Mutate: Clip(s)... needs exactly one MIDI clip (got ${clips.length}); multi-clip mode TBD`,
-        );
-        return;
-      }
-      const sourceClip = clips[0]!;
-      const session = describeSessionSource(sourceClip);
-      if (!session) {
-        console.log("Mutate: clip is not in a session clip slot");
-        return;
-      }
+  context.commands.registerCommand(
+    "mutate.clipDialog",
+    (arg: unknown) =>
+      void (async () => {
+        const clips = collectMidiClipsFromArg(arg);
+        if (clips.length === 0) {
+          console.log("Mutate: Clip(s)... — no MIDI clips in selection");
+          return;
+        }
+        if (clips.length !== 1) {
+          console.log(
+            `Mutate: Clip(s)... needs exactly one MIDI clip (got ${clips.length}); multi-clip mode TBD`,
+          );
+          return;
+        }
+        const sourceClip = clips[0]!;
+        const session = describeSessionSource(sourceClip);
+        if (!session) {
+          console.log("Mutate: clip is not in a session clip slot");
+          return;
+        }
 
-      const slotsBelow = session.track.clipSlots.slice(session.slotIndex + 1);
-      const payload: ClipModeSessionPayload = {
-        mode: "clip",
-        branch: "session",
-        sourceNotes: session.notes,
-        bounds: session.bounds,
-        sourceClipName: String(sourceClip.name),
-        trackName: String(session.track.name),
-        availableSlotsBelow: slotsBelow.length,
-        slotsBelowOccupied: slotsBelow.map((s) => s.clip !== null),
-      };
+        const slotsBelow = session.track.clipSlots.slice(session.slotIndex + 1);
+        const payload: ClipModeSessionPayload = {
+          mode: "clip",
+          branch: "session",
+          sourceNotes: session.notes,
+          bounds: session.bounds,
+          sourceClipName: String(sourceClip.name),
+          trackName: String(session.track.name),
+          availableSlotsBelow: slotsBelow.length,
+          slotsBelowOccupied: slotsBelow.map((s) => s.clip !== null),
+        };
 
-      let result: DialogResult;
-      try {
-        result = await showMutateDialog(payload);
-      } catch (e) {
-        console.error("Mutate: clip dialog failed to show:", e);
-        return;
-      }
-      if (result.action !== "apply") return;
+        let result: DialogResult;
+        try {
+          result = await showMutateDialog(payload);
+        } catch (e) {
+          console.error("Mutate: clip dialog failed to show:", e);
+          return;
+        }
+        if (result.action !== "apply") return;
 
-      try {
-        await applySession(
-          context,
-          session,
-          result.controls,
-          result.variations,
-          result.baseSeed,
-          result.fillMode,
-          result.mutateSource,
-        );
-        const sourceWrite = result.mutateSource ? ` + in-place` : "";
-        console.log(
-          `Mutate: wrote ${result.variations} slot(s)${sourceWrite} for "${payload.sourceClipName}"`,
-        );
-      } catch (e) {
-        console.error("Mutate: applySession failed:", e);
-      }
-    })(),
+        try {
+          await applySession(
+            context,
+            session,
+            result.controls,
+            result.variations,
+            result.baseSeed,
+            result.fillMode,
+            result.mutateSource,
+          );
+          const sourceWrite = result.mutateSource ? ` + in-place` : "";
+          console.log(
+            `Mutate: wrote ${result.variations} slot(s)${sourceWrite} for "${payload.sourceClipName}"`,
+          );
+        } catch (e) {
+          console.error("Mutate: applySession failed:", e);
+        }
+      })(),
   );
 
-  context.commands.registerCommand("mutate.sceneDialog", (arg: unknown) =>
-    void (async () => {
-      const scene = context.objects.getObjectFromHandle(arg as Handle, Scene);
-      const song = context.application.song;
-      const scenes = song.scenes;
-      const sceneIndex = scenes.findIndex((s) => s.handle.id === scene.handle.id);
-      if (sceneIndex < 0) {
-        console.log("Mutate: could not find scene index");
-        return;
-      }
-
-      const tracks = song.tracks;
-      const totalScenes = scenes.length;
-
-      const snapshot: SceneSourceClip[] = [];
-      const summaries: SceneSourceSummary[] = [];
-      for (let ti = 0; ti < tracks.length; ti++) {
-        const track = tracks[ti]!;
-        if (!(track instanceof MidiTrack)) continue;
-        const slot = track.clipSlots[sceneIndex];
-        const clip = slot?.clip;
-        if (!(clip instanceof MidiClip)) continue;
-
-        snapshot.push({
-          trackIndex: ti,
-          track,
-          clip,
-          notes: clip.notes.map(coerceNote),
-          bounds: clipBoundsFor(clip),
-          duration: Number(clip.loopEnd),
-        });
-
-        const slotsBelow: boolean[] = [];
-        for (let si = sceneIndex + 1; si < totalScenes; si++) {
-          slotsBelow.push(track.clipSlots[si]?.clip != null);
+  context.commands.registerCommand(
+    "mutate.sceneDialog",
+    (arg: unknown) =>
+      void (async () => {
+        const scene = context.objects.getObjectFromHandle(arg as Handle, Scene);
+        const song = context.application.song;
+        const scenes = song.scenes;
+        const sceneIndex = scenes.findIndex((s) => s.handle.id === scene.handle.id);
+        if (sceneIndex < 0) {
+          console.log("Mutate: could not find scene index");
+          return;
         }
-        summaries.push({
-          trackIndex: ti,
-          trackName: String(track.name),
-          clipName: String(clip.name),
-          noteCount: clip.notes.length,
-          slotsBelowOccupied: slotsBelow,
-        });
-      }
 
-      if (snapshot.length === 0) {
-        console.log(`Mutate: scene "${scene.name}" has no MIDI clips`);
-        return;
-      }
+        const tracks = song.tracks;
+        const totalScenes = scenes.length;
 
-      const payload: SceneModePayload = {
-        mode: "scene",
-        sceneIndex,
-        sceneName: String(scene.name),
-        totalScenesInSong: totalScenes,
-        sources: summaries,
-      };
+        const snapshot: SceneSourceClip[] = [];
+        const summaries: SceneSourceSummary[] = [];
+        for (let ti = 0; ti < tracks.length; ti++) {
+          const track = tracks[ti]!;
+          if (!(track instanceof MidiTrack)) continue;
+          const slot = track.clipSlots[sceneIndex];
+          const clip = slot?.clip;
+          if (!(clip instanceof MidiClip)) continue;
 
-      let result: DialogResult;
-      try {
-        result = await showMutateDialog(payload);
-      } catch (e) {
-        console.error("Mutate: scene dialog failed to show:", e);
-        return;
-      }
-      if (result.action !== "apply") return;
+          snapshot.push({
+            trackIndex: ti,
+            track,
+            clip,
+            notes: clip.notes.map(coerceNote),
+            bounds: clipBoundsFor(clip),
+            duration: Number(clip.loopEnd),
+          });
 
-      const sceneSource: SceneSource = { kind: "scene", sceneIndex, sources: snapshot };
-      try {
-        await applyScene(
-          context,
-          sceneSource,
-          result.controls,
-          result.variations,
-          result.baseSeed,
-          result.fillMode,
-          result.mutateSource,
-        );
-        const inPlaceCount = result.mutateSource ? snapshot.length : 0;
-        const newCount = result.variations * snapshot.length;
-        console.log(
-          `Mutate: scene "${scene.name}" — wrote ${inPlaceCount} in-place + ${newCount} new clip(s)`,
-        );
-      } catch (e) {
-        console.error("Mutate: applyScene failed:", e);
-      }
-    })(),
+          const slotsBelow: boolean[] = [];
+          for (let si = sceneIndex + 1; si < totalScenes; si++) {
+            slotsBelow.push(track.clipSlots[si]?.clip != null);
+          }
+          summaries.push({
+            trackIndex: ti,
+            trackName: String(track.name),
+            clipName: String(clip.name),
+            noteCount: clip.notes.length,
+            slotsBelowOccupied: slotsBelow,
+          });
+        }
+
+        if (snapshot.length === 0) {
+          console.log(`Mutate: scene "${scene.name}" has no MIDI clips`);
+          return;
+        }
+
+        const payload: SceneModePayload = {
+          mode: "scene",
+          sceneIndex,
+          sceneName: String(scene.name),
+          totalScenesInSong: totalScenes,
+          sources: summaries,
+        };
+
+        let result: DialogResult;
+        try {
+          result = await showMutateDialog(payload);
+        } catch (e) {
+          console.error("Mutate: scene dialog failed to show:", e);
+          return;
+        }
+        if (result.action !== "apply") return;
+
+        const sceneSource: SceneSource = { kind: "scene", sceneIndex, sources: snapshot };
+        try {
+          await applyScene(
+            context,
+            sceneSource,
+            result.controls,
+            result.variations,
+            result.baseSeed,
+            result.fillMode,
+            result.mutateSource,
+          );
+          const inPlaceCount = result.mutateSource ? snapshot.length : 0;
+          const newCount = result.variations * snapshot.length;
+          console.log(
+            `Mutate: scene "${scene.name}" — wrote ${inPlaceCount} in-place + ${newCount} new clip(s)`,
+          );
+        } catch (e) {
+          console.error("Mutate: applyScene failed:", e);
+        }
+      })(),
   );
 
   // Fires for a right-click anywhere in MidiTrack.ArrangementSelection: either
@@ -359,111 +362,113 @@ export function activate(activation: ActivationContext) {
   // single clip as a degenerate range). Single-clip goes through the piano-roll
   // preview dialog; multi-clip (or multi-track) goes through the range-mode
   // indicator-grid dialog.
-  context.commands.registerCommand("mutate.rangeDialog", (arg: unknown) =>
-    void (async () => {
-      if (!arg || typeof arg !== "object") {
-        console.log("Mutate: Range... — unexpected command arg");
-        return;
-      }
-      if (!("selected_lanes" in arg && "time_selection_start" in arg)) {
-        console.log("Mutate: Range... — arg is not an ArrangementSelection");
-        return;
-      }
-      const selection = arg as ArrangementSelection;
-      const timeStart = Number(selection.time_selection_start);
-      const timeEnd = Number(selection.time_selection_end);
+  context.commands.registerCommand(
+    "mutate.rangeDialog",
+    (arg: unknown) =>
+      void (async () => {
+        if (!arg || typeof arg !== "object") {
+          console.log("Mutate: Range... — unexpected command arg");
+          return;
+        }
+        if (!("selected_lanes" in arg && "time_selection_start" in arg)) {
+          console.log("Mutate: Range... — arg is not an ArrangementSelection");
+          return;
+        }
+        const selection = arg as ArrangementSelection;
+        const timeStart = Number(selection.time_selection_start);
+        const timeEnd = Number(selection.time_selection_end);
 
-      // Collect MIDI clips overlapping the range, keeping the track association.
-      const rangeClips: RangeSourceClip[] = [];
-      for (const h of selection.selected_lanes) {
-        const obj = context.objects.getObjectFromHandle(h, DataModelObject);
-        if (!(obj instanceof MidiTrack)) continue;
-        const trackIndex = context.application.song.tracks.findIndex(
-          (t) => t.handle.id === obj.handle.id,
-        );
-        if (trackIndex < 0) continue;
-        for (const clip of obj.arrangementClips) {
-          if (!(clip instanceof MidiClip)) continue;
-          const cs = Number(clip.startTime);
-          const ce = Number(clip.endTime);
-          if (clipOverlapsRange(cs, ce, timeStart, timeEnd)) {
-            rangeClips.push({
-              trackIndex,
-              track: obj,
-              clip,
-              startTime: cs,
-              duration: ce - cs,
-              notes: clip.notes.map(coerceNote),
-              bounds: clipBoundsFor(clip),
-            });
+        // Collect MIDI clips overlapping the range, keeping the track association.
+        const rangeClips: RangeSourceClip[] = [];
+        for (const h of selection.selected_lanes) {
+          const obj = context.objects.getObjectFromHandle(h, DataModelObject);
+          if (!(obj instanceof MidiTrack)) continue;
+          const trackIndex = context.application.song.tracks.findIndex(
+            (t) => t.handle.id === obj.handle.id,
+          );
+          if (trackIndex < 0) continue;
+          for (const clip of obj.arrangementClips) {
+            if (!(clip instanceof MidiClip)) continue;
+            const cs = Number(clip.startTime);
+            const ce = Number(clip.endTime);
+            if (clipOverlapsRange(cs, ce, timeStart, timeEnd)) {
+              rangeClips.push({
+                trackIndex,
+                track: obj,
+                clip,
+                startTime: cs,
+                duration: ce - cs,
+                notes: clip.notes.map(coerceNote),
+                bounds: clipBoundsFor(clip),
+              });
+            }
           }
         }
-      }
 
-      if (rangeClips.length === 0) {
-        console.log("Mutate: Range... — no MIDI clips in selection");
-        return;
-      }
-      if (rangeClips.length === 1) {
-        await openArrangementClipDialog(rangeClips[0]!.clip);
-        return;
-      }
-
-      // Multi-clip: build the range-mode payload grouped by track for the UI summary.
-      const byTrack = new Map<number, { trackName: string; clipCount: number }>();
-      for (const rc of rangeClips) {
-        const existing = byTrack.get(rc.trackIndex);
-        if (existing) {
-          existing.clipCount += 1;
-        } else {
-          byTrack.set(rc.trackIndex, { trackName: String(rc.track.name), clipCount: 1 });
+        if (rangeClips.length === 0) {
+          console.log("Mutate: Range... — no MIDI clips in selection");
+          return;
         }
-      }
-      const trackSummaries: RangeTrackSummary[] = Array.from(byTrack.entries())
-        .sort(([a], [b]) => a - b)
-        .map(([trackIndex, { trackName, clipCount }]) => ({ trackIndex, trackName, clipCount }));
+        if (rangeClips.length === 1) {
+          await openArrangementClipDialog(rangeClips[0]!.clip);
+          return;
+        }
 
-      const payload: RangeModePayload = {
-        mode: "range",
-        timeStart,
-        timeEnd,
-        totalClipCount: rangeClips.length,
-        tracks: trackSummaries,
-      };
+        // Multi-clip: build the range-mode payload grouped by track for the UI summary.
+        const byTrack = new Map<number, { trackName: string; clipCount: number }>();
+        for (const rc of rangeClips) {
+          const existing = byTrack.get(rc.trackIndex);
+          if (existing) {
+            existing.clipCount += 1;
+          } else {
+            byTrack.set(rc.trackIndex, { trackName: String(rc.track.name), clipCount: 1 });
+          }
+        }
+        const trackSummaries: RangeTrackSummary[] = Array.from(byTrack.entries())
+          .sort(([a], [b]) => a - b)
+          .map(([trackIndex, { trackName, clipCount }]) => ({ trackIndex, trackName, clipCount }));
 
-      let result: DialogResult;
-      try {
-        result = await showMutateDialog(payload);
-      } catch (e) {
-        console.error("Mutate: range dialog failed to show:", e);
-        return;
-      }
-      if (result.action !== "apply") return;
+        const payload: RangeModePayload = {
+          mode: "range",
+          timeStart,
+          timeEnd,
+          totalClipCount: rangeClips.length,
+          tracks: trackSummaries,
+        };
 
-      const source: RangeSource = {
-        kind: "range",
-        timeStart,
-        timeEnd,
-        clips: rangeClips,
-      };
-      try {
-        await applyRange(
-          context,
-          source,
-          result.controls,
-          result.variations,
-          result.baseSeed,
-          result.mutateSource,
-        );
-        const inPlace = result.mutateSource ? rangeClips.length : 0;
-        const newClips = result.variations * rangeClips.length;
-        console.log(
-          `Mutate: Range — wrote ${inPlace} in-place + ${newClips} new clip(s) across ${trackSummaries.length} track(s)`,
-        );
-      } catch (e) {
-        console.error("Mutate: applyRange failed:", e);
-      }
-    })(),
+        let result: DialogResult;
+        try {
+          result = await showMutateDialog(payload);
+        } catch (e) {
+          console.error("Mutate: range dialog failed to show:", e);
+          return;
+        }
+        if (result.action !== "apply") return;
+
+        const source: RangeSource = {
+          kind: "range",
+          timeStart,
+          timeEnd,
+          clips: rangeClips,
+        };
+        try {
+          await applyRange(
+            context,
+            source,
+            result.controls,
+            result.variations,
+            result.baseSeed,
+            result.mutateSource,
+          );
+          const inPlace = result.mutateSource ? rangeClips.length : 0;
+          const newClips = result.variations * rangeClips.length;
+          console.log(
+            `Mutate: Range — wrote ${inPlace} in-place + ${newClips} new clip(s) across ${trackSummaries.length} track(s)`,
+          );
+        } catch (e) {
+          console.error("Mutate: applyRange failed:", e);
+        }
+      })(),
   );
 
   // -------------------------------------------------------------------
@@ -499,16 +504,21 @@ export function activate(activation: ActivationContext) {
   // MidiClip here is what unlocks arrangement-clip mutation.
   context.ui.registerContextMenuAction("MidiClip", "Clip...", "mutate.clipDialog");
   context.ui.registerContextMenuAction("Scene", "Scene...", "mutate.sceneDialog");
-  context.ui.registerContextMenuAction("MidiTrack.ArrangementSelection", "Range...", "mutate.rangeDialog");
+  context.ui.registerContextMenuAction(
+    "MidiTrack.ArrangementSelection",
+    "Range...",
+    "mutate.rangeDialog",
+  );
 
   // ClipSlotSelection covers the single-clip case too (Live always wraps a
   // right-clicked clip in a selection of size 1), so registering on MidiClip
   // would just duplicate the menu entry.
-  for (const scope of [
-    "ClipSlotSelection",
-    "MidiTrack.ArrangementSelection",
-  ] as const) {
-    context.ui.registerContextMenuAction(scope, "Randomize Velocity", "mutate.quick.randomizeVelocity");
+  for (const scope of ["ClipSlotSelection", "MidiTrack.ArrangementSelection"] as const) {
+    context.ui.registerContextMenuAction(
+      scope,
+      "Randomize Velocity",
+      "mutate.quick.randomizeVelocity",
+    );
     context.ui.registerContextMenuAction(scope, "Swap Notes", "mutate.quick.swapNotes");
     context.ui.registerContextMenuAction(scope, "Delete 10%", "mutate.quick.deleteTenPercent");
   }

@@ -4,24 +4,27 @@ import type { NoteDescription } from "@ableton/extensions-sdk";
 
 describe("clipBoundsFor", () => {
   test("non-looping clip: start = startMarker, end = loopEnd", () => {
-    expect(
-      clipBoundsFor({ looping: false, loopStart: 0, loopEnd: 8, startMarker: 2 }),
-    ).toEqual({ start: 2, end: 8 });
+    expect(clipBoundsFor({ looping: false, loopStart: 0, loopEnd: 8, startMarker: 2 })).toEqual({
+      start: 2,
+      end: 8,
+    });
   });
 
   test("looping clip with loopStart <= startMarker: start = loopStart", () => {
     // Looping clips replay the loop region; its start dominates when the
     // loop begins before the startMarker.
-    expect(
-      clipBoundsFor({ looping: true, loopStart: 1, loopEnd: 5, startMarker: 3 }),
-    ).toEqual({ start: 1, end: 5 });
+    expect(clipBoundsFor({ looping: true, loopStart: 1, loopEnd: 5, startMarker: 3 })).toEqual({
+      start: 1,
+      end: 5,
+    });
   });
 
   test("looping clip with startMarker < loopStart: start = startMarker", () => {
     // Intro region (startMarker before loop) plays once before the loop begins.
-    expect(
-      clipBoundsFor({ looping: true, loopStart: 4, loopEnd: 8, startMarker: 2 }),
-    ).toEqual({ start: 2, end: 8 });
+    expect(clipBoundsFor({ looping: true, loopStart: 4, loopEnd: 8, startMarker: 2 })).toEqual({
+      start: 2,
+      end: 8,
+    });
   });
 
   test("coerces BigInt-like inputs via Number()", () => {
@@ -36,9 +39,10 @@ describe("clipBoundsFor", () => {
   });
 
   test("truthy non-boolean `looping` values are treated as looping", () => {
-    expect(
-      clipBoundsFor({ looping: 1, loopStart: 0, loopEnd: 4, startMarker: 2 }),
-    ).toEqual({ start: 0, end: 4 });
+    expect(clipBoundsFor({ looping: 1, loopStart: 0, loopEnd: 4, startMarker: 2 })).toEqual({
+      start: 0,
+      end: 4,
+    });
   });
 });
 

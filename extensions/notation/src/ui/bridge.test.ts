@@ -17,18 +17,20 @@ describe("getNotationData", () => {
 
   it("parses a valid JSON payload from window.__NOTATION_DATA__", () => {
     const payload = {
-      clips: [{
-        notes: [{ pitch: 60, startTime: 0, duration: 1, velocity: 100 }],
-        clip: {
-          name: "Clip",
-          trackName: "Piano",
-          startMarker: 0,
-          endMarker: 8,
-          looping: false,
-          loopStart: 0,
-          loopEnd: 8,
+      clips: [
+        {
+          notes: [{ pitch: 60, startTime: 0, duration: 1, velocity: 100 }],
+          clip: {
+            name: "Clip",
+            trackName: "Piano",
+            startMarker: 0,
+            endMarker: 8,
+            looping: false,
+            loopStart: 0,
+            loopEnd: 8,
+          },
         },
-      }],
+      ],
       tempo: 128,
       rootNote: 2,
       scaleName: "Dorian",

@@ -30,12 +30,7 @@ export const ZERO_CONTROLS: MutateControls = {
 };
 
 // Order: drop → swap → start → duration → velocity → probability.
-function mutateOnce(
-  notes: Note[],
-  controls: MutateControls,
-  rng: Rng,
-  bounds: ClipBounds,
-): Note[] {
+function mutateOnce(notes: Note[], controls: MutateControls, rng: Rng, bounds: ClipBounds): Note[] {
   notes = dropNotes(notes, controls.drop, rng);
   notes = swapNotes(notes, controls.swap, rng);
   notes = transformStart(notes, controls.start, rng, bounds);

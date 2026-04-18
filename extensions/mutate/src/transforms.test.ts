@@ -117,7 +117,7 @@ describe("transformDuration", () => {
   });
 
   test("startTime + duration ≤ bounds.end across many draws", () => {
-    const input = Array.from({ length: 100 }, (_, i) => note(60, (i % 8), 1));
+    const input = Array.from({ length: 100 }, (_, i) => note(60, i % 8, 1));
     const rng = mulberry32(17);
     const out = transformDuration(input, { offset: 10, range: 20 }, rng, bounds);
     for (const n of out) {

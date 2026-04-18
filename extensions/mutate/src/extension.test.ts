@@ -21,7 +21,10 @@ describe("activate", () => {
     await harness.activateExtension(activate);
 
     const titlesByScope = (scope: string) =>
-      harness.actions.getContextMenuActions(scope).map((a) => a.title).sort();
+      harness.actions
+        .getContextMenuActions(scope)
+        .map((a) => a.title)
+        .sort();
 
     expect(titlesByScope("MidiClip")).toEqual(["Clip..."]);
     expect(titlesByScope("Scene")).toEqual(["Scene..."]);

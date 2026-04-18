@@ -16,6 +16,7 @@ type Mode = "major" | "minor";
 // offset: semitones from the scale's tonic up to its relative major tonic.
 // Scales not listed (symmetric scales, exotic non-diatonic scales, unknown
 // custom scales) fall through to <fifths>0</fifths> with per-note accidentals.
+// biome-ignore format: hand-aligned columns are easier to scan than the auto-formatted version.
 const SCALE_TABLE: Record<string, { offset: number; mode: Mode }> = {
   "major":             { offset: 0,  mode: "major" },
   "minor":             { offset: 3,  mode: "minor" },
@@ -41,19 +42,24 @@ const SCALE_TABLE: Record<string, { offset: number; mode: Mode }> = {
 function getKeySignature(rootNote: number, scaleName: string): { fifths: number; mode: Mode } {
   const info = SCALE_TABLE[scaleName.trim().toLowerCase()];
   if (!info) return { fifths: 0, mode: "major" };
-  const relativeMajorRoot = (((rootNote % 12) + info.offset) % 12 + 12) % 12;
+  const relativeMajorRoot = ((((rootNote % 12) + info.offset) % 12) + 12) % 12;
   return { fifths: MAJOR_FIFTHS[relativeMajorRoot]!, mode: info.mode };
 }
 
-function midiToPitch(midi: number, fifths: number): { step: string; alter: number; octave: number } {
+function midiToPitch(
+  midi: number,
+  fifths: number,
+): { step: string; alter: number; octave: number } {
   const octave = Math.floor(midi / 12) - 1;
   const pc = midi % 12;
   const useFlats = fifths < 0;
 
+  // biome-ignore format: 12-column pitch-class grid is more scannable than one-entry-per-line.
   const SHARP_MAP: [string, number][] = [
     ["C", 0], ["C", 1], ["D", 0], ["D", 1], ["E", 0],
     ["F", 0], ["F", 1], ["G", 0], ["G", 1], ["A", 0], ["A", 1], ["B", 0],
   ];
+  // biome-ignore format: 12-column pitch-class grid is more scannable than one-entry-per-line.
   const FLAT_MAP: [string, number][] = [
     ["C", 0], ["D", -1], ["D", 0], ["E", -1], ["E", 0],
     ["F", 0], ["G", -1], ["G", 0], ["A", -1], ["A", 0], ["B", -1], ["B", 0],
@@ -209,12 +215,7 @@ interface AbsNote {
 function assignVoices(notes: AbsNote[]): void {
   const order = notes
     .slice()
-    .sort(
-      (a, b) =>
-        a.startDiv - b.startDiv ||
-        b.durationDiv - a.durationDiv ||
-        b.pitch - a.pitch,
-    );
+    .sort((a, b) => a.startDiv - b.startDiv || b.durationDiv - a.durationDiv || b.pitch - a.pitch);
 
   const voiceMaxEnd: number[] = [];
   const lastInVoice: AbsNote[] = [];
@@ -415,13 +416,7 @@ function generatePartMeasures(
         .filter((e) => e.voice === voice)
         .sort((a, b) => a.startDiv - b.startDiv || a.pitch - b.pitch);
 
-      xml += renderVoiceElements(
-        voiceEvents,
-        voice,
-        measureDivisions,
-        fifths,
-        isDrumRack,
-      );
+      xml += renderVoiceElements(voiceEvents, voice, measureDivisions, fifths, isDrumRack);
 
       if (vi < voiceNumbers.length - 1) {
         xml += `      <backup>\n        <duration>${measureDivisions}</duration>\n      </backup>\n`;
@@ -454,9 +449,7 @@ export function getClipRenderRegion(
   clip: Pick<ClipData["clip"], "startMarker" | "loopStart" | "loopEnd" | "looping">,
   beatsPerMeasure: number,
 ): { filterStart: number; renderEnd: number; renderStart: number; barCount: number } {
-  const filterStart = clip.looping
-    ? Math.min(clip.loopStart, clip.startMarker)
-    : clip.startMarker;
+  const filterStart = clip.looping ? Math.min(clip.loopStart, clip.startMarker) : clip.startMarker;
   const renderEnd = clip.loopEnd;
   const renderStart = Math.floor(filterStart / beatsPerMeasure) * beatsPerMeasure;
   const barCount = Math.max(1, Math.ceil((renderEnd - renderStart) / beatsPerMeasure));
@@ -523,7 +516,8 @@ export function notesToMusicXML(
   });
 
   const globalOrigin = align
-    ? Math.floor(Math.min(...base.map((r) => r.arrangementFilterStart)) / beatsPerMeasure) * beatsPerMeasure
+    ? Math.floor(Math.min(...base.map((r) => r.arrangementFilterStart)) / beatsPerMeasure) *
+      beatsPerMeasure
     : 0;
 
   // Per-clip renderStart: in aligned mode, map the arrangement position of
@@ -558,7 +552,8 @@ export function notesToMusicXML(
     // name instead of "[TrackName] (unnamed #1)". Prefer the stable
     // `unnamedIndex` assigned at dialog-open time so the number does not
     // shift when sort mode reorders parts (AJM-189).
-    const label = clipName || (r.clip.trackName ? "" : `(unnamed #${r.clip.unnamedIndex ?? ++unnamedCount})`);
+    const label =
+      clipName || (r.clip.trackName ? "" : `(unnamed #${r.clip.unnamedIndex ?? ++unnamedCount})`);
     const name = buildPartName(r.clip.trackName, label, i);
 
     const clipLength = r.renderEnd - r.renderStart;
@@ -715,7 +710,11 @@ function renderVoiceElements(
     if (pos > cursor) {
       const restComps = decomposeDuration(pos - cursor);
       for (const comp of restComps) {
-        noteElements.push({ xml: renderRestNote(comp, voice), triplet: comp.triplet, divisions: comp.divisions });
+        noteElements.push({
+          xml: renderRestNote(comp, voice),
+          triplet: comp.triplet,
+          divisions: comp.divisions,
+        });
       }
     }
 
@@ -738,8 +737,8 @@ function renderVoiceElements(
             comp,
             fifths,
             isChordMember,
-            tieStop || (c > 0),
-            tieStart || (c < components.length - 1),
+            tieStop || c > 0,
+            tieStart || c < components.length - 1,
             isDrumRack,
             voice,
           ),
@@ -755,7 +754,11 @@ function renderVoiceElements(
   if (cursor < measureDivisions) {
     const restComps = decomposeDuration(measureDivisions - cursor);
     for (const comp of restComps) {
-      noteElements.push({ xml: renderRestNote(comp, voice), triplet: comp.triplet, divisions: comp.divisions });
+      noteElements.push({
+        xml: renderRestNote(comp, voice),
+        triplet: comp.triplet,
+        divisions: comp.divisions,
+      });
     }
   }
 
@@ -763,7 +766,11 @@ function renderVoiceElements(
   if (totalDiv < measureDivisions) {
     const pad = decomposeDuration(measureDivisions - totalDiv);
     for (const comp of pad) {
-      noteElements.push({ xml: renderRestNote(comp, voice), triplet: comp.triplet, divisions: comp.divisions });
+      noteElements.push({
+        xml: renderRestNote(comp, voice),
+        triplet: comp.triplet,
+        divisions: comp.divisions,
+      });
     }
   }
 
@@ -796,9 +803,10 @@ function renderVoiceElements(
 // Inject a <tuplet> element into a rendered <note> XML string.
 // If a <notations> block exists, insert inside it; otherwise add one.
 function injectTuplet(noteXml: string, type: "start" | "stop"): string {
-  const tupletEl = type === "start"
-    ? `          <tuplet type="start" bracket="yes" number="1"/>\n`
-    : `          <tuplet type="stop" number="1"/>\n`;
+  const tupletEl =
+    type === "start"
+      ? `          <tuplet type="start" bracket="yes" number="1"/>\n`
+      : `          <tuplet type="stop" number="1"/>\n`;
 
   if (noteXml.includes("</notations>")) {
     return noteXml.replace("</notations>", tupletEl + `        </notations>`);

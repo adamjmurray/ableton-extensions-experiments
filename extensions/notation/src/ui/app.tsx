@@ -1,7 +1,13 @@
 import { render } from "preact";
 import { useState, useEffect, useRef, useCallback } from "preact/hooks";
 import { OpenSheetMusicDisplay } from "opensheetmusicdisplay";
-import { getNotationData, closeDialog, exportFile, type NotationData, type ClipData } from "./bridge.js";
+import {
+  getNotationData,
+  closeDialog,
+  exportFile,
+  type NotationData,
+  type ClipData,
+} from "./bridge.js";
 import { quantizeNotes, type QuantizeGrid } from "./quantize.js";
 import { notesToMusicXML, sortClipsForScore, type SortMode } from "./musicxml.js";
 import { assignUnnamedIndices, buildFullPartName, truncatePartName } from "./part-name.js";
@@ -13,7 +19,11 @@ const GRIDS: { value: QuantizeGrid; label: string }[] = [
 ];
 
 const SORT_MODES: { value: SortMode; label: string; title: string }[] = [
-  { value: "pitch", label: "Pitch", title: "Sort parts by pitch (treble above bass, then high to low)" },
+  {
+    value: "pitch",
+    label: "Pitch",
+    title: "Sort parts by pitch (treble above bass, then high to low)",
+  },
   { value: "track", label: "Track", title: "Sort parts by track order" },
   { value: "native", label: "Native", title: "Preserve selection order" },
 ];
@@ -60,7 +70,8 @@ function injectPartNameTooltips(container: HTMLDivElement | null, clips: ClipDat
   let unnamedCount = 0;
   const fullNames = clips.map((c, i) => {
     const clipName = (c.clip.name ?? "").trim();
-    const label = clipName || (c.clip.trackName ? "" : `(unnamed #${c.clip.unnamedIndex ?? ++unnamedCount})`);
+    const label =
+      clipName || (c.clip.trackName ? "" : `(unnamed #${c.clip.unnamedIndex ?? ++unnamedCount})`);
     return buildFullPartName(c.clip.trackName, label, i);
   });
 
@@ -110,64 +121,76 @@ function App() {
   const [drumHeads, setDrumHeads] = useState(hasDrumClip);
   const [sortMode, setSortMode] = useState<SortMode>("pitch");
 
-  const renderNotation = useCallback(async (g: QuantizeGrid, tsNum: number, tsDen: number, legato: boolean, showTempo: boolean, drumHeads: boolean, sortMode: SortMode) => {
-    if (emptyStateMessage) return;
-    if (!containerRef.current) return;
+  const renderNotation = useCallback(
+    async (
+      g: QuantizeGrid,
+      tsNum: number,
+      tsDen: number,
+      legato: boolean,
+      showTempo: boolean,
+      drumHeads: boolean,
+      sortMode: SortMode,
+    ) => {
+      if (emptyStateMessage) return;
+      if (!containerRef.current) return;
 
-    const quantizedClips: ClipData[] = data.current.clips.map((c) => {
-      const qc: ClipData = { notes: quantizeNotes(c.notes, g), clip: c.clip };
-      if (c.isDrumRack && drumHeads) qc.isDrumRack = true;
-      return qc;
-    });
+      const quantizedClips: ClipData[] = data.current.clips.map((c) => {
+        const qc: ClipData = { notes: quantizeNotes(c.notes, g), clip: c.clip };
+        if (c.isDrumRack && drumHeads) qc.isDrumRack = true;
+        return qc;
+      });
 
-    const orderedClips = sortClipsForScore(quantizedClips, sortMode);
-    const totalNotes = orderedClips.reduce((sum, c) => sum + c.notes.length, 0);
-    const musicXML = notesToMusicXML(
-      orderedClips,
-      { numerator: tsNum, denominator: tsDen },
-      data.current.rootNote,
-      data.current.scaleName,
-      legato,
-      showTempo ? data.current.tempo : undefined,
-    );
+      const orderedClips = sortClipsForScore(quantizedClips, sortMode);
+      const totalNotes = orderedClips.reduce((sum, c) => sum + c.notes.length, 0);
+      const musicXML = notesToMusicXML(
+        orderedClips,
+        { numerator: tsNum, denominator: tsDen },
+        data.current.rootNote,
+        data.current.scaleName,
+        legato,
+        showTempo ? data.current.tempo : undefined,
+      );
 
-    setDebugXML(musicXML);
+      setDebugXML(musicXML);
 
-    try {
-      if (!osmdRef.current) {
-        osmdRef.current = new OpenSheetMusicDisplay(containerRef.current, {
-          backend: "svg",
-          drawTitle: false,
-          drawComposer: false,
-          drawCredits: false,
-          drawPartNames: orderedClips.length > 1,
-          autoResize: true,
-        });
-        osmdRef.current.EngravingRules.InstrumentLabelTextHeight = 1.5;
-        osmdRef.current.EngravingRules.PageTopMargin = 1;
-        osmdRef.current.EngravingRules.PageBottomMargin = 1;
-        osmdRef.current.EngravingRules.PageLeftMargin = 2;
-        osmdRef.current.EngravingRules.PageRightMargin = 2;
+      try {
+        if (!osmdRef.current) {
+          osmdRef.current = new OpenSheetMusicDisplay(containerRef.current, {
+            backend: "svg",
+            drawTitle: false,
+            drawComposer: false,
+            drawCredits: false,
+            drawPartNames: orderedClips.length > 1,
+            autoResize: true,
+          });
+          osmdRef.current.EngravingRules.InstrumentLabelTextHeight = 1.5;
+          osmdRef.current.EngravingRules.PageTopMargin = 1;
+          osmdRef.current.EngravingRules.PageBottomMargin = 1;
+          osmdRef.current.EngravingRules.PageLeftMargin = 2;
+          osmdRef.current.EngravingRules.PageRightMargin = 2;
+        }
+
+        await osmdRef.current.load(musicXML);
+        osmdRef.current.render();
+        injectPartNameTooltips(containerRef.current, orderedClips);
+        const partsLabel = orderedClips.length > 1 ? ` | ${orderedClips.length} parts` : "";
+        setStatus(
+          `${totalNotes} notes${partsLabel} | ${g} quantization | ${tsNum}/${tsDen}${legato ? " | legato" : ""}`,
+        );
+      } catch (e) {
+        console.error("OSMD render error:", e);
+        setStatus(`Render error: ${e}`);
       }
-
-      await osmdRef.current.load(musicXML);
-      osmdRef.current.render();
-      injectPartNameTooltips(containerRef.current, orderedClips);
-      const partsLabel = orderedClips.length > 1 ? ` | ${orderedClips.length} parts` : "";
-      setStatus(`${totalNotes} notes${partsLabel} | ${g} quantization | ${tsNum}/${tsDen}${legato ? " | legato" : ""}`);
-    } catch (e) {
-      console.error("OSMD render error:", e);
-      setStatus(`Render error: ${e}`);
-    }
-  }, []);
+    },
+    [],
+  );
 
   useEffect(() => {
     renderNotation(grid, timeSigNum, timeSigDen, legato, showTempo, drumHeads, sortMode);
   }, [grid, timeSigNum, timeSigDen, legato, showTempo, drumHeads, sortMode, renderNotation]);
 
-  const clipName = data.current.clips.length === 1
-    ? (data.current.clips[0]?.clip.name || "notation")
-    : "score";
+  const clipName =
+    data.current.clips.length === 1 ? data.current.clips[0]?.clip.name || "notation" : "score";
 
   const handleExportSVG = useCallback(() => {
     if (!containerRef.current) return;
@@ -242,7 +265,9 @@ function App() {
       <div class="app app-empty">
         <div class="empty-state">
           <div class="empty-message">{emptyStateMessage}</div>
-          <button class="btn-close empty-close" onClick={closeDialog}>Close</button>
+          <button class="btn-close empty-close" onClick={closeDialog}>
+            Close
+          </button>
         </div>
       </div>
     );
@@ -268,14 +293,26 @@ function App() {
 
         <div class="toolbar-group">
           <div class="btn-group">
-            <button class={legato ? "active" : ""} onClick={() => setLegato((v) => !v)} title="Extend notes to fill gaps (remove rests)">
+            <button
+              class={legato ? "active" : ""}
+              onClick={() => setLegato((v) => !v)}
+              title="Extend notes to fill gaps (remove rests)"
+            >
               Legato
             </button>
-            <button class={showTempo ? "active" : ""} onClick={() => setShowTempo((v) => !v)} title={`Show tempo marking (${Math.round(data.current.tempo)} BPM)`}>
+            <button
+              class={showTempo ? "active" : ""}
+              onClick={() => setShowTempo((v) => !v)}
+              title={`Show tempo marking (${Math.round(data.current.tempo)} BPM)`}
+            >
               Tempo
             </button>
             {hasDrumClip && (
-              <button class={drumHeads ? "active" : ""} onClick={() => setDrumHeads((v) => !v)} title="Render drum-rack clips with x noteheads">
+              <button
+                class={drumHeads ? "active" : ""}
+                onClick={() => setDrumHeads((v) => !v)}
+                title="Render drum-rack clips with x noteheads"
+              >
                 Drums
               </button>
             )}
@@ -306,7 +343,9 @@ function App() {
             title="Time signature numerator"
           >
             {[2, 3, 4, 5, 6, 7, 8, 9, 12].map((n) => (
-              <option key={n} value={n}>{n}</option>
+              <option key={n} value={n}>
+                {n}
+              </option>
             ))}
           </select>
           <span class="separator">/</span>
@@ -316,29 +355,51 @@ function App() {
             title="Time signature denominator"
           >
             {[2, 4, 8, 16].map((n) => (
-              <option key={n} value={n}>{n}</option>
+              <option key={n} value={n}>
+                {n}
+              </option>
             ))}
           </select>
         </div>
 
         <div class="toolbar-group">
           <div class="btn-group">
-            <button class={view === "notation" ? "active" : ""} onClick={() => setView("notation")} title="Show notation">Notation</button>
-            <button class={view === "xml" ? "active" : ""} onClick={() => setView("xml")} title="Show MusicXML source">MusicXML</button>
+            <button
+              class={view === "notation" ? "active" : ""}
+              onClick={() => setView("notation")}
+              title="Show notation"
+            >
+              Notation
+            </button>
+            <button
+              class={view === "xml" ? "active" : ""}
+              onClick={() => setView("xml")}
+              title="Show MusicXML source"
+            >
+              MusicXML
+            </button>
           </div>
         </div>
 
         <div class="toolbar-group toolbar-right">
           {view === "notation" && (
             <>
-              <button class="btn-export" onClick={handleExportSVG} title="Export as SVG">&#8599; SVG</button>
-              <button class="btn-export" onClick={handleExportPNG} title="Export as PNG">&#8599; PNG</button>
+              <button class="btn-export" onClick={handleExportSVG} title="Export as SVG">
+                &#8599; SVG
+              </button>
+              <button class="btn-export" onClick={handleExportPNG} title="Export as PNG">
+                &#8599; PNG
+              </button>
             </>
           )}
           {view === "xml" && (
-            <button class="btn-export" onClick={handleExportXML} title="Export as MusicXML">&#8599; XML</button>
+            <button class="btn-export" onClick={handleExportXML} title="Export as MusicXML">
+              &#8599; XML
+            </button>
           )}
-          <button class="btn-close" onClick={closeDialog} title="Close">&#10005;</button>
+          <button class="btn-close" onClick={closeDialog} title="Close">
+            &#10005;
+          </button>
         </div>
       </div>
 
@@ -358,8 +419,14 @@ function App() {
 
       <div class="status-bar">{status}</div>
 
-      <pre class="xml-view" style={{ display: view === "xml" ? "block" : "none" }}>{debugXML}</pre>
-      <div class="notation-container" ref={containerRef} style={{ display: view === "notation" ? "flex" : "none" }} />
+      <pre class="xml-view" style={{ display: view === "xml" ? "block" : "none" }}>
+        {debugXML}
+      </pre>
+      <div
+        class="notation-container"
+        ref={containerRef}
+        style={{ display: view === "notation" ? "flex" : "none" }}
+      />
     </div>
   );
 }

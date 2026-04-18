@@ -115,7 +115,10 @@ export function SceneModeApp({ data }: { data: SceneModePayload }) {
                 step={1}
                 value={variations}
                 onInput={(e) => {
-                  const n = Math.max(0, Math.min(MAX_VARIATIONS, Number((e.target as HTMLInputElement).value) | 0));
+                  const n = Math.max(
+                    0,
+                    Math.min(MAX_VARIATIONS, Number((e.target as HTMLInputElement).value) | 0),
+                  );
                   setVariations(n);
                 }}
               />

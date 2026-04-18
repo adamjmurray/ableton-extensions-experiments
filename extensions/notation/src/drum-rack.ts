@@ -2,13 +2,7 @@
 // `instanceof` checks and can't be unit-tested without the TestHarness, so
 // they live together in one SDK-coupled module.
 
-import {
-  DataModelObject,
-  Device,
-  DrumChain,
-  MidiTrack,
-  RackDevice,
-} from "@ableton/extensions-sdk";
+import { DataModelObject, Device, DrumChain, MidiTrack, RackDevice } from "@ableton/extensions-sdk";
 import { nameSuggestsDrums } from "./clip-utils.js";
 
 // Walk up an object's parent chain until a MidiTrack is found. Returns the

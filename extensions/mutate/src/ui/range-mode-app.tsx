@@ -67,8 +67,8 @@ export function RangeModeApp({ data }: { data: RangeModePayload }) {
 
       <div class="scene-header">
         <div class="title-line">
-          {data.totalClipCount} MIDI clip{data.totalClipCount === 1 ? "" : "s"} across {cols}{" "}
-          track{cols === 1 ? "" : "s"}
+          {data.totalClipCount} MIDI clip{data.totalClipCount === 1 ? "" : "s"} across {cols} track
+          {cols === 1 ? "" : "s"}
         </div>
         <div class="subtitle-line">
           Take lanes are always additive — new lanes append per track. No fill mode.

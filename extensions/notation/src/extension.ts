@@ -50,7 +50,14 @@ function flattenTrackSlots(
     const sceneWidth = sceneBarCounts[i]! * bpm;
     const sc = slotClips[i];
     if (sc) {
-      notes.push(...shiftClipNotes(sc.info, sc.region.filterStart, sc.region.renderEnd, offset - sc.region.renderStart));
+      notes.push(
+        ...shiftClipNotes(
+          sc.info,
+          sc.region.filterStart,
+          sc.region.renderEnd,
+          offset - sc.region.renderStart,
+        ),
+      );
     }
     offset += sceneWidth;
   }
@@ -88,11 +95,7 @@ export function activate(activation: ActivationContext) {
   }
 
   function showNotationDialog(clips: ClipInfo[], emptyStateMessage?: string) {
-    return runNotationDialog(
-      { context, getMetadata: getSongMetadata },
-      clips,
-      emptyStateMessage,
-    );
+    return runNotationDialog({ context, getMetadata: getSongMetadata }, clips, emptyStateMessage);
   }
 
   // Session clip slot selection (one or more clip slots)
@@ -213,7 +216,13 @@ export function activate(activation: ActivationContext) {
           const clip = slot?.clip;
           if (clip && clip instanceof MidiClip) {
             const midiTrack = track instanceof MidiTrack ? track : null;
-            const clipData = readMidiClip(clip, String(track.name), isDrumRackTrack(midiTrack), undefined, trackIndex);
+            const clipData = readMidiClip(
+              clip,
+              String(track.name),
+              isDrumRackTrack(midiTrack),
+              undefined,
+              trackIndex,
+            );
             if (clipData.notes.length > 0) {
               clips.push(clipData);
             }
@@ -255,7 +264,13 @@ export function activate(activation: ActivationContext) {
             const clipStart = Number(clip.startTime);
             const clipEnd = Number(clip.endTime);
             if (clipStart < end && clipEnd > start) {
-              const clipData = readMidiClip(clip, String(track.name), isDrum, clipStart, trackIndex >= 0 ? trackIndex : undefined);
+              const clipData = readMidiClip(
+                clip,
+                String(track.name),
+                isDrum,
+                clipStart,
+                trackIndex >= 0 ? trackIndex : undefined,
+              );
               if (clipData.notes.length > 0) {
                 clips.push(clipData);
               }
@@ -293,7 +308,11 @@ export function activate(activation: ActivationContext) {
         const rangeStart = Number(selection.time_selection_start);
         const rangeEnd = Number(selection.time_selection_end);
         const bpm = beatsPerMeasure(getSongMetadata().timeSignature);
-        const { anchor, leadingOffset, renderLength } = computeArrangementRange(rangeStart, rangeEnd, bpm);
+        const { anchor, leadingOffset, renderLength } = computeArrangementRange(
+          rangeStart,
+          rangeEnd,
+          bpm,
+        );
 
         const clips: ClipInfo[] = [];
         const songTracks = context.application.song.tracks;
@@ -412,7 +431,12 @@ export function activate(activation: ActivationContext) {
         const isDrum = isDrumRackTrack(track);
         const bpm = beatsPerMeasure(getSongMetadata().timeSignature);
 
-        type Clip = { info: ClipInfo; arrangementStart: number; filterStart: number; renderEnd: number };
+        type Clip = {
+          info: ClipInfo;
+          arrangementStart: number;
+          filterStart: number;
+          renderEnd: number;
+        };
         const clips: Clip[] = [];
         for (const clip of track.arrangementClips) {
           if (!(clip instanceof MidiClip)) continue;
@@ -469,7 +493,11 @@ export function activate(activation: ActivationContext) {
       })(arg as Handle),
   );
 
-  context.ui.registerContextMenuAction("ClipSlotSelection", "Render Clip(s)", "notation.showSelection");
+  context.ui.registerContextMenuAction(
+    "ClipSlotSelection",
+    "Render Clip(s)",
+    "notation.showSelection",
+  );
   context.ui.registerContextMenuAction("Scene", "Render Scene", "notation.showScene");
   context.ui.registerContextMenuAction(
     "MidiTrack.ArrangementSelection",
@@ -481,6 +509,14 @@ export function activate(activation: ActivationContext) {
     "Render Range",
     "notation.showArrangementRange",
   );
-  context.ui.registerContextMenuAction("MidiTrack", "Render Track (Session)", "notation.showTrackSession");
-  context.ui.registerContextMenuAction("MidiTrack", "Render Track (Arrangement)", "notation.showTrackArrangement");
+  context.ui.registerContextMenuAction(
+    "MidiTrack",
+    "Render Track (Session)",
+    "notation.showTrackSession",
+  );
+  context.ui.registerContextMenuAction(
+    "MidiTrack",
+    "Render Track (Arrangement)",
+    "notation.showTrackArrangement",
+  );
 }

@@ -65,7 +65,10 @@ export function closeDialog() {
 }
 
 export function exportFile(data: string, filename: string, encoding: "utf8" | "base64" = "utf8") {
-  const message = { name: "close_and_send", args: [JSON.stringify({ action: "export", data, filename, encoding })] };
+  const message = {
+    name: "close_and_send",
+    args: [JSON.stringify({ action: "export", data, filename, encoding })],
+  };
   doSendMessage(message);
 }
 
@@ -79,18 +82,20 @@ export function getNotationData(): NotationData {
     }
   }
   return {
-    clips: [{
-      notes: [],
-      clip: {
-        name: "",
-        trackName: "",
-        startMarker: 0,
-        endMarker: 16,
-        looping: false,
-        loopStart: 0,
-        loopEnd: 16,
+    clips: [
+      {
+        notes: [],
+        clip: {
+          name: "",
+          trackName: "",
+          startMarker: 0,
+          endMarker: 16,
+          looping: false,
+          loopStart: 0,
+          loopEnd: 16,
+        },
       },
-    }],
+    ],
     tempo: 120,
     rootNote: 0,
     scaleName: "Major",

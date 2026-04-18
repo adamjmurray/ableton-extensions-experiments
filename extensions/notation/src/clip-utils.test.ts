@@ -166,9 +166,7 @@ describe("readMidiClip", () => {
       looping: false,
       loopStart: 0,
       loopEnd: 8,
-      notes: [
-        { pitch: 60, startTime: 0, duration: 1, velocity: 100 },
-      ],
+      notes: [{ pitch: 60, startTime: 0, duration: 1, velocity: 100 }],
       ...overrides,
     } as unknown as MidiClip<any>;
   }
