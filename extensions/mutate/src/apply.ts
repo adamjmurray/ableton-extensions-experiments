@@ -64,6 +64,22 @@ export type ApplySource = SessionSource | SceneSource | ArrangementSource | Rang
 
 export type FillMode = "skip" | "overwrite";
 
+// Scans existing take lane names on a track for the highest "Mutate N"
+// suffix so that successive invocations produce distinct labels
+// ("Mutate 1", "Mutate 2", then "Mutate 3", "Mutate 4", …) instead of
+// stacking duplicates.
+export function nextMutateLaneIndex(track: MidiTrack<"0.0.5">): number {
+  let max = 0;
+  for (const lane of track.takeLanes) {
+    const match = /^Mutate (\d+)$/.exec(String(lane.name));
+    if (match) {
+      const n = Number(match[1]);
+      if (n > max) max = n;
+    }
+  }
+  return max + 1;
+}
+
 // Seed-indexing convention: index 0 is reserved for the in-place mutation so
 // that toggling mutateSource on/off doesn't re-roll the user-visible Var
 // thumbnails. Variation i (0-based in UI) uses seed index i + 1.
@@ -215,14 +231,16 @@ export async function applyRange(
 
       // Per track: create N take lanes in parallel. Within each lane, the
       // per-clip writes also run in parallel since they operate on distinct
-      // clips on the same new lane.
+      // clips on the same new lane. Lane numbering is per-track and starts
+      // after the highest existing "Mutate N" lane so reruns keep ascending.
       const laneTasks: Promise<void>[] = [];
       for (const { track, entries } of byTrack.values()) {
+        const baseIndex = nextMutateLaneIndex(track);
         for (let vi = 0; vi < variations; vi++) {
           laneTasks.push(
             (async () => {
               const lane = await track.createTakeLane();
-              lane.name = `Mutate ${vi + 1}`;
+              lane.name = `Mutate ${baseIndex + vi}`;
               await Promise.all(
                 entries.map(async ({ sourceIndex, src }) => {
                   const seed = deriveSeed2D(baseSeed, sourceIndex, vi + 1);
@@ -259,12 +277,14 @@ export async function applyArrangement(
       }
 
       // Create N new take lanes in parallel; each gets one variation.
-      // "Mutate N" names are 1-indexed relative to this invocation.
+      // Lane numbering continues after the highest existing "Mutate N"
+      // lane on the track so reruns keep ascending.
+      const baseIndex = nextMutateLaneIndex(source.track);
       const laneTasks = Array.from({ length: variations }, async (_, i) => {
         const seed = deriveSeed(baseSeed, i + 1);
         const notes = mutateOneShot(source.notes, controls, seed, source.bounds);
         const lane = await source.track.createTakeLane();
-        lane.name = `Mutate ${i + 1}`;
+        lane.name = `Mutate ${baseIndex + i}`;
         const created = await lane.createMidiClip(source.startTime, source.duration);
         created.notes = notes as NoteDescription[];
       });
