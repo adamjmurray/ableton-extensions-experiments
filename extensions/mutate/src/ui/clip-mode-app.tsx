@@ -7,7 +7,7 @@ import {
   ZERO_CONTROLS,
   type MutateControls,
 } from "../variations.js";
-import { applyMutations, closeDialog, type ClipModePayload } from "./bridge.js";
+import { applyMutations, closeDialog, MAX_VARIATIONS, type ClipModePayload } from "./bridge.js";
 import { ControlsGrid } from "./controls.js";
 import { PianoRoll } from "./piano-roll.js";
 
@@ -109,11 +109,11 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
               <input
                 type="number"
                 min={0}
-                max={32}
+                max={MAX_VARIATIONS}
                 step={1}
                 value={variations}
                 onInput={(e) => {
-                  const n = Math.max(0, Math.min(32, Number((e.target as HTMLInputElement).value) | 0));
+                  const n = Math.max(0, Math.min(MAX_VARIATIONS, Number((e.target as HTMLInputElement).value) | 0));
                   setVariations(n);
                 }}
               />

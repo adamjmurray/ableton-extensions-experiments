@@ -1,7 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import type { FillMode } from "../apply.js";
 import { freshSeed, ZERO_CONTROLS, type MutateControls } from "../variations.js";
-import { applyMutations, closeDialog, type SceneModePayload } from "./bridge.js";
+import { applyMutations, closeDialog, MAX_VARIATIONS, type SceneModePayload } from "./bridge.js";
 import { ControlsGrid } from "./controls.js";
 import { IndicatorGrid, type CellState } from "./indicator-grid.js";
 
@@ -111,11 +111,11 @@ export function SceneModeApp({ data }: { data: SceneModePayload }) {
               <input
                 type="number"
                 min={0}
-                max={32}
+                max={MAX_VARIATIONS}
                 step={1}
                 value={variations}
                 onInput={(e) => {
-                  const n = Math.max(0, Math.min(32, Number((e.target as HTMLInputElement).value) | 0));
+                  const n = Math.max(0, Math.min(MAX_VARIATIONS, Number((e.target as HTMLInputElement).value) | 0));
                   setVariations(n);
                 }}
               />

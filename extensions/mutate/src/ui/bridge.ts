@@ -2,6 +2,8 @@ import type { ClipBounds, Note } from "../transforms.js";
 import type { MutateControls } from "../variations.js";
 import type { FillMode } from "../apply.js";
 
+export const MAX_VARIATIONS = 32;
+
 export type ApplyMessage = {
   action: "apply";
   controls: MutateControls;
