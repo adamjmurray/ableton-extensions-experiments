@@ -26,17 +26,18 @@ describe("activate", () => {
         .map((a) => a.title)
         .sort();
 
-    expect(titlesByScope("MidiClip")).toEqual(["Clip..."]);
+    expect(titlesByScope("MidiClip")).toEqual([]);
     expect(titlesByScope("Scene")).toEqual(["Scene..."]);
     expect(titlesByScope("ClipSlotSelection")).toEqual([
+      "Clip(s)...",
       "Delete 10%",
       "Randomize Velocity",
       "Swap Notes",
     ]);
     expect(titlesByScope("MidiTrack.ArrangementSelection")).toEqual([
+      "Clip(s)...",
       "Delete 10%",
       "Randomize Velocity",
-      "Range...",
       "Swap Notes",
     ]);
     // Drums entries were removed before v0.0.1 — make sure they stay gone.

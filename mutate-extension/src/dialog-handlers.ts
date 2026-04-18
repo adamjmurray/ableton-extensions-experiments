@@ -238,11 +238,11 @@ export async function handleSceneDialog(arg: unknown, deps: DialogDeps): Promise
 export async function handleRangeDialog(arg: unknown, deps: DialogDeps): Promise<void> {
   const { context, showMutateDialog } = deps;
   if (!arg || typeof arg !== "object") {
-    console.log("Mutate: Range... — unexpected command arg");
+    console.log("Mutate: Clip(s)... — unexpected command arg");
     return;
   }
   if (!("selected_lanes" in arg && "time_selection_start" in arg)) {
-    console.log("Mutate: Range... — arg is not an ArrangementSelection");
+    console.log("Mutate: Clip(s)... — arg is not an ArrangementSelection");
     return;
   }
   const selection = arg as ArrangementSelection;
@@ -277,7 +277,7 @@ export async function handleRangeDialog(arg: unknown, deps: DialogDeps): Promise
   }
 
   if (rangeClips.length === 0) {
-    console.log("Mutate: Range... — no MIDI clips in selection");
+    console.log("Mutate: Clip(s)... — no MIDI clips in selection");
     return;
   }
   if (rangeClips.length === 1) {
@@ -334,7 +334,7 @@ export async function handleRangeDialog(arg: unknown, deps: DialogDeps): Promise
     const inPlace = result.mutateSource ? rangeClips.length : 0;
     const newClips = result.variations * rangeClips.length;
     console.log(
-      `Mutate: Range — wrote ${inPlace} in-place + ${newClips} new clip(s) across ${trackSummaries.length} track(s)`,
+      `Mutate: Clip(s) — wrote ${inPlace} in-place + ${newClips} new clip(s) across ${trackSummaries.length} track(s)`,
     );
   } catch (e) {
     console.error("Mutate: applyRange failed:", e);

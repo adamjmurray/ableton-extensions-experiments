@@ -196,16 +196,17 @@ export function activate(activation: ActivationContext) {
   // Context menu wiring
   // -------------------------------------------------------------------
 
-  // MidiClip scope fires for a right-click on a clip in either Session or
-  // Arrangement view; ClipSlotSelection would only fire in Session. Using
-  // MidiClip here is what unlocks arrangement-clip mutation.
-  context.ui.registerContextMenuAction("MidiClip", "Clip...", "mutate.clipDialog");
-  context.ui.registerContextMenuAction("Scene", "Scene...", "mutate.sceneDialog");
+  // Session: ClipSlotSelection covers the single-clip case too (Live wraps a
+  // right-clicked clip in a selection of size 1). Arrangement: the rangeDialog
+  // handler already routes single-clip → piano-roll preview, multi-clip →
+  // grouped-by-track dialog, so one "Clip(s)..." entry covers both cases.
+  context.ui.registerContextMenuAction("ClipSlotSelection", "Clip(s)...", "mutate.clipDialog");
   context.ui.registerContextMenuAction(
     "MidiTrack.ArrangementSelection",
-    "Range...",
+    "Clip(s)...",
     "mutate.rangeDialog",
   );
+  context.ui.registerContextMenuAction("Scene", "Scene...", "mutate.sceneDialog");
 
   // ClipSlotSelection covers the single-clip case too (Live always wraps a
   // right-clicked clip in a selection of size 1), so registering on MidiClip
