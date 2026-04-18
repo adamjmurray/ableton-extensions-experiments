@@ -369,6 +369,36 @@ describe("notesToMusicXML", () => {
       expect([...m1.matchAll(/<chord\/>/g)]).toHaveLength(2);
     });
 
+    test("chord whose duration splits into tied components marks every component with <chord/>", () => {
+      // C-E-G triad, duration 1.25 beats = quarter + 16th tied. Regression
+      // test for a bug where only the first tied component of each chord
+      // member got <chord/>, causing the 16th continuations to render as
+      // sequential notes after the chord.
+      const xml = notesToMusicXML(
+        [clip([note(60, 0, 1.25), note(64, 0, 1.25), note(67, 0, 1.25)])],
+        TS_4_4,
+        0,
+        "Major",
+      );
+      const m1 = firstMeasure(xml);
+      // 3 chord members * 2 components (quarter + 16th) = 6 notes.
+      // Voice-1 chord tags: (3-1) * 2 = 4.
+      expect([...m1.matchAll(/<chord\/>/g)]).toHaveLength(4);
+      // No extra voices, no <backup>.
+      expect(m1).not.toContain("<backup>");
+      const voices = new Set([...m1.matchAll(/<voice>(\d+)<\/voice>/g)].map((m) => m[1]));
+      expect(voices).toEqual(new Set(["1"]));
+      // Every pitch appears exactly twice (quarter + 16th).
+      for (const step of ["C", "E", "G"]) {
+        const matches = [...m1.matchAll(new RegExp(`<step>${step}</step>`, "g"))];
+        expect(matches).toHaveLength(2);
+      }
+      // Tie seam between the two components: 3 tie starts (end of quarter)
+      // paired with 3 tie stops (start of 16th), per chord member.
+      expect([...m1.matchAll(/<tie type="start"\/>/g)]).toHaveLength(3);
+      expect([...m1.matchAll(/<tie type="stop"\/>/g)]).toHaveLength(3);
+    });
+
     test("tie across barline preserves voice assignment on both sides", () => {
       // Voice 1: whole note on beat 1. Voice 2: 4-beat note starting at beat 3
       // (overlaps voice 1 in bar 1, then crosses into bar 2 where voice 1 is silent).

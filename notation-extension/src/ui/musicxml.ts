@@ -648,15 +648,19 @@ function renderVoiceElements(
     const chord = voiceEvents.filter((e) => e.startDiv === pos);
     const minDur = Math.min(...chord.map((e) => e.durationDiv));
 
-    for (let i = 0; i < chord.length; i++) {
-      const ev = chord[i]!;
-      const components = decomposeDuration(ev.durationDiv);
-
-      for (let c = 0; c < components.length; c++) {
-        const comp = components[c]!;
-        const isChordMember = i > 0 && c === 0;
-        const tieStop = ev.tiedFrom && c === 0;
-        const tieStart = ev.tiedTo && c === components.length - 1;
+    // All chord members share the same durationDiv (assignVoices enforces
+    // this), so they share the same decomposition. Iterate components outer,
+    // chord members inner: every chord tone gets emitted for every component
+    // with <chord/> so the tied continuations engrave as chord stacks rather
+    // than sequential notes.
+    const components = decomposeDuration(chord[0]!.durationDiv);
+    for (let c = 0; c < components.length; c++) {
+      const comp = components[c]!;
+      for (let i = 0; i < chord.length; i++) {
+        const ev = chord[i]!;
+        const isChordMember = i > 0;
+        const tieStop = (ev.tiedFrom && c === 0) || c > 0;
+        const tieStart = (ev.tiedTo && c === components.length - 1) || c < components.length - 1;
 
         noteElements.push({
           xml: renderNote(
@@ -664,8 +668,8 @@ function renderVoiceElements(
             comp,
             fifths,
             isChordMember,
-            tieStop || c > 0,
-            tieStart || c < components.length - 1,
+            tieStop,
+            tieStart,
             isDrumRack,
             voice,
           ),
