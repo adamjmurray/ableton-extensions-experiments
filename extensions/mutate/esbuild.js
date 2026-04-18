@@ -6,12 +6,14 @@ const production = process.argv.includes("--production");
 const watch = process.argv.includes("--watch");
 
 async function main() {
-  // Phase 1: Bundle the Preact UI into a single JS string
+  // Phase 1: Bundle the Preact UI into a single JS string.
+  // The UI is never minified — notation hit a webview-bridge bug where a
+  // minified UI made dialog.show() resolve with an empty string; mutate's
+  // UI is smaller but not worth the risk to shave a few KB.
   const uiResult = await esbuild.build({
     entryPoints: ["src/ui/app.tsx"],
     bundle: true,
     format: "iife",
-    minify: production,
     write: false,
     platform: "browser",
     target: "es2020",
@@ -51,10 +53,13 @@ async function main() {
     platform: "node",
     target: "es2020",
     minify: production,
-    sourcemap: !production,
+    // Always ship a sourcemap — external .map during dev so stack traces
+    // decode automatically, inline for production so the single distributed
+    // .cjs inside the .ablx stays self-contained.
+    sourcemap: production ? "inline" : true,
     sourcesContent: false,
     external: ["@ableton/extensions-sdk"],
-    outfile: "dist/extension.js",
+    outfile: "dist/extension.cjs",
     loader: { ".html": "text" },
     logLevel: "warning",
     plugins: [uiHtmlPlugin],

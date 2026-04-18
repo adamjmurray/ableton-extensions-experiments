@@ -1,7 +1,7 @@
 {
   "name": "Mutate",
   "author": "Adam Murray",
-  "entry": "dist/extension.js",
+  "entry": "dist/extension.cjs",
   "version": "0.0.1",
   "minimumApiVersion": "0.0.5"
 }

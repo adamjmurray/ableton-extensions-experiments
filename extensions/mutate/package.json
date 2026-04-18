@@ -1,10 +1,12 @@
 {
-  "main": "dist/extension.js",
+  "main": "dist/extension.cjs",
   "scripts": {
     "build": "node esbuild.js",
+    "build:prod": "node esbuild.js --production",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "check": "npm run typecheck && npm test"
+    "check": "npm run typecheck && npm test",
+    "package": "npm run build:prod && node ../../extensions-sdk/package.cjs ."
   },
   "dependencies": {
     "@ableton/extensions-sdk": "file:../../extensions-sdk",
