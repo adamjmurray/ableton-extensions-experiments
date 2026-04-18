@@ -35,7 +35,7 @@ async function main() {
   const uiHtmlPlugin = {
     name: "ui-html",
     setup(build) {
-      build.onResolve({ filter: /mutate-clip-mode\.html$/ }, (args) => ({
+      build.onResolve({ filter: /mutate-dialog\.html$/ }, (args) => ({
         path: path.resolve(args.resolveDir, args.path),
         namespace: "ui-html",
       }));

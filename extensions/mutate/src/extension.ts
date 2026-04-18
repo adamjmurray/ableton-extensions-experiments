@@ -13,7 +13,7 @@ import {
   type NoteDescription,
 } from "@ableton/extensions-sdk";
 
-import mutateClipModeHtml from "./mutate-clip-mode.html";
+import mutateDialogHtml from "./mutate-dialog.html";
 import { dropNotes, swapNotes, transformVelocity, type ClipBounds, type Note } from "./transforms.js";
 import { mulberry32, type Rng } from "./rng.js";
 import {
@@ -55,7 +55,7 @@ export function activate(activation: ActivationContext) {
   }
 
   async function showMutateDialog(payload: DialogPayload): Promise<DialogResult> {
-    const html = mutateClipModeHtml.replace(
+    const html = mutateDialogHtml.replace(
       "</head>",
       `<script>window.__MUTATE_DATA__='${escapePayload(JSON.stringify(payload))}';</script></head>`,
     );
