@@ -5,14 +5,14 @@ export function IndicatorGrid({
   cols,
   stateAt,
   rowLabelAt,
-  rowIsNewScene,
+  rowIsNewScene = () => false,
   colLabelAt,
 }: {
   rows: number;
   cols: number;
   stateAt: (row: number, col: number) => CellState;
   rowLabelAt: (row: number) => string;
-  rowIsNewScene: (row: number) => boolean;
+  rowIsNewScene?: (row: number) => boolean;
   colLabelAt: (col: number) => string;
 }) {
   const CELL = 18;

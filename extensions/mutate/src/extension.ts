@@ -20,9 +20,12 @@ import { dropNotes, swapNotes, transformVelocity, type ClipBounds, type Note } f
 import { mulberry32, type Rng } from "./rng.js";
 import {
   applyArrangement,
+  applyRange,
   applyScene,
   applySession,
   type ArrangementSource,
+  type RangeSource,
+  type RangeSourceClip,
   type SceneSource,
   type SceneSourceClip,
   type SessionSource,
@@ -32,6 +35,8 @@ import type {
   ClipModeSessionPayload,
   DialogPayload,
   DialogResult,
+  RangeModePayload,
+  RangeTrackSummary,
   SceneModePayload,
   SceneSourceSummary,
 } from "./ui/bridge.js";
@@ -422,21 +427,113 @@ export function activate(activation: ActivationContext) {
 
   // Fires for a right-click anywhere in MidiTrack.ArrangementSelection: either
   // a drag-selected time range OR a single-clip right-click (Live treats the
-  // single clip as a degenerate range). We dispatch by clip count.
+  // single clip as a degenerate range). Single-clip goes through the piano-roll
+  // preview dialog; multi-clip (or multi-track) goes through the range-mode
+  // indicator-grid dialog.
   context.commands.registerCommand("mutate.rangeDialog", (arg: unknown) =>
     void (async () => {
-      const clips = collectMidiClipsFromArg(arg);
-      if (clips.length === 0) {
+      if (!arg || typeof arg !== "object") {
+        console.log("Mutate: Range... — unexpected command arg");
+        return;
+      }
+      if (!("selected_lanes" in arg && "time_selection_start" in arg)) {
+        console.log("Mutate: Range... — arg is not an ArrangementSelection");
+        return;
+      }
+      const selection = arg as ArrangementSelection;
+      const timeStart = Number(selection.time_selection_start);
+      const timeEnd = Number(selection.time_selection_end);
+
+      // Collect MIDI clips overlapping the range, keeping the track association.
+      const rangeClips: RangeSourceClip[] = [];
+      for (const h of selection.selected_lanes) {
+        const obj = context.objects.getObjectFromHandle(h, DataModelObject);
+        if (!(obj instanceof MidiTrack)) continue;
+        const trackIndex = context.application.song.tracks.findIndex(
+          (t) => t.handle.id === obj.handle.id,
+        );
+        if (trackIndex < 0) continue;
+        for (const clip of obj.arrangementClips) {
+          if (!(clip instanceof MidiClip)) continue;
+          const cs = Number(clip.startTime);
+          const ce = Number(clip.endTime);
+          if (cs < timeEnd && ce > timeStart) {
+            rangeClips.push({
+              trackIndex,
+              track: obj,
+              clip,
+              startTime: cs,
+              duration: ce - cs,
+              notes: clip.notes.map(coerceNote),
+              bounds: clipBoundsFor(clip),
+            });
+          }
+        }
+      }
+
+      if (rangeClips.length === 0) {
         console.log("Mutate: Range... — no MIDI clips in selection");
         return;
       }
-      if (clips.length === 1) {
-        await openArrangementClipDialog(clips[0]!);
+      if (rangeClips.length === 1) {
+        await openArrangementClipDialog(rangeClips[0]!.clip);
         return;
       }
-      console.log(
-        `Mutate: Range... — ${clips.length} MIDI clips in selection; multi-clip range mode coming in AJM-205`,
-      );
+
+      // Multi-clip: build the range-mode payload grouped by track for the UI summary.
+      const byTrack = new Map<number, { trackName: string; clipCount: number }>();
+      for (const rc of rangeClips) {
+        const existing = byTrack.get(rc.trackIndex);
+        if (existing) {
+          existing.clipCount += 1;
+        } else {
+          byTrack.set(rc.trackIndex, { trackName: String(rc.track.name), clipCount: 1 });
+        }
+      }
+      const trackSummaries: RangeTrackSummary[] = Array.from(byTrack.entries())
+        .sort(([a], [b]) => a - b)
+        .map(([trackIndex, { trackName, clipCount }]) => ({ trackIndex, trackName, clipCount }));
+
+      const payload: RangeModePayload = {
+        mode: "range",
+        timeStart,
+        timeEnd,
+        totalClipCount: rangeClips.length,
+        tracks: trackSummaries,
+      };
+
+      let result: DialogResult;
+      try {
+        result = await showMutateDialog(payload);
+      } catch (e) {
+        console.error("Mutate: range dialog failed to show:", e);
+        return;
+      }
+      if (result.action !== "apply") return;
+
+      const source: RangeSource = {
+        kind: "range",
+        timeStart,
+        timeEnd,
+        clips: rangeClips,
+      };
+      try {
+        await applyRange(
+          context,
+          source,
+          result.controls,
+          result.variations,
+          result.baseSeed,
+          result.mutateSource,
+        );
+        const inPlace = result.mutateSource ? rangeClips.length : 0;
+        const newClips = result.variations * rangeClips.length;
+        console.log(
+          `Mutate: Range — wrote ${inPlace} in-place + ${newClips} new clip(s) across ${trackSummaries.length} track(s)`,
+        );
+      } catch (e) {
+        console.error("Mutate: applyRange failed:", e);
+      }
     })(),
   );
 

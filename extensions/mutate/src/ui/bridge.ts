@@ -54,7 +54,21 @@ export type SceneModePayload = {
   sources: SceneSourceSummary[];
 };
 
-export type DialogPayload = ClipModePayload | SceneModePayload;
+export type RangeTrackSummary = {
+  trackIndex: number;
+  trackName: string;
+  clipCount: number; // number of source MIDI clips on this track that are in the range
+};
+
+export type RangeModePayload = {
+  mode: "range";
+  timeStart: number;
+  timeEnd: number;
+  totalClipCount: number;
+  tracks: RangeTrackSummary[]; // one entry per track with at least one source clip
+};
+
+export type DialogPayload = ClipModePayload | SceneModePayload | RangeModePayload;
 
 declare global {
   interface Window {
@@ -78,7 +92,9 @@ const FALLBACK_PAYLOAD: ClipModePayload = {
 export function getMutateData(): DialogPayload {
   try {
     const parsed = JSON.parse(window.__MUTATE_DATA__ || "{}") as DialogPayload;
-    if (parsed && (parsed.mode === "clip" || parsed.mode === "scene")) return parsed;
+    if (parsed && (parsed.mode === "clip" || parsed.mode === "scene" || parsed.mode === "range")) {
+      return parsed;
+    }
     return FALLBACK_PAYLOAD;
   } catch {
     return FALLBACK_PAYLOAD;

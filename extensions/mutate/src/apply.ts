@@ -43,7 +43,24 @@ export type ArrangementSource = {
   bounds: ClipBounds;
 };
 
-export type ApplySource = SessionSource | SceneSource | ArrangementSource;
+export type RangeSourceClip = {
+  trackIndex: number;
+  track: MidiTrack<"0.0.5">;
+  clip: MidiClip<"0.0.5">;
+  startTime: number;
+  duration: number;
+  notes: Note[];
+  bounds: ClipBounds;
+};
+
+export type RangeSource = {
+  kind: "range";
+  timeStart: number;
+  timeEnd: number;
+  clips: RangeSourceClip[]; // flat, ordered by (trackIndex, startTime)
+};
+
+export type ApplySource = SessionSource | SceneSource | ArrangementSource | RangeSource;
 
 export type FillMode = "skip" | "overwrite";
 
@@ -156,6 +173,69 @@ export async function applyScene(
         }
       }
       await Promise.all(writes);
+    })(),
+  );
+
+  await work;
+}
+
+export async function applyRange(
+  context: ExtensionContext<"0.0.5">,
+  source: RangeSource,
+  controls: MutateControls,
+  variations: number,
+  baseSeed: number,
+  mutateSource: boolean,
+): Promise<void> {
+  // Group source clips by trackIndex so we can create N take lanes per track
+  // and put one varied clip per source on each lane.
+  const byTrack = new Map<
+    number,
+    { track: MidiTrack<"0.0.5">; entries: Array<{ sourceIndex: number; src: RangeSourceClip }> }
+  >();
+  source.clips.forEach((src, sourceIndex) => {
+    const existing = byTrack.get(src.trackIndex);
+    if (existing) {
+      existing.entries.push({ sourceIndex, src });
+    } else {
+      byTrack.set(src.trackIndex, { track: src.track, entries: [{ sourceIndex, src }] });
+    }
+  });
+
+  const work = context.withinTransaction(() =>
+    (async () => {
+      if (mutateSource) {
+        // In-place: each source clip gets seed (sourceIndex, 0).
+        source.clips.forEach((src, sourceIndex) => {
+          const seed = deriveSeed2D(baseSeed, sourceIndex, 0);
+          const notes = mutateOneShot(src.notes, controls, seed, src.bounds);
+          src.clip.notes = notes as NoteDescription[];
+        });
+      }
+
+      // Per track: create N take lanes in parallel. Within each lane, the
+      // per-clip writes also run in parallel since they operate on distinct
+      // clips on the same new lane.
+      const laneTasks: Promise<void>[] = [];
+      for (const { track, entries } of byTrack.values()) {
+        for (let vi = 0; vi < variations; vi++) {
+          laneTasks.push(
+            (async () => {
+              const lane = await track.createTakeLane();
+              lane.name = `Mutate ${vi + 1}`;
+              await Promise.all(
+                entries.map(async ({ sourceIndex, src }) => {
+                  const seed = deriveSeed2D(baseSeed, sourceIndex, vi + 1);
+                  const notes = mutateOneShot(src.notes, controls, seed, src.bounds);
+                  const created = await lane.createMidiClip(src.startTime, src.duration);
+                  created.notes = notes as NoteDescription[];
+                }),
+              );
+            })(),
+          );
+        }
+      }
+      await Promise.all(laneTasks);
     })(),
   );
 
