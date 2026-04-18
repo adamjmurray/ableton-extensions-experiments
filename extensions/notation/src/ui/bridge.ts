@@ -70,26 +70,30 @@ export function exportFile(data: string, filename: string, encoding: "utf8" | "b
 }
 
 export function getNotationData(): NotationData {
-  try {
-    return JSON.parse(window.__NOTATION_DATA__ || "{}");
-  } catch {
-    return {
-      clips: [{
-        notes: [],
-        clip: {
-          name: "",
-          trackName: "",
-          startMarker: 0,
-          endMarker: 16,
-          looping: false,
-          loopStart: 0,
-          loopEnd: 16,
-        },
-      }],
-      tempo: 120,
-      rootNote: 0,
-      scaleName: "Major",
-      timeSignature: { numerator: 4, denominator: 4 },
-    };
+  const raw = window.__NOTATION_DATA__;
+  if (typeof raw === "string") {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      // fall through to scaffold
+    }
   }
+  return {
+    clips: [{
+      notes: [],
+      clip: {
+        name: "",
+        trackName: "",
+        startMarker: 0,
+        endMarker: 16,
+        looping: false,
+        loopStart: 0,
+        loopEnd: 16,
+      },
+    }],
+    tempo: 120,
+    rootNote: 0,
+    scaleName: "Major",
+    timeSignature: { numerator: 4, denominator: 4 },
+  };
 }

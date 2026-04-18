@@ -39,12 +39,13 @@ describe("getNotationData", () => {
     expect(getNotationData()).toEqual(payload);
   });
 
-  it("returns a dummy single-clip scaffold when window.__NOTATION_DATA__ is missing", () => {
+  it("returns the dummy scaffold when window.__NOTATION_DATA__ is missing", () => {
     const data = getNotationData();
-    // {} parses as valid JSON, so the try succeeds and returns {} — not the
-    // catch fallback. Document this: an undefined payload returns an empty
-    // object, not the dummy scaffold.
-    expect(data).toEqual({});
+    expect(data.clips).toHaveLength(1);
+    expect(data.clips[0]!.notes).toEqual([]);
+    expect(data.tempo).toBe(120);
+    expect(data.timeSignature).toEqual({ numerator: 4, denominator: 4 });
+    expect(data.scaleName).toBe("Major");
   });
 
   it("returns the dummy scaffold when JSON is malformed", () => {
