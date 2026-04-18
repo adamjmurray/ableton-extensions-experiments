@@ -31,24 +31,26 @@ import { showNotationDialog as runNotationDialog } from "./dialog.js";
 // tracks (per-scene width = max barCount across participating tracks). A clip
 // shorter than its scene width gets implicit trailing rest from the synthetic
 // loopEnd envelope.
+//
+// `slotClips[i]` is the pre-read ClipInfo + region for scene `(sceneStart + i)`,
+// or null for empty slots. Passed in so callers that already walked the slots
+// to compute bar widths don't pay a second read+region pass per clip.
+type SlotClip = { info: ClipInfo; region: ReturnType<typeof getClipRenderRegion> };
+
 function flattenTrackSlots(
-  track: MidiTrack<"0.0.5">,
   trackName: string,
   isDrum: boolean,
   bpm: number,
-  sceneStart: number,
   sceneBarCounts: number[],
+  slotClips: (SlotClip | null)[],
 ): ClipInfo {
   const notes: ClipInfo["notes"] = [];
   let offset = 0;
   for (let i = 0; i < sceneBarCounts.length; i++) {
     const sceneWidth = sceneBarCounts[i]! * bpm;
-    const slot = track.clipSlots[sceneStart + i];
-    const clip = slot?.clip;
-    if (clip && clip instanceof MidiClip) {
-      const info = readMidiClip(clip, trackName, isDrum);
-      const region = getClipRenderRegion(info.clip, bpm);
-      notes.push(...shiftClipNotes(info, region.filterStart, region.renderEnd, offset - region.renderStart));
+    const sc = slotClips[i];
+    if (sc) {
+      notes.push(...shiftClipNotes(sc.info, sc.region.filterStart, sc.region.renderEnd, offset - sc.region.renderStart));
     }
     offset += sceneWidth;
   }
@@ -139,27 +141,27 @@ export function activate(activation: ActivationContext) {
 
         // Per-scene width = max bar count across participating tracks; empty
         // everywhere ⇒ 1 bar of rest. Computed across the union scene range
-        // so scene boundaries align across all parts.
+        // so scene boundaries align across all parts. Each clip is read and
+        // its region computed exactly once here; the per-track SlotClip array
+        // is reused when flattening below.
         const rangeLen = maxScene - minScene + 1;
         const sceneBarCounts: number[] = new Array(rangeLen).fill(1);
+        const perTrackSlots = new Map<number, (SlotClip | null)[]>();
+        for (const { trackIdx } of selectedTracks.values()) {
+          perTrackSlots.set(trackIdx, new Array(rangeLen).fill(null));
+        }
         let lastSceneWithAnyClip = -1;
         for (let i = 0; i < rangeLen; i++) {
           const sceneIdx = minScene + i;
           let widest = 1;
           let hasClip = false;
-          for (const { track } of selectedTracks.values()) {
+          for (const { trackIdx, track, trackName, isDrum } of selectedTracks.values()) {
             const clip = track.clipSlots[sceneIdx]?.clip;
             if (clip && clip instanceof MidiClip) {
               hasClip = true;
-              const region = getClipRenderRegion(
-                {
-                  startMarker: Number(clip.startMarker),
-                  loopStart: Number(clip.loopStart),
-                  loopEnd: Number(clip.loopEnd),
-                  looping: Boolean(clip.looping),
-                },
-                bpm,
-              );
+              const info = readMidiClip(clip, trackName, isDrum);
+              const region = getClipRenderRegion(info.clip, bpm);
+              perTrackSlots.get(trackIdx)![i] = { info, region };
               if (region.barCount > widest) widest = region.barCount;
             }
           }
@@ -175,8 +177,9 @@ export function activate(activation: ActivationContext) {
         const trimmedBarCounts = sceneBarCounts.slice(0, lastSceneWithAnyClip + 1);
         const orderedTracks = [...selectedTracks.values()].sort((a, b) => a.trackIdx - b.trackIdx);
         const clips: ClipInfo[] = [];
-        for (const { track, trackName, isDrum } of orderedTracks) {
-          const flattened = flattenTrackSlots(track, trackName, isDrum, bpm, minScene, trimmedBarCounts);
+        for (const { trackIdx, trackName, isDrum } of orderedTracks) {
+          const slots = perTrackSlots.get(trackIdx)!.slice(0, lastSceneWithAnyClip + 1);
+          const flattened = flattenTrackSlots(trackName, isDrum, bpm, trimmedBarCounts, slots);
           if (flattened.notes.length > 0) clips.push(flattened);
         }
 
@@ -359,23 +362,19 @@ export function activate(activation: ActivationContext) {
 
         const slots = track.clipSlots;
         const sceneBarCounts: number[] = [];
+        const slotClips: (SlotClip | null)[] = [];
         let lastNonEmpty = -1;
         for (let i = 0; i < slots.length; i++) {
           const clip = slots[i]?.clip;
           if (clip && clip instanceof MidiClip) {
-            const region = getClipRenderRegion(
-              {
-                startMarker: Number(clip.startMarker),
-                loopStart: Number(clip.loopStart),
-                loopEnd: Number(clip.loopEnd),
-                looping: Boolean(clip.looping),
-              },
-              bpm,
-            );
+            const info = readMidiClip(clip, trackName, isDrum);
+            const region = getClipRenderRegion(info.clip, bpm);
             sceneBarCounts.push(region.barCount);
+            slotClips.push({ info, region });
             lastNonEmpty = i;
           } else {
             sceneBarCounts.push(1);
+            slotClips.push(null);
           }
         }
 
@@ -385,12 +384,11 @@ export function activate(activation: ActivationContext) {
         }
 
         const flattened = flattenTrackSlots(
-          track,
           trackName,
           isDrum,
           bpm,
-          0,
           sceneBarCounts.slice(0, lastNonEmpty + 1),
+          slotClips.slice(0, lastNonEmpty + 1),
         );
         if (flattened.notes.length === 0) {
           await showNotationDialog([], "No notes on this track's session clips.");
