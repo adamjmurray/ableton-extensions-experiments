@@ -197,7 +197,7 @@ copy("package.json", "sdk--package.json");
 copy("tsconfig.json", "sdk--tsconfig.json");
 
 // --- Notation extension (our primary extension source) ---
-const NOTATION = "extensions/notation";
+const NOTATION = "notation-extension";
 const notationSkipDirs = new Set(["node_modules", "dist"]);
 const notationSkipFiles = new Set(["package-lock.json"]);
 const notationExts = new Set([".ts", ".tsx", ".js", ".cjs", ".mjs", ".html", ".json"]);

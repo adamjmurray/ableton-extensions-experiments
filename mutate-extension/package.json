@@ -11,10 +11,10 @@
     "lint:fix": "biome lint --write src",
     "fix": "biome check --write src",
     "check": "npm run typecheck && npm run format:check && npm run lint && npm test",
-    "package": "npm run build:prod && node ../../extensions-sdk/package.cjs ."
+    "package": "npm run build:prod && node ../extensions-sdk/package.cjs ."
   },
   "dependencies": {
-    "@ableton/extensions-sdk": "file:../../extensions-sdk",
+    "@ableton/extensions-sdk": "file:../extensions-sdk",
     "preact": "^10.25.4"
   },
   "devDependencies": {

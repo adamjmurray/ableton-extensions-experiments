@@ -32,17 +32,19 @@ function findExtensionPaths(): string[] {
     });
   }
 
-  // Default: load all extensions in extensions/
-  const extDir = resolve(import.meta.dirname!, "..", "extensions");
-  if (!existsSync(extDir)) {
-    throw new Error("No extensions/ directory found. Pass paths as arguments.");
-  }
-  const dirs = readdirSync(extDir, { withFileTypes: true })
-    .filter((d) => d.isDirectory() && existsSync(resolve(extDir, d.name, "manifest.json")));
+  // Default: load all sibling *-extension directories
+  const root = resolve(import.meta.dirname!, "..");
+  const dirs = readdirSync(root, { withFileTypes: true })
+    .filter(
+      (d) =>
+        d.isDirectory() &&
+        d.name.endsWith("-extension") &&
+        existsSync(resolve(root, d.name, "manifest.json")),
+    );
   if (dirs.length === 0) {
-    throw new Error("No extensions found in extensions/. Pass paths as arguments.");
+    throw new Error("No *-extension directories found. Pass paths as arguments.");
   }
-  return dirs.map((d) => resolve(extDir, d.name));
+  return dirs.map((d) => resolve(root, d.name));
 }
 
 const hostDir = findLiveApp();

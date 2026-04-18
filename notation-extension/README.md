@@ -41,7 +41,7 @@ from.
 
 1. Enable Developer Mode in Live's Extensions settings.
 2. Extract the extension zip into Live's extensions folder (or run
-   `npm run dev -- extensions/notation` from the SDK repo root during
+   `npm run dev -- notation-extension` from the SDK repo root during
    development).
 3. Restart Live. The "Render…" actions appear in the relevant right-click menus.
 

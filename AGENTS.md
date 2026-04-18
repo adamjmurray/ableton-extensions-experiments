@@ -2,7 +2,7 @@
 
 ## Project Overview
 R&D monorepo for building Ableton Live extensions using the (alpha) Extensions SDK.
-The SDK itself lives in `extensions-sdk/` as a vendored dependency. Our extensions go in `extensions/`.
+The SDK itself lives in `extensions-sdk/` as a vendored dependency. Each of our extensions lives in a sibling `<name>-extension/` directory at the repo root — this layout means an extension directory can be dropped next to an `extensions-sdk/` on any machine and build without path edits.
 `ableton-midi-sculptor/` contains an older Max for Live project being ported to an extension.
 
 ## Project Structure
@@ -12,12 +12,12 @@ The SDK itself lives in `extensions-sdk/` as a vendored dependency. Our extensio
 │   ├── dist/                # Compiled SDK + type declarations
 │   ├── docs/                # HTML documentation
 │   └── examples/            # Official example extensions
-├── extensions/              # Our extensions (each is an independent project)
-│   └── <name>/
-│       ├── manifest.json    # Extension metadata (name, author, version, entry, minimumApiVersion)
-│       ├── package.json     # npm package (depends on SDK via file: path)
-│       ├── src/extension.ts # Source code
-│       └── dist/            # Build output (gitignored)
+├── mutate-extension/        # Our extensions (each is an independent project)
+├── notation-extension/      # — sibling `<name>-extension/` dirs at the repo root
+│   ├── manifest.json        # Extension metadata (name, author, version, entry, minimumApiVersion)
+│   ├── package.json         # npm package (depends on SDK via file:../extensions-sdk)
+│   ├── src/extension.ts     # Source code
+│   └── dist/                # Build output (gitignored)
 ├── ableton-midi-sculptor/   # Original Max for Live project (reference for porting)
 │   ├── src/                 # Core logic: Note, Clip, transformers (mostly pure JS, portable)
 │   └── tests/               # Existing tests (port to vitest)
@@ -40,7 +40,7 @@ Each extension needs at minimum:
 - `package.json` with `"@ableton/extensions-sdk": "file:../../extensions-sdk"` as a dependency
 - An entry point (TypeScript recommended, must be bundled to CJS for the runtime)
 
-See `extensions/mutate/` for a minimal reference (single-phase esbuild, stub modal dialog) or `extensions/notation/` for a full-featured reference (Preact UI, vitest tests).
+See `mutate-extension/` for a minimal reference (single-phase esbuild, stub modal dialog) or `notation-extension/` for a full-featured reference (Preact UI, vitest tests).
 
 ### Key patterns
 - The extension entry point must export an `activate` function
@@ -60,7 +60,7 @@ Valid scopes for `context.ui.registerContextMenuAction()`:
 - `ClipSlotSelection` — right-click with multiple clip slots selected in Session View
 
 ### Building
-- Use esbuild to bundle to CJS (see `extensions/mutate/esbuild.js` for a minimal single-phase config, or `extensions/notation/esbuild.js` for a two-phase UI-bundling config)
+- Use esbuild to bundle to CJS (see `mutate-extension/esbuild.js` for a minimal single-phase config, or `notation-extension/esbuild.js` for a two-phase UI-bundling config)
 - Use `.html` loader in esbuild to inline webview HTML as text
 - Distributed extensions (`.ablx`) should not include `node_modules/` or `package-lock.json`
 
@@ -99,7 +99,7 @@ Valid scopes for `context.ui.registerContextMenuAction()`:
 
 ## Active Focus: Notation Extension
 
-The current focus is `extensions/notation/` — an extension that renders MIDI clips as
+The current focus is `notation-extension/` — an extension that renders MIDI clips as
 sheet music notation. Right-click → "Notation: Render …" opens a modal dialog;
 multi-clip entry points render each clip on its own staff in a score layout.
 
@@ -146,10 +146,10 @@ multi-clip entry points render each clip on its own staff in a score layout.
   `dataModelInstance.getObjectIsOfClass(handle, "DrumChain")` against every
   `ObjectClass` value also returns false — nothing surfaces a drum tag. The
   notation extension falls back to a track/rack name heuristic (`drums` / `kit`,
-  case-insensitive) for the wrapped case; see [extensions/notation/src/extension.ts](extensions/notation/src/extension.ts).
+  case-insensitive) for the wrapped case; see [notation-extension/src/extension.ts](notation-extension/src/extension.ts).
 
 ### Clip render region
-The shared helper `getClipRenderRegion(clip, beatsPerMeasure)` in [src/ui/musicxml.ts](extensions/notation/src/ui/musicxml.ts)
+The shared helper `getClipRenderRegion(clip, beatsPerMeasure)` in [src/ui/musicxml.ts](notation-extension/src/ui/musicxml.ts)
 is the single source of truth for how a clip's playback region maps onto the
 notated staff. It returns `{ filterStart, renderEnd, renderStart, barCount }`:
 - `filterStart` — `min(loopStart, startMarker)` if looping (the loop region plays
@@ -167,8 +167,8 @@ The "Render Track" handlers reuse this helper to compute per-clip bar spans
 when flattening a track's clips into a single staff.
 
 ### Development workflow
-Always rebuild after making changes: `cd extensions/notation && npm run build`
-Test in Live with: `npm run dev -- extensions/notation` (from repo root)
+Always rebuild after making changes: `cd notation-extension && npm run build`
+Test in Live with: `npm run dev -- notation-extension` (from repo root)
 Before finishing a task, `npm run check` (typecheck + vitest) must pass.
 
 ### Tracking
@@ -177,4 +177,4 @@ Issues are tracked in Linear under the "MIDI Notation Extension" project (AJM-xx
 ## Rules
 - Do not modify anything inside `extensions-sdk/` — it is a vendored dependency
 - Keep each extension self-contained with its own package.json and build
-- Use `file:../../extensions-sdk` (adjust depth as needed) for the SDK dependency path
+- Use `file:../extensions-sdk` for the SDK dependency path (extensions are siblings of the SDK)
