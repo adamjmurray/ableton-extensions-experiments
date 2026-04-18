@@ -143,8 +143,6 @@ function App() {
         osmdRef.current.EngravingRules.PageBottomMargin = 1;
         osmdRef.current.EngravingRules.PageLeftMargin = 2;
         osmdRef.current.EngravingRules.PageRightMargin = 2;
-      } else if (orderedClips.length > 1) {
-        osmdRef.current.setOptions({ drawPartNames: true });
       }
 
       await osmdRef.current.load(musicXML);
