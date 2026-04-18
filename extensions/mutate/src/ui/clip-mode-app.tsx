@@ -118,6 +118,11 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
                 }}
               />
             </div>
+            {!isArrangement && variations > data.availableSlotsBelow && (
+              <div class="hint warn">
+                Only {data.availableSlotsBelow} slot{data.availableSlotsBelow === 1 ? "" : "s"} below — extras will be skipped
+              </div>
+            )}
           </div>
           {!isArrangement && (
             <div>
