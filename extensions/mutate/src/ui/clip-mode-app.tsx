@@ -27,9 +27,6 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
     setBaseSeed(freshSeed());
   }, [controls, variations]);
 
-  // In-place uses seed index 0; variations use 1..N. Keeping variations on
-  // seeds 1..N means toggling mutateSource on/off doesn't re-roll the Var
-  // thumbnails the user is already looking at.
   const inPlaceNotes = useMemo(
     () => (mutateSource
       ? generateVariations(data.sourceNotes, controls, 1, deriveSeed(baseSeed, 0), data.bounds)[0]!
@@ -44,6 +41,8 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
   );
 
   const canApply = mutateSource || variations > 0;
+  const isArrangement = data.branch === "arrangement";
+  const varLabel = isArrangement ? "Mutate" : "Var";
 
   const handleApply = () => {
     if (!canApply) return;
@@ -64,6 +63,7 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
         <span class="subtitle">
           {data.sourceClipName || "(unnamed clip)"}
           {data.trackName ? ` · ${data.trackName}` : ""}
+          {isArrangement ? " · Arrangement" : ""}
         </span>
         <div class="toolbar-right">
           <button class="btn" onClick={() => closeDialog()}>
@@ -119,23 +119,25 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
               />
             </div>
           </div>
-          <div>
-            <div class="section-label">Fill mode</div>
-            <div class="btn-group">
-              <button
-                class={`tab ${fillMode === "skip" ? "active" : ""}`}
-                onClick={() => setFillMode("skip")}
-              >
-                Skip
-              </button>
-              <button
-                class={`tab ${fillMode === "overwrite" ? "active" : ""}`}
-                onClick={() => setFillMode("overwrite")}
-              >
-                Overwrite
-              </button>
+          {!isArrangement && (
+            <div>
+              <div class="section-label">Fill mode</div>
+              <div class="btn-group">
+                <button
+                  class={`tab ${fillMode === "skip" ? "active" : ""}`}
+                  onClick={() => setFillMode("skip")}
+                >
+                  Skip
+                </button>
+                <button
+                  class={`tab ${fillMode === "overwrite" ? "active" : ""}`}
+                  onClick={() => setFillMode("overwrite")}
+                >
+                  Overwrite
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
@@ -155,6 +157,24 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
           </div>
         )}
         {variationNotes.map((notes, i) => {
+          if (data.branch === "arrangement") {
+            return (
+              <div key={i} class="variation">
+                <div class="label">
+                  <span>
+                    {varLabel} {i + 1}
+                  </span>
+                  <span class="status">new lane</span>
+                </div>
+                <PianoRoll
+                  notes={notes}
+                  bounds={data.bounds}
+                  width={THUMB_WIDTH}
+                  height={THUMB_HEIGHT}
+                />
+              </div>
+            );
+          }
           const occupied = i < data.slotsBelowOccupied.length && data.slotsBelowOccupied[i];
           const noSlot = i >= data.availableSlotsBelow;
           const willSkip = occupied && fillMode === "skip";
@@ -166,7 +186,9 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
           return (
             <div key={i} class={`variation${dimmed ? " dimmed" : ""}`}>
               <div class="label">
-                <span>Var {i + 1}</span>
+                <span>
+                  {varLabel} {i + 1}
+                </span>
                 {status ? <span class="status">{status}</span> : null}
               </div>
               <PianoRoll

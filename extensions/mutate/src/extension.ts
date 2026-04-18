@@ -19,6 +19,7 @@ import { shuffleDrums, type Note as ScaffoldNote } from "./mutations.js";
 import { dropNotes, swapNotes, transformVelocity, type ClipBounds, type Note } from "./transforms.js";
 import { mulberry32, type Rng } from "./rng.js";
 import {
+  applyArrangement,
   applyScene,
   applySession,
   type ArrangementSource,
@@ -27,14 +28,15 @@ import {
   type SessionSource,
 } from "./apply.js";
 import type {
-  ClipModePayload,
+  ClipModeArrangementPayload,
+  ClipModeSessionPayload,
   DialogPayload,
   DialogResult,
   SceneModePayload,
   SceneSourceSummary,
 } from "./ui/bridge.js";
 
-type StubDialogMode = "range" | "drums";
+type StubDialogMode = "drums";
 
 type MutationFn = (notes: ScaffoldNote[]) => ScaffoldNote[];
 
@@ -148,8 +150,6 @@ export function activate(activation: ActivationContext) {
     };
   }
 
-  // Silence "declared but never read" until AJM-197 arrangement + AJM-205 wire it up.
-  void describeArrangementSource;
 
   function readClipNotes(clip: MidiClip<"0.0.5">): ScaffoldNote[] {
     return clip.notes.map((n) => ({
@@ -228,6 +228,48 @@ export function activate(activation: ActivationContext) {
   // Dialog commands (MidiClip / Scene / MidiTrack.ArrangementSelection / MidiTrack)
   // -------------------------------------------------------------------
 
+  async function openArrangementClipDialog(clip: MidiClip<"0.0.5">) {
+    const source = describeArrangementSource(clip);
+    if (!source) {
+      console.log("Mutate: could not resolve arrangement source for clip");
+      return;
+    }
+    const payload: ClipModeArrangementPayload = {
+      mode: "clip",
+      branch: "arrangement",
+      sourceNotes: source.notes,
+      bounds: source.bounds,
+      sourceClipName: String(clip.name),
+      trackName: String(source.track.name),
+    };
+
+    let result: DialogResult;
+    try {
+      result = await showMutateDialog(payload);
+    } catch (e) {
+      console.error("Mutate: arrangement-clip dialog failed to show:", e);
+      return;
+    }
+    if (result.action !== "apply") return;
+
+    try {
+      await applyArrangement(
+        context,
+        source,
+        result.controls,
+        result.variations,
+        result.baseSeed,
+        result.mutateSource,
+      );
+      const sourceWrite = result.mutateSource ? ` + in-place` : "";
+      console.log(
+        `Mutate: wrote ${result.variations} take lane(s)${sourceWrite} for "${payload.sourceClipName}"`,
+      );
+    } catch (e) {
+      console.error("Mutate: applyArrangement failed:", e);
+    }
+  }
+
   context.commands.registerCommand("mutate.clipDialog", (arg: unknown) =>
     void (async () => {
       const clips = collectMidiClipsFromArg(arg);
@@ -242,19 +284,20 @@ export function activate(activation: ActivationContext) {
         return;
       }
       const sourceClip = clips[0]!;
-      const source = describeSessionSource(sourceClip);
-      if (!source) {
-        console.log("Mutate: arrangement-view clips not yet supported for Clip(s)...");
+      const session = describeSessionSource(sourceClip);
+      if (!session) {
+        console.log("Mutate: clip is not in a session clip slot");
         return;
       }
 
-      const slotsBelow = source.track.clipSlots.slice(source.slotIndex + 1);
-      const payload: ClipModePayload = {
+      const slotsBelow = session.track.clipSlots.slice(session.slotIndex + 1);
+      const payload: ClipModeSessionPayload = {
         mode: "clip",
-        sourceNotes: source.notes,
-        bounds: source.bounds,
+        branch: "session",
+        sourceNotes: session.notes,
+        bounds: session.bounds,
         sourceClipName: String(sourceClip.name),
-        trackName: String(source.track.name),
+        trackName: String(session.track.name),
         availableSlotsBelow: slotsBelow.length,
         slotsBelowOccupied: slotsBelow.map((s) => s.clip !== null),
       };
@@ -271,7 +314,7 @@ export function activate(activation: ActivationContext) {
       try {
         await applySession(
           context,
-          source,
+          session,
           result.controls,
           result.variations,
           result.baseSeed,
@@ -280,7 +323,7 @@ export function activate(activation: ActivationContext) {
         );
         const sourceWrite = result.mutateSource ? ` + in-place` : "";
         console.log(
-          `Mutate: wrote ${result.variations} variation(s)${sourceWrite} for "${payload.sourceClipName}"`,
+          `Mutate: wrote ${result.variations} slot(s)${sourceWrite} for "${payload.sourceClipName}"`,
         );
       } catch (e) {
         console.error("Mutate: applySession failed:", e);
@@ -377,12 +420,24 @@ export function activate(activation: ActivationContext) {
     })(),
   );
 
-  context.commands.registerCommand(
-    "mutate.rangeDialog",
-    (arg: unknown) =>
-      void (async (_selection: ArrangementSelection) => {
-        await openStubDialog("range");
-      })(arg as ArrangementSelection),
+  // Fires for a right-click anywhere in MidiTrack.ArrangementSelection: either
+  // a drag-selected time range OR a single-clip right-click (Live treats the
+  // single clip as a degenerate range). We dispatch by clip count.
+  context.commands.registerCommand("mutate.rangeDialog", (arg: unknown) =>
+    void (async () => {
+      const clips = collectMidiClipsFromArg(arg);
+      if (clips.length === 0) {
+        console.log("Mutate: Range... — no MIDI clips in selection");
+        return;
+      }
+      if (clips.length === 1) {
+        await openArrangementClipDialog(clips[0]!);
+        return;
+      }
+      console.log(
+        `Mutate: Range... — ${clips.length} MIDI clips in selection; multi-clip range mode coming in AJM-205`,
+      );
+    })(),
   );
 
   // -------------------------------------------------------------------
@@ -443,7 +498,10 @@ export function activate(activation: ActivationContext) {
   // Context menu wiring
   // -------------------------------------------------------------------
 
-  context.ui.registerContextMenuAction("ClipSlotSelection", "Clip(s)...", "mutate.clipDialog");
+  // MidiClip scope fires for a right-click on a clip in either Session or
+  // Arrangement view; ClipSlotSelection would only fire in Session. Using
+  // MidiClip here is what unlocks arrangement-clip mutation.
+  context.ui.registerContextMenuAction("MidiClip", "Clip...", "mutate.clipDialog");
   context.ui.registerContextMenuAction("Scene", "Scene...", "mutate.sceneDialog");
   context.ui.registerContextMenuAction("MidiTrack.ArrangementSelection", "Range...", "mutate.rangeDialog");
 

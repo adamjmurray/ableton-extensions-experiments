@@ -15,8 +15,9 @@ export type CloseMessage = { action: "close" };
 
 export type DialogResult = ApplyMessage | CloseMessage;
 
-export type ClipModePayload = {
+export type ClipModeSessionPayload = {
   mode: "clip";
+  branch: "session";
   sourceNotes: Note[];
   bounds: ClipBounds;
   sourceClipName: string;
@@ -24,6 +25,17 @@ export type ClipModePayload = {
   availableSlotsBelow: number;
   slotsBelowOccupied: boolean[];
 };
+
+export type ClipModeArrangementPayload = {
+  mode: "clip";
+  branch: "arrangement";
+  sourceNotes: Note[];
+  bounds: ClipBounds;
+  sourceClipName: string;
+  trackName: string;
+};
+
+export type ClipModePayload = ClipModeSessionPayload | ClipModeArrangementPayload;
 
 export type SceneSourceSummary = {
   trackIndex: number;
@@ -54,6 +66,7 @@ declare global {
 
 const FALLBACK_PAYLOAD: ClipModePayload = {
   mode: "clip",
+  branch: "session",
   sourceNotes: [],
   bounds: { start: 0, end: 4 },
   sourceClipName: "",
