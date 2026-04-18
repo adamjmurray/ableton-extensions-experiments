@@ -212,7 +212,7 @@ export async function handleShowArrangementSelection(
   selection: ArrangementSelection,
   deps: HandlerDeps,
 ): Promise<void> {
-  const { context, showNotationDialog } = deps;
+  const { context, getSongMetadata, showNotationDialog } = deps;
   const tracks = selection.selected_lanes
     .map((handle) => context.objects.getObjectFromHandle(handle, DataModelObject))
     .filter((obj): obj is MidiTrack<"0.0.5"> => obj instanceof MidiTrack);
@@ -224,34 +224,89 @@ export async function handleShowArrangementSelection(
 
   const start = Number(selection.time_selection_start);
   const end = Number(selection.time_selection_end);
-  const clips: ClipInfo[] = [];
-  const songTracks = context.application.song.tracks;
+  const bpm = beatsPerMeasure(getSongMetadata().timeSignature);
+
+  type TrackClip = {
+    info: ClipInfo;
+    arrangementStart: number;
+    filterStart: number;
+    renderEnd: number;
+  };
+  type PerTrack = { trackName: string; isDrum: boolean; clips: TrackClip[] };
+
+  const perTrack: PerTrack[] = [];
+  let minArrangementStart = Infinity;
   for (const track of tracks) {
+    const trackName = String(track.name);
     const isDrum = isDrumRackTrack(track);
-    const trackIndex = songTracks.findIndex((t) => t.handle.id === track.handle.id);
+    const trackClips: TrackClip[] = [];
     for (const clip of track.arrangementClips) {
       if (!(clip instanceof MidiClip)) continue;
       const clipStart = Number(clip.startTime);
       const clipEnd = Number(clip.endTime);
-      if (clipStart < end && clipEnd > start) {
-        const clipData = readMidiClip(
-          clip,
-          String(track.name),
-          isDrum,
-          clipStart,
-          trackIndex >= 0 ? trackIndex : undefined,
-        );
-        if (clipData.notes.length > 0) {
-          clips.push(clipData);
-        }
-      }
+      if (!(clipStart < end && clipEnd > start)) continue;
+      const info = readMidiClip(clip, trackName, isDrum);
+      const region = getClipRenderRegion(info.clip, bpm);
+      trackClips.push({
+        info,
+        arrangementStart: clipStart,
+        filterStart: region.filterStart,
+        renderEnd: region.renderEnd,
+      });
+      if (clipStart < minArrangementStart) minArrangementStart = clipStart;
+    }
+    if (trackClips.length > 0) {
+      trackClips.sort((a, b) => a.arrangementStart - b.arrangementStart);
+      perTrack.push({ trackName, isDrum, clips: trackClips });
     }
   }
 
-  if (clips.length === 0) {
+  if (perTrack.length === 0) {
     await showNotationDialog([], "No notes in the selected time range.");
     return;
   }
+
+  const anchor = Math.floor(minArrangementStart / bpm) * bpm;
+
+  type FlattenedTrack = {
+    trackName: string;
+    isDrum: boolean;
+    notes: ClipInfo["notes"];
+    end: number;
+  };
+  const flattenedTracks: FlattenedTrack[] = [];
+  let maxEnd = 0;
+  for (const { trackName, isDrum, clips: trackClips } of perTrack) {
+    const placedRanges: { start: number; end: number }[] = [];
+    const notes: ClipInfo["notes"] = [];
+    let trackEnd = 0;
+    for (const c of trackClips) {
+      const shift = c.arrangementStart - c.info.clip.startMarker - anchor;
+      const flatStart = c.filterStart + shift;
+      const flatEnd = c.renderEnd + shift;
+      const overlap = findOverlap(placedRanges, flatStart, flatEnd);
+      if (overlap) {
+        console.warn(
+          `Notation: overlapping arrangement clips on track "${trackName}" merged into single voice (ranges ${overlap.start.toFixed(2)}-${overlap.end.toFixed(2)} and ${flatStart.toFixed(2)}-${flatEnd.toFixed(2)} in beats).`,
+        );
+      }
+      placedRanges.push({ start: flatStart, end: flatEnd });
+      notes.push(...shiftClipNotes(c.info, c.filterStart, c.renderEnd, shift));
+      if (flatEnd > trackEnd) trackEnd = flatEnd;
+    }
+    if (notes.length === 0) continue;
+    flattenedTracks.push({ trackName, isDrum, notes, end: trackEnd });
+    if (trackEnd > maxEnd) maxEnd = trackEnd;
+  }
+
+  if (flattenedTracks.length === 0) {
+    await showNotationDialog([], "No notes in the selected time range.");
+    return;
+  }
+
+  const clips: ClipInfo[] = flattenedTracks.map((t) =>
+    buildFlattenedClipInfo(t.trackName, t.isDrum, t.notes, maxEnd),
+  );
 
   await showNotationDialog(clips);
 }
