@@ -64,6 +64,11 @@ from.
 - **One-way dialog** — the dialog is opened with the clip data and returns a
   single result on close. Changes made to clips in Live while the dialog is
   open are not reflected; close and re-open to refresh.
+- **Range selections drop leading sustained notes** — when you right-click an
+  arrangement time selection and choose "Render Range", notes whose onset
+  falls before the selection start are dropped entirely, even if they
+  sustain into the range. Nudge the selection onto the phrase start to
+  include them.
 
 ## Dependencies
 
