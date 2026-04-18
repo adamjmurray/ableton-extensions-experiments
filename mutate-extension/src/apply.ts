@@ -97,6 +97,20 @@ export function nextMutateLaneIndex(track: MidiTrack<"0.0.5">): number {
   return max + 1;
 }
 
+// Copies preservable metadata from the source clip to a newly created
+// variation clip: name (suffixed " var. N") and color. Start/end markers
+// and loop settings are NOT preserved — the alpha SDK exposes no setters
+// for MidiClip.startMarker/endMarker/looping/loopStart/loopEnd, and
+// createMidiClip takes only a length.
+function applyClipMetadata(
+  created: MidiClip<"0.0.5">,
+  source: MidiClip<"0.0.5">,
+  variationNumber: number,
+): void {
+  created.name = `${String(source.name)} var. ${variationNumber}`;
+  created.color = Number(source.color);
+}
+
 // Seed-indexing convention: index 0 is reserved for the in-place mutation so
 // that toggling mutateSource on/off doesn't re-roll the user-visible Var
 // thumbnails. Variation i (0-based in UI) uses seed index i + 1.
@@ -149,6 +163,7 @@ export async function applySession(
             if (occupied) await slot.deleteClip();
             const created = await slot.createMidiClip(source.duration);
             created.notes = notes as NoteDescription[];
+            applyClipMetadata(created, source.clip, i + 1);
           })(),
         );
       }
@@ -202,6 +217,7 @@ export async function applyScene(
               if (occupied) await slot.deleteClip();
               const created = await slot.createMidiClip(src.duration);
               created.notes = notes as NoteDescription[];
+              applyClipMetadata(created, src.clip, vi + 1);
             })(),
           );
         }
@@ -265,6 +281,7 @@ export async function applyRange(
                   const notes = mutateOneShot(src.notes, controls, seed, src.bounds);
                   const created = await lane.createMidiClip(src.startTime, src.duration);
                   created.notes = notes as NoteDescription[];
+                  applyClipMetadata(created, src.clip, vi + 1);
                 }),
               );
             })(),
@@ -305,6 +322,7 @@ export async function applyArrangement(
         lane.name = `Mutate ${baseIndex + i}`;
         const created = await lane.createMidiClip(source.startTime, source.duration);
         created.notes = notes as NoteDescription[];
+        applyClipMetadata(created, source.clip, i + 1);
       });
       await Promise.all(laneTasks);
     })(),
