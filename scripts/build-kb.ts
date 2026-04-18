@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import { cpSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { basename, extname, join, relative } from "node:path";
 
@@ -196,31 +197,18 @@ for (const [src, out] of typeFiles) {
 copy("package.json", "sdk--package.json");
 copy("tsconfig.json", "sdk--tsconfig.json");
 
-// --- Notation extension (our primary extension source) ---
-const NOTATION = "notation-extension";
-const notationSkipDirs = new Set(["node_modules", "dist"]);
-const notationSkipFiles = new Set(["package-lock.json"]);
-const notationExts = new Set([".ts", ".tsx", ".js", ".cjs", ".mjs", ".html", ".json"]);
+// --- Our extensions (all git-tracked files, except package-lock.json) ---
+const extensions = ["notation-extension", "mutate-extension"];
+const extensionSkipFiles = new Set(["package-lock.json"]);
 
-function walkNotation(dir: string): string[] {
-  const results: string[] = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (notationSkipDirs.has(entry.name)) continue;
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      results.push(...walkNotation(full));
-    } else {
-      results.push(full);
-    }
+for (const ext of extensions) {
+  const tracked = execSync(`git ls-files ${ext}`, { encoding: "utf-8" })
+    .split("\n")
+    .filter(Boolean);
+  for (const rel of tracked) {
+    if (extensionSkipFiles.has(basename(rel))) continue;
+    cpSync(rel, join(OUT, outputName(flatten(rel))));
   }
-  return results;
-}
-
-for (const file of walkNotation(NOTATION)) {
-  if (notationSkipFiles.has(basename(file))) continue;
-  if (!notationExts.has(extname(file))) continue;
-  const rel = relative(".", file);
-  cpSync(file, join(OUT, outputName(flatten(rel))));
 }
 
 // Summary
