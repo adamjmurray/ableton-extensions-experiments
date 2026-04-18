@@ -285,10 +285,17 @@ function generatePartMeasures(
     for (let i = 0; i < absNotes.length; i++) {
       const note = absNotes[i]!;
       const startDiv = note.startDiv;
-      const barEnd = (Math.floor(startDiv / measureDivisions) + 1) * measureDivisions;
       const nextStart = absNotes.find((_n, j) => j > i && _n.startDiv > startDiv)?.startDiv;
-      const limit = nextStart !== undefined ? Math.min(nextStart, barEnd) : barEnd;
-      note.durationDiv = limit - startDiv;
+      if (nextStart !== undefined) {
+        note.durationDiv = nextStart - startDiv;
+      } else {
+        // No following note: extend to the end of the measure containing
+        // the note's current end, so a note already tied across barlines
+        // keeps its full span (and gets filled to that bar's end).
+        const endDiv = Math.max(startDiv + note.durationDiv, startDiv + 1);
+        const endBarEnd = (Math.floor((endDiv - 1) / measureDivisions) + 1) * measureDivisions;
+        note.durationDiv = endBarEnd - startDiv;
+      }
     }
   }
 

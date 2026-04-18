@@ -283,6 +283,27 @@ describe("notesToMusicXML", () => {
     );
   });
 
+  test("legato preserves ties across barlines and extends into trailing rests", () => {
+    // Note spans beats 0-5 (crosses into bar 2), followed by a gap; legato
+    // should NOT truncate at bar 1's end, and should extend the final note
+    // to the end of the measure containing its end.
+    const clips = [clip([note(60, 0, 5), note(62, 7, 0.5)], { loopEnd: 8 })];
+    const legatoXml = notesToMusicXML(clips, TS_4_4, 0, "Major", true);
+    const m1 = legatoXml.match(/<measure number="1">[\s\S]*?<\/measure>/)?.[0] ?? "";
+    const m2 = legatoXml.match(/<measure number="2">[\s\S]*?<\/measure>/)?.[0] ?? "";
+    // First note should still tie across bar 1 → bar 2.
+    expect(m1).toContain('<tie type="start"/>');
+    expect(m2).toContain('<tie type="stop"/>');
+    // Legato should extend the first note all the way to the second note's
+    // onset at beat 7, so bar 2 has no rest before the D.
+    const m2UpToD = m2.split(/<step>D<\/step>/)[0] ?? "";
+    expect(m2UpToD).not.toContain("<rest/>");
+    // Last note (beat 7, duration 0.5) with no following onset should extend
+    // to the end of bar 2 (beat 8), so bar 2 has no trailing rest.
+    const m2AfterD = m2.split(/<step>D<\/step>/)[1] ?? "";
+    expect(m2AfterD).not.toContain("<rest/>");
+  });
+
   test("arrangement-aligned multi-clip pads earlier clips with leading rests so bar lines line up", () => {
     // Clip A starts at arrangement beat 0; Clip B starts at arrangement beat 8 (2 bars later).
     // Aligned mode should give B 2 leading whole-rest measures then its content.
