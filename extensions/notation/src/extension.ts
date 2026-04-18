@@ -93,25 +93,6 @@ export function activate(activation: ActivationContext) {
     );
   }
 
-  // Single clip: right-click a MIDI clip (Session or Arrangement)
-  context.commands.registerCommand(
-    "notation.showClip",
-    (arg: unknown) =>
-      void (async (handle: Handle) => {
-        const clip = context.objects.getObjectFromHandle(handle, MidiClip);
-        const track = findMidiTrack(clip);
-        const trackName = String(track?.name ?? "");
-        const clipData = readMidiClip(clip, trackName, isDrumRackTrack(track));
-
-        if (clipData.notes.length === 0) {
-          await showNotationDialog([], "No notes in this clip.");
-          return;
-        }
-
-        await showNotationDialog([clipData]);
-      })(arg as Handle),
-  );
-
   // Session clip slot selection (one or more clip slots)
   context.commands.registerCommand(
     "notation.showSelection",
@@ -490,12 +471,6 @@ export function activate(activation: ActivationContext) {
       })(arg as Handle),
   );
 
-  // MidiClip scope intentionally unregistered: the ClipSlotSelection +
-  // ArrangementSelection scopes already cover single-clip right-clicks in
-  // Session and Arrangement views, so exposing "Render Clip" as well
-  // produced redundant menu items. The notation.showClip command is still
-  // registered above in case we want to wire it back up.
-  //   context.ui.registerContextMenuAction("MidiClip", "Render Clip", "notation.showClip");
   context.ui.registerContextMenuAction("ClipSlotSelection", "Render Clip(s)", "notation.showSelection");
   context.ui.registerContextMenuAction("Scene", "Render Scene", "notation.showScene");
   context.ui.registerContextMenuAction(
