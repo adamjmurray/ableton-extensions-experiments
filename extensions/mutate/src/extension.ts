@@ -105,8 +105,6 @@ export function activate(activation: ActivationContext) {
 
   // Walks up from a clip that lives in the arrangement. Parent is either the
   // MidiTrack directly, or a TakeLane whose parent is the MidiTrack.
-  // Not yet wired to a command — AJM-197 arrangement branch and AJM-205 range
-  // mode will consume this.
   function describeArrangementSource(clip: MidiClip<"0.0.5">): ArrangementSource | null {
     let parent = clip.parent;
     if (parent instanceof TakeLane) parent = parent.parent;
