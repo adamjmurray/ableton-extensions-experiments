@@ -58,7 +58,6 @@ async function main() {
     // .cjs inside the .ablx stays self-contained.
     sourcemap: production ? "inline" : true,
     sourcesContent: false,
-    external: ["@ableton/extensions-sdk"],
     outfile: "dist/extension.cjs",
     loader: { ".html": "text" },
     logLevel: "warning",

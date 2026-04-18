@@ -58,7 +58,6 @@ async function main() {
     sourcemap: production ? "inline" : true,
     sourcesContent: false,
     platform: "node",
-    external: ["@ableton/extensions-sdk"],
     outfile: "dist/extension.cjs",
     logLevel: "warning",
     plugins: [uiHtmlPlugin],
