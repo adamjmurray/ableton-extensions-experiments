@@ -134,9 +134,9 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
               />
             </div>
             {!isArrangement && variations > data.availableSlotsBelow && (
-              <div class="hint warn">
-                Only {data.availableSlotsBelow} slot{data.availableSlotsBelow === 1 ? "" : "s"}{" "}
-                below — extras will be skipped
+              <div class="hint">
+                {variations - data.availableSlotsBelow} new scene
+                {variations - data.availableSlotsBelow === 1 ? "" : "s"} will be created
               </div>
             )}
           </div>
@@ -200,10 +200,10 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
           }
           const occupied = i < data.slotsBelowOccupied.length && data.slotsBelowOccupied[i];
           const noSlot = i >= data.availableSlotsBelow;
-          const willSkip = occupied && fillMode === "skip";
-          const dimmed = willSkip || noSlot;
+          const willSkip = !!occupied && fillMode === "skip";
+          const dimmed = willSkip;
           let status = "";
-          if (noSlot) status = "no slot";
+          if (noSlot) status = "new scene";
           else if (willSkip) status = "skip (occupied)";
           else if (occupied) status = "overwrite";
           return (

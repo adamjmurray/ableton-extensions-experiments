@@ -119,11 +119,8 @@ export async function applySession(
   fillMode: FillMode,
   mutateSource: boolean,
 ): Promise<void> {
-  const slotsBelow = source.track.clipSlots.slice(source.slotIndex + 1);
-  const n = Math.min(slotsBelow.length, variations);
-  if (n < variations) {
-    console.log(`Mutate: only ${n} of ${variations} slot(s) available below source — truncating`);
-  }
+  const song = context.application.song;
+  const requiredScenes = source.slotIndex + 1 + variations;
 
   const work = context.withinTransaction(() =>
     (async () => {
@@ -135,7 +132,13 @@ export async function applySession(
         source.clip.notes = notes as NoteDescription[];
       }
 
-      for (let i = 0; i < n; i++) {
+      while (song.scenes.length < requiredScenes) {
+        await song.createScene(song.scenes.length);
+      }
+
+      const slotsBelow = source.track.clipSlots.slice(source.slotIndex + 1);
+
+      for (let i = 0; i < variations; i++) {
         const slot = slotsBelow[i]!;
         const seed = deriveSeed(baseSeed, i + 1);
         const notes = mutateOneShot(source.notes, controls, seed, source.bounds);
