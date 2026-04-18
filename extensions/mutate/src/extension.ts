@@ -10,11 +10,11 @@ import {
   type ArrangementSelection,
   type ClipSlotSelection,
   type Handle,
-  type NoteDescription,
 } from "@ableton/extensions-sdk";
 
 import mutateDialogHtml from "./mutate-dialog.html";
-import { dropNotes, swapNotes, transformVelocity, type ClipBounds, type Note } from "./transforms.js";
+import { clipBoundsFor, clipOverlapsRange, coerceNote } from "./helpers.js";
+import { dropNotes, swapNotes, transformVelocity, type Note } from "./transforms.js";
 import { mulberry32, type Rng } from "./rng.js";
 import {
   applyArrangement,
@@ -63,28 +63,6 @@ export function activate(activation: ActivationContext) {
     const dialog = context.createModalDialog();
     const resultStr = await dialog.show(dataUrl, 1200, 800);
     return JSON.parse(resultStr) as DialogResult;
-  }
-
-  function clipBoundsFor(clip: MidiClip<"0.0.5">): ClipBounds {
-    const looping = Boolean(clip.looping);
-    const loopStart = Number(clip.loopStart);
-    const loopEnd = Number(clip.loopEnd);
-    const startMarker = Number(clip.startMarker);
-    return {
-      start: looping ? Math.min(loopStart, startMarker) : startMarker,
-      end: loopEnd,
-    };
-  }
-
-  function coerceNote(n: NoteDescription): Note {
-    const out: Note = {
-      pitch: Number(n.pitch),
-      startTime: Number(n.startTime),
-      duration: Number(n.duration),
-    };
-    if (n.velocity !== undefined) out.velocity = Number(n.velocity);
-    if (n.probability !== undefined) out.probability = Number(n.probability);
-    return out;
   }
 
   function describeSessionSource(clip: MidiClip<"0.0.5">): SessionSource | null {
@@ -146,7 +124,9 @@ export function activate(activation: ActivationContext) {
         if (!(obj instanceof MidiTrack)) continue;
         for (const clip of obj.arrangementClips) {
           if (!(clip instanceof MidiClip)) continue;
-          if (Number(clip.startTime) < end && Number(clip.endTime) > start) clips.push(clip);
+          if (clipOverlapsRange(Number(clip.startTime), Number(clip.endTime), start, end)) {
+            clips.push(clip);
+          }
         }
       }
       return clips;
@@ -406,7 +386,7 @@ export function activate(activation: ActivationContext) {
           if (!(clip instanceof MidiClip)) continue;
           const cs = Number(clip.startTime);
           const ce = Number(clip.endTime);
-          if (cs < timeEnd && ce > timeStart) {
+          if (clipOverlapsRange(cs, ce, timeStart, timeEnd)) {
             rangeClips.push({
               trackIndex,
               track: obj,
