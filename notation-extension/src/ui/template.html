@@ -57,39 +57,35 @@
       gap: 6px;
     }
 
-    .toolbar-right { margin-left: auto; }
+    .toolbar-export-group { margin-left: auto; }
 
-    .label {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 1.5px;
+    .toolbar-divider {
+      width: 1px;
+      height: 20px;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+
+    .toolbar-label {
       color: var(--text-dim);
+      font-size: 11px;
+    }
+
+    .toolbar-check {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-left: 4px;
+      color: var(--text-dim);
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .toolbar-check input[type="checkbox"] {
+      accent-color: var(--accent);
+      cursor: pointer;
     }
 
     .separator { color: var(--text-dim); }
-
-    /* Button group */
-    .btn-group { display: flex; gap: 2px; }
-    .btn-group button {
-      padding: 5px 10px;
-      font-size: 10px;
-      font-family: inherit;
-      background: var(--surface);
-      color: var(--text-dim);
-      border: 1px solid var(--border-dim);
-      border-radius: 2px;
-      cursor: pointer;
-      transition: all 0.1s;
-      letter-spacing: 0.3px;
-      white-space: nowrap;
-    }
-    .btn-group button.active {
-      background: var(--accent);
-      color: #000;
-      border-color: var(--accent-hover);
-      font-weight: 700;
-    }
-    .btn-group button:hover:not(.active) { background: var(--surface-hover); color: var(--text); }
 
     /* Select */
     select {
@@ -119,15 +115,16 @@
     }
     .btn-export:hover { background: var(--surface-hover); color: var(--text); }
     .btn-close {
-      background: var(--accent);
-      color: #000;
-      font-weight: 700;
-      border-color: var(--accent-hover);
+      margin-left: 16px;
+      background: #c0392b;
+      color: #fff;
+      border-color: #a52a1e;
       padding: 5px 8px;
       font-size: 12px;
       line-height: 1;
+      font-weight: 700;
     }
-    .btn-close:hover { background: var(--accent-hover); }
+    .btn-close:hover { background: #e04b3a; }
 
     /* Status bar */
     .status-bar {
@@ -137,24 +134,6 @@
       background: var(--bg);
       border-bottom: 1px solid var(--border-dim);
       flex-shrink: 0;
-    }
-
-    /* XML view */
-    .xml-view {
-      flex: 1;
-      background: var(--input-bg);
-      color: var(--text-dim);
-      font-family: monospace;
-      font-size: 11px;
-      padding: 12px;
-      margin: 8px;
-      border-radius: 4px;
-      overflow: auto;
-      white-space: pre;
-      tab-size: 2;
-      border: 1px solid var(--border-dim);
-      user-select: text;
-      -webkit-user-select: text;
     }
 
     /* Notation container */

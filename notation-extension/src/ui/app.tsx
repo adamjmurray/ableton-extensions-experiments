@@ -113,7 +113,6 @@ function App() {
   const [grid, setGrid] = useState<QuantizeGrid>("16th");
   const [status, setStatus] = useState("Loading...");
   const [debugXML, setDebugXML] = useState("");
-  const [view, setView] = useState<"notation" | "xml">("notation");
   const [timeSigNum, setTimeSigNum] = useState(data.current.timeSignature.numerator);
   const [timeSigDen, setTimeSigDen] = useState(data.current.timeSignature.denominator);
   const [legato, setLegato] = useState(false);
@@ -277,77 +276,39 @@ function App() {
     <div class="app">
       <div class="toolbar">
         <div class="toolbar-group">
-          <div class="btn-group">
+          <span class="toolbar-label">Quantize</span>
+          <select
+            value={grid}
+            onChange={(e) => setGrid((e.target as HTMLSelectElement).value as QuantizeGrid)}
+            title="Quantize grid"
+          >
             {GRIDS.map((g) => (
-              <button
-                type="button"
-                key={g.value}
-                class={grid === g.value ? "active" : ""}
-                onClick={() => setGrid(g.value)}
-                title={`Quantize to ${g.label}`}
-              >
+              <option key={g.value} value={g.value}>
                 {g.label}
-              </button>
+              </option>
             ))}
-          </div>
+          </select>
         </div>
 
-        <div class="toolbar-group">
-          <div class="btn-group">
-            <button
-              type="button"
-              class={legato ? "active" : ""}
-              onClick={() => setLegato((v) => !v)}
-              title="Extend notes to fill gaps (remove rests)"
-            >
-              Legato
-            </button>
-            <button
-              type="button"
-              class={showTempo ? "active" : ""}
-              onClick={() => setShowTempo((v) => !v)}
-              title={`Show tempo marking (${Math.round(data.current.tempo)} BPM)`}
-            >
-              Tempo
-            </button>
-            {hasDrumClip && (
-              <button
-                type="button"
-                class={drumHeads ? "active" : ""}
-                onClick={() => setDrumHeads((v) => !v)}
-                title="Render drum-rack clips with x noteheads"
-              >
-                Drums
-              </button>
-            )}
-          </div>
-        </div>
+        <label class="toolbar-check" title="Extend notes to fill gaps (remove rests)">
+          <input
+            type="checkbox"
+            checked={legato}
+            onChange={(e) => setLegato((e.currentTarget as HTMLInputElement).checked)}
+          />
+          Legato
+        </label>
 
-        {isMultiClip && (
-          <div class="toolbar-group">
-            <div class="btn-group">
-              {SORT_MODES.map((m) => (
-                <button
-                  type="button"
-                  key={m.value}
-                  class={sortMode === m.value ? "active" : ""}
-                  onClick={() => setSortMode(m.value)}
-                  title={m.title}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+        <div class="toolbar-divider" />
 
         <div class="toolbar-group">
+          <span class="toolbar-label">Time Signature</span>
           <select
             value={timeSigNum}
             onChange={(e) => setTimeSigNum(Number((e.target as HTMLSelectElement).value))}
             title="Time signature numerator"
           >
-            {[2, 3, 4, 5, 6, 7, 8, 9, 12].map((n) => (
+            {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => (
               <option key={n} value={n}>
                 {n}
               </option>
@@ -367,62 +328,69 @@ function App() {
           </select>
         </div>
 
-        <div class="toolbar-group">
-          <div class="btn-group">
-            <button
-              type="button"
-              class={view === "notation" ? "active" : ""}
-              onClick={() => setView("notation")}
-              title="Show notation"
-            >
-              Notation
-            </button>
-            <button
-              type="button"
-              class={view === "xml" ? "active" : ""}
-              onClick={() => setView("xml")}
-              title="Show MusicXML source"
-            >
-              MusicXML
-            </button>
-          </div>
-        </div>
+        <label
+          class="toolbar-check"
+          title={`Show tempo marking (${Math.round(data.current.tempo)} BPM)`}
+        >
+          <input
+            type="checkbox"
+            checked={showTempo}
+            onChange={(e) => setShowTempo((e.currentTarget as HTMLInputElement).checked)}
+          />
+          Tempo
+        </label>
 
-        <div class="toolbar-group toolbar-right">
-          {view === "notation" && (
-            <>
-              <button
-                type="button"
-                class="btn-export"
-                onClick={handleExportSVG}
-                title="Export as SVG"
-              >
-                &#8599; SVG
-              </button>
-              <button
-                type="button"
-                class="btn-export"
-                onClick={handleExportPNG}
-                title="Export as PNG"
-              >
-                &#8599; PNG
-              </button>
-            </>
-          )}
-          {view === "xml" && (
-            <button
-              type="button"
-              class="btn-export"
-              onClick={handleExportXML}
-              title="Export as MusicXML"
+        {(hasDrumClip || isMultiClip) && <div class="toolbar-divider" />}
+
+        {isMultiClip && (
+          <div class="toolbar-group">
+            <span class="toolbar-label">Sort Staffs</span>
+            <select
+              value={sortMode}
+              onChange={(e) => setSortMode((e.target as HTMLSelectElement).value as SortMode)}
+              title="Sort parts"
             >
-              &#8599; XML
-            </button>
-          )}
-          <button type="button" class="btn-close" onClick={closeDialog} title="Close">
-            &#10005;
+              {SORT_MODES.map((m) => (
+                <option key={m.value} value={m.value} title={m.title}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {hasDrumClip && (
+          <label class="toolbar-check" title="Render drum-rack clips with x noteheads">
+            <input
+              type="checkbox"
+              checked={drumHeads}
+              onChange={(e) => setDrumHeads((e.currentTarget as HTMLInputElement).checked)}
+            />
+            Drum Notation
+          </label>
+        )}
+
+        <div class="toolbar-group toolbar-export-group">
+          <span class="toolbar-label">Export</span>
+          <button type="button" class="btn-export" onClick={handleExportPNG} title="Export as PNG">
+            &#8595; PNG
+          </button>
+          <button type="button" class="btn-export" onClick={handleExportSVG} title="Export as SVG">
+            &#8595; SVG
+          </button>
+          <button
+            type="button"
+            class="btn-export"
+            onClick={handleExportXML}
+            title="Export as MusicXML"
+          >
+            &#8595; MusicXML
           </button>
         </div>
+
+        <button type="button" class="btn-close" onClick={closeDialog} title="Close">
+          &#10005;
+        </button>
       </div>
 
       {errorBanner && (
@@ -442,14 +410,7 @@ function App() {
 
       <div class="status-bar">{status}</div>
 
-      <pre class="xml-view" style={{ display: view === "xml" ? "block" : "none" }}>
-        {debugXML}
-      </pre>
-      <div
-        class="notation-container"
-        ref={containerRef}
-        style={{ display: view === "notation" ? "flex" : "none" }}
-      />
+      <div class="notation-container" ref={containerRef} />
     </div>
   );
 }
