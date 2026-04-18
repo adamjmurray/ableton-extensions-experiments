@@ -1,4 +1,5 @@
 import type { NoteData, ClipData } from "./bridge.js";
+import { buildFullPartName, truncatePartName } from "./part-name.js";
 
 // MusicXML <divisions> value — how many units one quarter note is split into.
 // LCM(8, 6) = 24 is the smallest value that keeps both 32nd notes (3 units)
@@ -599,21 +600,8 @@ function buildTempoDirection(tempo: number): string {
   return xml;
 }
 
-const MAX_PART_NAME_LENGTH = 30;
-
 function buildPartName(trackName: string | undefined, label: string, index: number): string {
-  const t = (trackName ?? "").trim();
-  const c = label.trim();
-  let name: string;
-  if (t && c) name = `[${t}] ${c}`;
-  else if (t) name = `[${t}]`;
-  else if (c) name = c;
-  else name = `Part ${index + 1}`;
-
-  if (name.length > MAX_PART_NAME_LENGTH) {
-    name = name.slice(0, MAX_PART_NAME_LENGTH - 1) + "…";
-  }
-  return name;
+  return truncatePartName(buildFullPartName(trackName ?? "", label, index));
 }
 
 function escapeXml(s: string): string {

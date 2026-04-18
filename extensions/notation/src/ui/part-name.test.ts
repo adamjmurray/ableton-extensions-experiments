@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { assignUnnamedIndices, buildFullPartName } from "./part-name.js";
+import {
+  assignUnnamedIndices,
+  buildFullPartName,
+  MAX_PART_NAME_LENGTH,
+  truncatePartName,
+} from "./part-name.js";
 import type { ClipData, NotationData } from "./bridge.js";
 
 function makeClip(overrides: Partial<ClipData["clip"]> = {}): ClipData {
@@ -60,6 +65,32 @@ describe("buildFullPartName", () => {
     // Matches the `trackName ?? ""` guard; cast-through just to stress the
     // runtime coercion path.
     expect(buildFullPartName(undefined as unknown as string, "Verse", 0)).toBe("Verse");
+  });
+});
+
+describe("truncatePartName", () => {
+  it("returns strings at or below the limit unchanged", () => {
+    const short = "x".repeat(MAX_PART_NAME_LENGTH);
+    expect(truncatePartName(short)).toBe(short);
+    expect(truncatePartName("Piano")).toBe("Piano");
+  });
+
+  it("truncates longer strings and appends an ellipsis", () => {
+    const long = "x".repeat(MAX_PART_NAME_LENGTH + 10);
+    const result = truncatePartName(long);
+    expect(result).toHaveLength(MAX_PART_NAME_LENGTH);
+    expect(result.endsWith("…")).toBe(true);
+  });
+
+  it("two full names with a shared prefix collide on truncation", () => {
+    const shared = "[Longer Track Name Here] Verse ";
+    const a = shared + "Alpha";
+    const b = shared + "Beta";
+    // Both exceed the limit; their truncations are identical — which is what
+    // forces app.tsx to show both candidates in the tooltip.
+    expect(a.length).toBeGreaterThan(MAX_PART_NAME_LENGTH);
+    expect(b.length).toBeGreaterThan(MAX_PART_NAME_LENGTH);
+    expect(truncatePartName(a)).toBe(truncatePartName(b));
   });
 });
 

@@ -4,7 +4,7 @@ import { OpenSheetMusicDisplay } from "opensheetmusicdisplay";
 import { getNotationData, closeDialog, exportFile, type NotationData, type ClipData } from "./bridge.js";
 import { quantizeNotes, type QuantizeGrid } from "./quantize.js";
 import { notesToMusicXML, sortClipsForScore, type SortMode } from "./musicxml.js";
-import { assignUnnamedIndices, buildFullPartName } from "./part-name.js";
+import { assignUnnamedIndices, buildFullPartName, truncatePartName } from "./part-name.js";
 
 const GRIDS: { value: QuantizeGrid; label: string }[] = [
   { value: "16th", label: "16th" },
@@ -37,10 +37,13 @@ function svgToBase64(svgData: string): string {
   return btoa(binary);
 }
 
-// Walk SVG text nodes ending with "…" and match them to their original full
-// part name by prefix, then add an SVG <title> child so browsers show a
-// native tooltip on hover. OSMD does not tag part-name labels, so we rely on
-// the truncation marker + prefix match.
+// Walk SVG text nodes and attach an SVG <title> child showing the full,
+// untruncated part name. We match by exact equality against the truncation
+// OSMD renders (same MAX_PART_NAME_LENGTH + "…" rule as the MusicXML
+// emitter), so even when two parts share the same truncation prefix, we
+// only attach a tooltip when we can unambiguously recover the full name.
+// Ambiguous truncations get a joined-with-" / " label so hovering still
+// disambiguates which parts collapsed into the shown text.
 function injectPartNameTooltips(container: HTMLDivElement | null, clips: ClipData[]): void {
   if (!container) return;
   const svg = container.querySelector("svg");
@@ -56,16 +59,26 @@ function injectPartNameTooltips(container: HTMLDivElement | null, clips: ClipDat
     return buildFullPartName(c.clip.trackName, label, i);
   });
 
+  // Group full names by the label OSMD renders for them. A truncation with
+  // multiple entries is an unavoidable collision — we show all of them.
+  const byRendered = new Map<string, string[]>();
+  for (const full of fullNames) {
+    const rendered = truncatePartName(full);
+    const bucket = byRendered.get(rendered);
+    if (bucket) bucket.push(full);
+    else byRendered.set(rendered, [full]);
+  }
+
   const texts = svg.querySelectorAll("text");
   texts.forEach((textEl) => {
     const content = textEl.textContent ?? "";
-    if (!content.endsWith("…")) return;
-    const prefix = content.slice(0, -1);
-    const full = fullNames.find((n) => n.startsWith(prefix));
-    if (!full) return;
+    const candidates = byRendered.get(content);
+    // Only label text nodes that were actually truncated; everything else
+    // is either another OSMD label or the full, unambiguous part name.
+    if (!candidates || !content.endsWith("…")) return;
     if (textEl.querySelector("title")) return;
     const titleEl = document.createElementNS(SVG_NS, "title");
-    titleEl.textContent = full;
+    titleEl.textContent = candidates.join(" / ");
     textEl.appendChild(titleEl);
   });
 }
