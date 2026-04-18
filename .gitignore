@@ -2,6 +2,7 @@ node_modules/
 dist/
 .DS_Store
 *.zip
+*.ablx
 knowledge-base/
 extensions/*/dist/
 ableton-midi-sculptor/releases/

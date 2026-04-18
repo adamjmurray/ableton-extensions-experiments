@@ -46,7 +46,8 @@ See `extensions/mutate/` for a minimal reference (single-phase esbuild, stub mod
 - The extension entry point must export an `activate` function
 - Initialize the API with: `const context = initialize(activation, "0.0.5")`
 - The Extension Host runs CommonJS only — always bundle with esbuild to CJS
-- Extensions are distributed as ZIP files containing `manifest.json` + the compiled entry point
+- Extensions are distributed as `.ablx` files (zip archives) containing `manifest.json` + the compiled entry point. Build them with `node ../../extensions-sdk/package.cjs .` from the extension directory; users install by opening the `.ablx` in Live.
+- Per the SDK docs, the entry file convention is `dist/extension.cjs` (not `.js`) — explicit about CommonJS format.
 - HTML files for webview dialogs are imported as text and passed as data URLs
 
 ### Context menu scopes
@@ -61,7 +62,7 @@ Valid scopes for `context.ui.registerContextMenuAction()`:
 ### Building
 - Use esbuild to bundle to CJS (see `extensions/mutate/esbuild.js` for a minimal single-phase config, or `extensions/notation/esbuild.js` for a two-phase UI-bundling config)
 - Use `.html` loader in esbuild to inline webview HTML as text
-- Distributed extensions (ZIP) should not include `node_modules/` or `package-lock.json`
+- Distributed extensions (`.ablx`) should not include `node_modules/` or `package-lock.json`
 
 ### Testing
 - Tests use vitest with `@ableton/extensions-sdk/testing` for mocking

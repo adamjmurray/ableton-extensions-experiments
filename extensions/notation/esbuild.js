@@ -55,7 +55,7 @@ async function main() {
     sourcesContent: false,
     platform: "node",
     external: ["@ableton/extensions-sdk"],
-    outfile: "dist/extension.js",
+    outfile: "dist/extension.cjs",
     logLevel: "warning",
     plugins: [uiHtmlPlugin],
   });
