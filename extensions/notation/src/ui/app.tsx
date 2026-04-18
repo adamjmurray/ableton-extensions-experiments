@@ -19,8 +19,23 @@ const SORT_MODES: { value: SortMode; label: string; title: string }[] = [
 ];
 
 // PNG export renders the SVG onto a canvas at this multiple of its native
-// dimensions so the bitmap stays sharp on retina/high-DPI displays.
+// dimensions so the bitmap stays sharp on retina/high-DPI displays. If the
+// scaled bitmap would exceed PNG_MAX_PIXELS (4 bytes per RGBA pixel), the
+// scale factor is reduced — and ultimately clamped to 1× — to avoid OOM on
+// large multi-part scores.
 const PNG_SCALE_FACTOR = 2;
+// 64 megapixels = ~256 MB at RGBA. Browsers typically cap canvas area
+// somewhere between 16 and 256 MP; this is a conservative ceiling.
+const PNG_MAX_PIXELS = 64 * 1024 * 1024;
+
+// SVG → base64 without `unescape` (deprecated). Encodes the UTF-8 bytes
+// via TextEncoder, then base64-encodes the resulting binary string.
+function svgToBase64(svgData: string): string {
+  const bytes = new TextEncoder().encode(svgData);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!);
+  return btoa(binary);
+}
 
 // Walk SVG text nodes ending with "…" and match them to their original full
 // part name by prefix, then add an SVG <title> child so browsers show a
@@ -157,11 +172,22 @@ function App() {
 
     img.onload = () => {
       try {
+        // Pick the largest scale (≤ PNG_SCALE_FACTOR) whose bitmap fits in
+        // PNG_MAX_PIXELS, then floor to ≥1 so we always produce something.
+        const native = Math.max(1, img.width * img.height);
+        const maxScale = Math.sqrt(PNG_MAX_PIXELS / native);
+        const scale = Math.max(1, Math.min(PNG_SCALE_FACTOR, maxScale));
+        if (scale < PNG_SCALE_FACTOR) {
+          console.warn(
+            `PNG export: scaled image would exceed ${PNG_MAX_PIXELS} pixels; reducing scale ${PNG_SCALE_FACTOR}× → ${scale.toFixed(2)}×.`,
+          );
+        }
+
         const canvas = document.createElement("canvas");
         const ctx = canvas.getContext("2d")!;
-        canvas.width = img.width * PNG_SCALE_FACTOR;
-        canvas.height = img.height * PNG_SCALE_FACTOR;
-        ctx.scale(PNG_SCALE_FACTOR, PNG_SCALE_FACTOR);
+        canvas.width = Math.floor(img.width * scale);
+        canvas.height = Math.floor(img.height * scale);
+        ctx.scale(scale, scale);
         ctx.fillStyle = "white";
         ctx.fillRect(0, 0, img.width, img.height);
         ctx.drawImage(img, 0, 0);
@@ -180,7 +206,7 @@ function App() {
       setStatus("PNG export failed: could not render SVG");
     };
 
-    img.src = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgData)))}`;
+    img.src = `data:image/svg+xml;base64,${svgToBase64(svgData)}`;
   }, [clipName]);
 
   const handleExportXML = useCallback(() => {

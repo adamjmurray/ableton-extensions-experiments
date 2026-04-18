@@ -50,6 +50,13 @@ type DialogResult = ExportAction | CloseAction;
 const DIALOG_WIDTH = 1200;
 const DIALOG_HEIGHT = 800;
 
+// Cap how long we wait on the system "open" command. macOS `open` and the
+// Windows shell launcher both return quickly (they hand off to LaunchServices
+// / shell), so anything beyond a few seconds means something is wedged
+// (a hung helper, a permission prompt, etc.). The export loop surfaces the
+// timeout as an errorMessage so the dialog reopens instead of blocking.
+const OPEN_TIMEOUT_MS = 5000;
+
 function openFile(filePath: string): Promise<Error | null> {
   return new Promise((resolve) => {
     const platform = os.platform();
@@ -58,10 +65,11 @@ function openFile(filePath: string): Promise<Error | null> {
     // "start" is a cmd.exe builtin rather than a real executable, so we go
     // through cmd.exe with /c. The extra "" is "start"'s window-title arg so
     // paths with spaces don't get swallowed as the title.
+    const opts = { timeout: OPEN_TIMEOUT_MS };
     if (platform === "win32") {
-      execFile("cmd.exe", ["/c", "start", "", filePath], (err) => resolve(err));
+      execFile("cmd.exe", ["/c", "start", "", filePath], opts, (err) => resolve(err));
     } else {
-      execFile("open", [filePath], (err) => resolve(err));
+      execFile("open", [filePath], opts, (err) => resolve(err));
     }
   });
 }
