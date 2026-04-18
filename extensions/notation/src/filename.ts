@@ -7,6 +7,7 @@
 export function sanitizeFilename(filename: string): string {
   const parts = filename.split(/[\\/]/);
   const base = parts[parts.length - 1] ?? "";
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: sanitizing control chars IS the point.
   const cleaned = base.replace(/[<>:"|?*\x00-\x1f]/g, "_").replace(/^\.+/, "");
   return cleaned || "notation";
 }

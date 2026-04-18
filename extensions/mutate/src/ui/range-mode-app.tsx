@@ -1,8 +1,8 @@
 import { useEffect, useState } from "preact/hooks";
-import { freshSeed, ZERO_CONTROLS, type MutateControls } from "../variations.js";
+import { freshSeed, type MutateControls, ZERO_CONTROLS } from "../variations.js";
 import { applyMutations, closeDialog, MAX_VARIATIONS, type RangeModePayload } from "./bridge.js";
 import { ControlsGrid } from "./controls.js";
-import { IndicatorGrid, type CellState } from "./indicator-grid.js";
+import { type CellState, IndicatorGrid } from "./indicator-grid.js";
 
 export function RangeModeApp({ data }: { data: RangeModePayload }) {
   const [controls, setControls] = useState<MutateControls>(ZERO_CONTROLS);
@@ -41,7 +41,7 @@ export function RangeModeApp({ data }: { data: RangeModePayload }) {
   };
   const colLabelAt = (col: number) => data.tracks[col]?.trackName ?? "";
 
-  const stateAt = (row: number, col: number): CellState => {
+  const stateAt = (row: number, _col: number): CellState => {
     if (isSourceRow(row)) return "write-overwrite"; // in-place writes
     return "write-empty"; // new take lane = always empty
   };
@@ -56,10 +56,10 @@ export function RangeModeApp({ data }: { data: RangeModePayload }) {
           {data.totalClipCount === 1 ? "" : "s"}
         </span>
         <div class="toolbar-right">
-          <button class="btn" onClick={() => closeDialog()}>
+          <button type="button" class="btn" onClick={() => closeDialog()}>
             Cancel
           </button>
-          <button class="btn primary" onClick={handleApply} disabled={!canApply}>
+          <button type="button" class="btn primary" onClick={handleApply} disabled={!canApply}>
             Apply
           </button>
         </div>

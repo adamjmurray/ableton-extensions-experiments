@@ -8,8 +8,8 @@
 // ui-html plugin, so we stub it out here so activate() can import it
 // when vitest runs outside the esbuild pipeline.
 
-import { describe, expect, it, vi } from "vitest";
 import { TestHarness } from "@ableton/extensions-sdk/testing";
+import { describe, expect, it, vi } from "vitest";
 
 vi.mock("./mutate-dialog.html", () => ({ default: "<!doctype html></head>" }));
 

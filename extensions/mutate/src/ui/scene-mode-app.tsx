@@ -1,9 +1,9 @@
 import { useEffect, useState } from "preact/hooks";
 import type { FillMode } from "../apply.js";
-import { freshSeed, ZERO_CONTROLS, type MutateControls } from "../variations.js";
+import { freshSeed, type MutateControls, ZERO_CONTROLS } from "../variations.js";
 import { applyMutations, closeDialog, MAX_VARIATIONS, type SceneModePayload } from "./bridge.js";
 import { ControlsGrid } from "./controls.js";
-import { IndicatorGrid, type CellState } from "./indicator-grid.js";
+import { type CellState, IndicatorGrid } from "./indicator-grid.js";
 
 export function SceneModeApp({ data }: { data: SceneModePayload }) {
   const [controls, setControls] = useState<MutateControls>(ZERO_CONTROLS);
@@ -72,10 +72,10 @@ export function SceneModeApp({ data }: { data: SceneModePayload }) {
           {data.sceneName ? `: ${data.sceneName}` : ""}
         </span>
         <div class="toolbar-right">
-          <button class="btn" onClick={() => closeDialog()}>
+          <button type="button" class="btn" onClick={() => closeDialog()}>
             Cancel
           </button>
-          <button class="btn primary" onClick={handleApply} disabled={!canApply}>
+          <button type="button" class="btn primary" onClick={handleApply} disabled={!canApply}>
             Apply
           </button>
         </div>
@@ -128,12 +128,14 @@ export function SceneModeApp({ data }: { data: SceneModePayload }) {
             <div class="section-label">Fill mode</div>
             <div class="btn-group">
               <button
+                type="button"
                 class={`tab ${fillMode === "skip" ? "active" : ""}`}
                 onClick={() => setFillMode("skip")}
               >
                 Skip
               </button>
               <button
+                type="button"
                 class={`tab ${fillMode === "overwrite" ? "active" : ""}`}
                 onClick={() => setFillMode("overwrite")}
               >

@@ -1,6 +1,6 @@
+import type { NoteDescription } from "@ableton/extensions-sdk";
 import { describe, expect, test } from "vitest";
 import { clipBoundsFor, clipOverlapsRange, coerceNote } from "./helpers.js";
-import type { NoteDescription } from "@ableton/extensions-sdk";
 
 describe("clipBoundsFor", () => {
   test("non-looping clip: start = startMarker, end = loopEnd", () => {

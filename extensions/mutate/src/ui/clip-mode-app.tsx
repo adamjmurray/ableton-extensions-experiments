@@ -4,10 +4,10 @@ import { deriveSeed } from "../rng.js";
 import {
   freshSeed,
   generateVariations,
-  ZERO_CONTROLS,
   type MutateControls,
+  ZERO_CONTROLS,
 } from "../variations.js";
-import { applyMutations, closeDialog, MAX_VARIATIONS, type ClipModePayload } from "./bridge.js";
+import { applyMutations, type ClipModePayload, closeDialog, MAX_VARIATIONS } from "./bridge.js";
 import { ControlsGrid } from "./controls.js";
 import { PianoRoll } from "./piano-roll.js";
 
@@ -82,10 +82,10 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
           {isArrangement ? " · Arrangement" : ""}
         </span>
         <div class="toolbar-right">
-          <button class="btn" onClick={() => closeDialog()}>
+          <button type="button" class="btn" onClick={() => closeDialog()}>
             Cancel
           </button>
-          <button class="btn primary" onClick={handleApply} disabled={!canApply}>
+          <button type="button" class="btn primary" onClick={handleApply} disabled={!canApply}>
             Apply
           </button>
         </div>
@@ -145,12 +145,14 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
               <div class="section-label">Fill mode</div>
               <div class="btn-group">
                 <button
+                  type="button"
                   class={`tab ${fillMode === "skip" ? "active" : ""}`}
                   onClick={() => setFillMode("skip")}
                 >
                   Skip
                 </button>
                 <button
+                  type="button"
                   class={`tab ${fillMode === "overwrite" ? "active" : ""}`}
                   onClick={() => setFillMode("overwrite")}
                 >

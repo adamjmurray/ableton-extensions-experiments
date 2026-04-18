@@ -1,15 +1,15 @@
-import { describe, expect, it } from "vitest";
 import type { MidiClip } from "@ableton/extensions-sdk";
+import { describe, expect, it } from "vitest";
 import {
   beatsPerMeasure,
   buildFlattenedClipInfo,
   buildRangeClipInfo,
+  type ClipInfo,
   computeArrangementRange,
   findOverlap,
   nameSuggestsDrums,
   readMidiClip,
   shiftClipNotes,
-  type ClipInfo,
 } from "./clip-utils.js";
 
 function makeClipInfo(
@@ -210,7 +210,7 @@ describe("readMidiClip", () => {
       "Piano",
       false,
     );
-    expect(info.notes[0]!.velocity).toBe(64);
+    expect(info.notes[0]?.velocity).toBe(64);
   });
 
   it("sets isDrumRack only when the flag is true", () => {

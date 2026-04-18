@@ -1,15 +1,15 @@
 import { describe, expect, test } from "vitest";
+import { mulberry32 } from "./rng.js";
 import {
+  type ClipBounds,
   dropNotes,
+  type Note,
   swapNotes,
   transformDuration,
   transformProbability,
   transformStart,
   transformVelocity,
-  type ClipBounds,
-  type Note,
 } from "./transforms.js";
-import { mulberry32 } from "./rng.js";
 
 function note(
   pitch: number,

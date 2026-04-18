@@ -1,29 +1,28 @@
 import {
-  initialize,
+  type ActivationContext,
+  type ArrangementSelection,
   ClipSlot,
+  type ClipSlotSelection,
   DataModelObject,
+  type Handle,
+  initialize,
   MidiClip,
   MidiTrack,
   Scene,
-  type ActivationContext,
-  type ArrangementSelection,
-  type ClipSlotSelection,
-  type Handle,
 } from "@ableton/extensions-sdk";
-
-import { getClipRenderRegion } from "./ui/musicxml.js";
 import {
   beatsPerMeasure,
   buildFlattenedClipInfo,
   buildRangeClipInfo,
+  type ClipInfo,
   computeArrangementRange,
   findOverlap,
   readMidiClip,
   shiftClipNotes,
-  type ClipInfo,
 } from "./clip-utils.js";
-import { findMidiTrack, isDrumRackTrack } from "./drum-rack.js";
 import { showNotationDialog as runNotationDialog } from "./dialog.js";
+import { findMidiTrack, isDrumRackTrack } from "./drum-rack.js";
+import { getClipRenderRegion } from "./ui/musicxml.js";
 
 // Flatten a contiguous range of a track's clipSlots into one ClipInfo.
 // `sceneBarCounts[i]` is the bar width allotted to scene `(sceneStart + i)` —

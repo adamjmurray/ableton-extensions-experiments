@@ -1,33 +1,32 @@
 import {
-  initialize,
+  type ActivationContext,
+  type ArrangementSelection,
   ClipSlot,
+  type ClipSlotSelection,
   DataModelObject,
+  type Handle,
+  initialize,
   MidiClip,
   MidiTrack,
   Scene,
   TakeLane,
-  type ActivationContext,
-  type ArrangementSelection,
-  type ClipSlotSelection,
-  type Handle,
 } from "@ableton/extensions-sdk";
-
-import mutateDialogHtml from "./mutate-dialog.html";
-import { clipBoundsFor, clipOverlapsRange, coerceNote } from "./helpers.js";
-import { dropNotes, swapNotes, transformVelocity, type Note } from "./transforms.js";
-import { mulberry32, type Rng } from "./rng.js";
 import {
+  type ArrangementSource,
   applyArrangement,
   applyRange,
   applyScene,
   applySession,
-  type ArrangementSource,
   type RangeSource,
   type RangeSourceClip,
   type SceneSource,
   type SceneSourceClip,
   type SessionSource,
 } from "./apply.js";
+import { clipBoundsFor, clipOverlapsRange, coerceNote } from "./helpers.js";
+import mutateDialogHtml from "./mutate-dialog.html";
+import { mulberry32, type Rng } from "./rng.js";
+import { dropNotes, type Note, swapNotes, transformVelocity } from "./transforms.js";
 import type {
   ClipModeArrangementPayload,
   ClipModeSessionPayload,

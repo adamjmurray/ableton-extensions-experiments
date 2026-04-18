@@ -44,7 +44,7 @@ describe("getNotationData", () => {
   it("returns the dummy scaffold when window.__NOTATION_DATA__ is missing", () => {
     const data = getNotationData();
     expect(data.clips).toHaveLength(1);
-    expect(data.clips[0]!.notes).toEqual([]);
+    expect(data.clips[0]?.notes).toEqual([]);
     expect(data.tempo).toBe(120);
     expect(data.timeSignature).toEqual({ numerator: 4, denominator: 4 });
     expect(data.scaleName).toBe("Major");
@@ -54,7 +54,7 @@ describe("getNotationData", () => {
     g.window!.__NOTATION_DATA__ = "{ not json";
     const data = getNotationData();
     expect(data.clips).toHaveLength(1);
-    expect(data.clips[0]!.notes).toEqual([]);
+    expect(data.clips[0]?.notes).toEqual([]);
     expect(data.tempo).toBe(120);
     expect(data.timeSignature).toEqual({ numerator: 4, denominator: 4 });
     expect(data.scaleName).toBe("Major");
@@ -63,8 +63,8 @@ describe("getNotationData", () => {
   it("scaffold endMarker and loopEnd default to 16 beats", () => {
     g.window!.__NOTATION_DATA__ = "garbage";
     const data = getNotationData();
-    expect(data.clips[0]!.clip.endMarker).toBe(16);
-    expect(data.clips[0]!.clip.loopEnd).toBe(16);
+    expect(data.clips[0]?.clip.endMarker).toBe(16);
+    expect(data.clips[0]?.clip.loopEnd).toBe(16);
   });
 
   it("passes through emptyStateMessage when present", () => {

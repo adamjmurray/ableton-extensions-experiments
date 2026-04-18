@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
+import type { ClipData, NotationData } from "./bridge.js";
 import {
   assignUnnamedIndices,
   buildFullPartName,
   MAX_PART_NAME_LENGTH,
   truncatePartName,
 } from "./part-name.js";
-import type { ClipData, NotationData } from "./bridge.js";
 
 function makeClip(overrides: Partial<ClipData["clip"]> = {}): ClipData {
   return {
@@ -84,8 +84,8 @@ describe("truncatePartName", () => {
 
   it("two full names with a shared prefix collide on truncation", () => {
     const shared = "[Longer Track Name Here] Verse ";
-    const a = shared + "Alpha";
-    const b = shared + "Beta";
+    const a = `${shared}Alpha`;
+    const b = `${shared}Beta`;
     // Both exceed the limit; their truncations are identical — which is what
     // forces app.tsx to show both candidates in the tooltip.
     expect(a.length).toBeGreaterThan(MAX_PART_NAME_LENGTH);
@@ -123,7 +123,7 @@ describe("assignUnnamedIndices", () => {
   it("preserves existing unnamedIndex on named clips (no-op path leaves the property alone)", () => {
     const data = makeData([makeClip({ name: "Clip A", trackName: "", unnamedIndex: 99 })]);
     assignUnnamedIndices(data);
-    expect(data.clips[0]!.clip.unnamedIndex).toBe(99);
+    expect(data.clips[0]?.clip.unnamedIndex).toBe(99);
   });
 
   it("counts only unnamed clips; named clips don't bump the sequence", () => {

@@ -7,7 +7,10 @@
     "test": "vitest run",
     "format": "biome format --write src",
     "format:check": "biome format src",
-    "check": "npm run typecheck && npm run format:check && npm test",
+    "lint": "biome lint src",
+    "lint:fix": "biome lint --write src",
+    "fix": "biome check --write src",
+    "check": "npm run typecheck && npm run format:check && npm run lint && npm test",
     "package": "npm run build:prod && node ../../extensions-sdk/package.cjs ."
   },
   "dependencies": {

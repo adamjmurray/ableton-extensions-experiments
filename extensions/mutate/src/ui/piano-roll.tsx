@@ -33,7 +33,14 @@ export function PianoRoll({
   const rowHeight = height / pitchRange;
 
   return (
-    <svg class="piano-roll" width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+    <svg
+      class="piano-roll"
+      width={width}
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
+      role="img"
+    >
+      <title>Piano roll preview</title>
       <g opacity={dimmed ? 0.3 : 1}>
         {notes.map((n, i) => {
           const x = ((n.startTime - bounds.start) / span) * width;

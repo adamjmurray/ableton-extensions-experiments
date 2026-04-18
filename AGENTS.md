@@ -68,10 +68,17 @@ Valid scopes for `context.ui.registerContextMenuAction()`:
 - Tests use vitest with `@ableton/extensions-sdk/testing` for mocking
 - Run with `vitest run` or `npm test`
 
-### Formatting
-- Biome formats all source under `src/`. Config lives per-extension in `biome.json`.
+### Formatting & linting
+- Biome handles both formatting and linting. Config lives per-extension in `biome.json`.
 - `npm run format` auto-fixes; `npm run format:check` reports without writing.
-- `npm run check` runs `format:check` as a gate — run `npm run format` before finishing a task.
+- `npm run lint` runs linter; `npm run lint:fix` applies safe auto-fixes.
+- `npm run fix` is the one-shot: runs both format + safe lint fixes (`biome check --write`).
+  **Agents: prefer `npm run fix` over `npm run format` before finishing a task** — it's strictly
+  more thorough and equally safe (Biome only applies fixes marked `safe`).
+- `npm run check` gates on format, lint, and tests.
+- File/function length limits (`noExcessiveLinesPerFile`, `noExcessiveLinesPerFunction`) are set
+  **just above current ceilings** and ratchet downward: when you shrink a file or function below
+  the current `maxLines`, drop `maxLines` to the new ceiling in the same PR.
 
 ### Running in Developer Mode
 1. Open Live > Settings > Extensions > click DeveloperMode

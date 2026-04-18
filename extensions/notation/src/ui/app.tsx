@@ -1,16 +1,16 @@
-import { render } from "preact";
-import { useState, useEffect, useRef, useCallback } from "preact/hooks";
 import { OpenSheetMusicDisplay } from "opensheetmusicdisplay";
+import { render } from "preact";
+import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import {
-  getNotationData,
+  type ClipData,
   closeDialog,
   exportFile,
+  getNotationData,
   type NotationData,
-  type ClipData,
 } from "./bridge.js";
-import { quantizeNotes, type QuantizeGrid } from "./quantize.js";
-import { notesToMusicXML, sortClipsForScore, type SortMode } from "./musicxml.js";
+import { notesToMusicXML, type SortMode, sortClipsForScore } from "./musicxml.js";
 import { assignUnnamedIndices, buildFullPartName, truncatePartName } from "./part-name.js";
+import { type QuantizeGrid, quantizeNotes } from "./quantize.js";
 
 const GRIDS: { value: QuantizeGrid; label: string }[] = [
   { value: "16th", label: "16th" },
@@ -265,7 +265,7 @@ function App() {
       <div class="app app-empty">
         <div class="empty-state">
           <div class="empty-message">{emptyStateMessage}</div>
-          <button class="btn-close empty-close" onClick={closeDialog}>
+          <button type="button" class="btn-close empty-close" onClick={closeDialog}>
             Close
           </button>
         </div>
@@ -280,6 +280,7 @@ function App() {
           <div class="btn-group">
             {GRIDS.map((g) => (
               <button
+                type="button"
                 key={g.value}
                 class={grid === g.value ? "active" : ""}
                 onClick={() => setGrid(g.value)}
@@ -294,6 +295,7 @@ function App() {
         <div class="toolbar-group">
           <div class="btn-group">
             <button
+              type="button"
               class={legato ? "active" : ""}
               onClick={() => setLegato((v) => !v)}
               title="Extend notes to fill gaps (remove rests)"
@@ -301,6 +303,7 @@ function App() {
               Legato
             </button>
             <button
+              type="button"
               class={showTempo ? "active" : ""}
               onClick={() => setShowTempo((v) => !v)}
               title={`Show tempo marking (${Math.round(data.current.tempo)} BPM)`}
@@ -309,6 +312,7 @@ function App() {
             </button>
             {hasDrumClip && (
               <button
+                type="button"
                 class={drumHeads ? "active" : ""}
                 onClick={() => setDrumHeads((v) => !v)}
                 title="Render drum-rack clips with x noteheads"
@@ -324,6 +328,7 @@ function App() {
             <div class="btn-group">
               {SORT_MODES.map((m) => (
                 <button
+                  type="button"
                   key={m.value}
                   class={sortMode === m.value ? "active" : ""}
                   onClick={() => setSortMode(m.value)}
@@ -365,6 +370,7 @@ function App() {
         <div class="toolbar-group">
           <div class="btn-group">
             <button
+              type="button"
               class={view === "notation" ? "active" : ""}
               onClick={() => setView("notation")}
               title="Show notation"
@@ -372,6 +378,7 @@ function App() {
               Notation
             </button>
             <button
+              type="button"
               class={view === "xml" ? "active" : ""}
               onClick={() => setView("xml")}
               title="Show MusicXML source"
@@ -384,20 +391,35 @@ function App() {
         <div class="toolbar-group toolbar-right">
           {view === "notation" && (
             <>
-              <button class="btn-export" onClick={handleExportSVG} title="Export as SVG">
+              <button
+                type="button"
+                class="btn-export"
+                onClick={handleExportSVG}
+                title="Export as SVG"
+              >
                 &#8599; SVG
               </button>
-              <button class="btn-export" onClick={handleExportPNG} title="Export as PNG">
+              <button
+                type="button"
+                class="btn-export"
+                onClick={handleExportPNG}
+                title="Export as PNG"
+              >
                 &#8599; PNG
               </button>
             </>
           )}
           {view === "xml" && (
-            <button class="btn-export" onClick={handleExportXML} title="Export as MusicXML">
+            <button
+              type="button"
+              class="btn-export"
+              onClick={handleExportXML}
+              title="Export as MusicXML"
+            >
               &#8599; XML
             </button>
           )}
-          <button class="btn-close" onClick={closeDialog} title="Close">
+          <button type="button" class="btn-close" onClick={closeDialog} title="Close">
             &#10005;
           </button>
         </div>
@@ -407,6 +429,7 @@ function App() {
         <div class="error-banner" role="alert">
           <span class="error-banner-message">{errorBanner}</span>
           <button
+            type="button"
             class="error-banner-dismiss"
             onClick={() => setErrorBanner(undefined)}
             title="Dismiss"

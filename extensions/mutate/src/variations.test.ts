@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { deriveSeed2D, mulberry32 } from "./rng.js";
 import type { ClipBounds, Note } from "./transforms.js";
-import { generateVariations, ZERO_CONTROLS, type MutateControls } from "./variations.js";
+import { generateVariations, type MutateControls, ZERO_CONTROLS } from "./variations.js";
 
 function note(pitch: number, startTime = 0, duration = 1, velocity = 80): Note {
   return { pitch, startTime, duration, velocity };

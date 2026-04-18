@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { nextMutateLaneIndex } from "./apply.js";
 import { deriveSeed, deriveSeed2D, mulberry32 } from "./rng.js";
-import { generateVariations, ZERO_CONTROLS } from "./variations.js";
 import type { ClipBounds, Note } from "./transforms.js";
+import { generateVariations, ZERO_CONTROLS } from "./variations.js";
 
 // Shape-matching stand-in for MidiTrack<"0.0.5">. `nextMutateLaneIndex`
 // only reads `.takeLanes[].name`, so a minimal object is enough.

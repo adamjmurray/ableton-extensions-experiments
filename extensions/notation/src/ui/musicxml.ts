@@ -1,4 +1,4 @@
-import type { NoteData, ClipData } from "./bridge.js";
+import type { ClipData, NoteData } from "./bridge.js";
 import { buildFullPartName, truncatePartName } from "./part-name.js";
 
 // MusicXML <divisions> value — how many units one quarter note is split into.
@@ -775,10 +775,10 @@ function renderVoiceElements(
   }
 
   for (let i = 0; i < noteElements.length; i++) {
-    if (!noteElements[i]!.triplet) continue;
+    if (!noteElements[i]?.triplet) continue;
 
     let j = i;
-    while (j < noteElements.length && noteElements[j]!.triplet) j++;
+    while (j < noteElements.length && noteElements[j]?.triplet) j++;
     const runLength = j - i;
 
     for (let g = 0; g < runLength; g += 3) {
@@ -809,10 +809,10 @@ function injectTuplet(noteXml: string, type: "start" | "stop"): string {
       : `          <tuplet type="stop" number="1"/>\n`;
 
   if (noteXml.includes("</notations>")) {
-    return noteXml.replace("</notations>", tupletEl + `        </notations>`);
+    return noteXml.replace("</notations>", `${tupletEl}        </notations>`);
   }
   const notationsBlock = `        <notations>\n${tupletEl}        </notations>\n`;
-  return noteXml.replace("      </note>", notationsBlock + `      </note>`);
+  return noteXml.replace("      </note>", `${notationsBlock}      </note>`);
 }
 
 function buildScore(parts: { id: string; name: string; measures: string[] }[]): string {

@@ -8,8 +8,8 @@
 // ./notation.html — that module only exists as a build-time virtual
 // produced by esbuild's ui-html plugin.
 
-import { describe, expect, it, vi } from "vitest";
 import { TestHarness } from "@ableton/extensions-sdk/testing";
+import { describe, expect, it, vi } from "vitest";
 
 vi.mock("./dialog.js", () => ({
   showNotationDialog: vi.fn(async () => {}),

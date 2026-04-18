@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { getClipRenderRegion, notesToMusicXML, sortClipsForScore } from "./musicxml.js";
 import type { ClipData, NoteData } from "./bridge.js";
+import { getClipRenderRegion, notesToMusicXML, sortClipsForScore } from "./musicxml.js";
 
 function note(pitch: number, startTime: number, duration: number, velocity = 100): NoteData {
   return { pitch, startTime, duration, velocity };
@@ -301,13 +301,13 @@ describe("notesToMusicXML", () => {
 
     // Part B's first two measures should be whole-measure leading rests.
     const firstTwoB =
-      parts[1]!.match(
+      parts[1]?.match(
         /<measure number="1">[\s\S]*?<\/measure>\s*<measure number="2">[\s\S]*?<\/measure>/,
       )?.[0] ?? "";
     expect(firstTwoB.match(/<rest measure="yes"\/>/g)?.length).toBe(2);
 
     // Part A's content is in measure 1; measures 2-3 are trailing rests.
-    const firstMeasureA = parts[0]!.match(/<measure number="1">[\s\S]*?<\/measure>/)?.[0] ?? "";
+    const firstMeasureA = parts[0]?.match(/<measure number="1">[\s\S]*?<\/measure>/)?.[0] ?? "";
     expect(firstMeasureA).toMatch(/<pitch>\s*<step>C<\/step>/);
   });
 

@@ -3,15 +3,14 @@
 // dialog). Errors from file writes or the `open` command are surfaced to the
 // next iteration via an errorMessage banner in the payload.
 
-import * as fs from "node:fs";
-import * as path from "node:path";
-import * as os from "node:os";
 import { execFile } from "node:child_process";
-
-import notationInterface from "./notation.html";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import type { ClipInfo } from "./clip-utils.js";
 import { escapeDialogPayload } from "./escape.js";
 import { sanitizeFilename } from "./filename.js";
+import notationInterface from "./notation.html";
 
 // initialize<"0.0.5">'s return type — the bound ExtensionContext shape. We
 // only need a thin surface here, but naming it as an inline type keeps the

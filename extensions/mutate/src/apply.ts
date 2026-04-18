@@ -4,8 +4,8 @@ import type {
   MidiTrack,
   NoteDescription,
 } from "@ableton/extensions-sdk";
-import type { ClipBounds, Note } from "./transforms.js";
 import { deriveSeed, deriveSeed2D } from "./rng.js";
+import type { ClipBounds, Note } from "./transforms.js";
 import { generateVariations, type MutateControls } from "./variations.js";
 
 export type SessionSource = {
