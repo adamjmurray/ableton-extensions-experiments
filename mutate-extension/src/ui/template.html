@@ -135,16 +135,21 @@
     .controls-grid .field {
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: 6px;
     }
-    .controls-grid .field-label {
+    .controls-grid .header {
       font-size: 10px;
       color: var(--text-dim);
       text-transform: uppercase;
       letter-spacing: 0.5px;
+      text-align: center;
+    }
+    .controls-grid input[type="range"] {
+      width: 110px;
+      accent-color: var(--text-dim);
     }
     .controls-grid input[type="number"] {
-      width: 60px;
+      width: 52px;
       padding: 3px 6px;
       background: var(--input-bg);
       color: var(--text);

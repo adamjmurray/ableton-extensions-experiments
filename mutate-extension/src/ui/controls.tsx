@@ -3,52 +3,125 @@ import type { MutateControls } from "../variations.js";
 
 type ControlKey = keyof MutateControls;
 
-const ROWS: { key: ControlKey; label: string; step: number }[] = [
-  { key: "velocity", label: "Velocity", step: 1 },
-  { key: "start", label: "Start", step: 0.05 },
-  { key: "duration", label: "Duration", step: 0.05 },
-  { key: "probability", label: "Probability", step: 0.05 },
-  { key: "drop", label: "Drop", step: 0.05 },
-  { key: "swap", label: "Swap", step: 0.05 },
+type RowConfig = {
+  key: ControlKey;
+  label: string;
+  numberStep: number;
+  sliderStep: number;
+  offsetMin: number;
+  offsetMax: number;
+  rangeMax: number;
+};
+
+const ROWS: RowConfig[] = [
+  {
+    key: "velocity",
+    label: "Velocity",
+    numberStep: 1,
+    sliderStep: 1,
+    offsetMin: -127,
+    offsetMax: 127,
+    rangeMax: 127,
+  },
+  {
+    key: "start",
+    label: "Start",
+    numberStep: 0.05,
+    sliderStep: 0.01,
+    offsetMin: -1,
+    offsetMax: 1,
+    rangeMax: 1,
+  },
+  {
+    key: "duration",
+    label: "Duration",
+    numberStep: 0.05,
+    sliderStep: 0.01,
+    offsetMin: -1,
+    offsetMax: 1,
+    rangeMax: 1,
+  },
+  {
+    key: "probability",
+    label: "Probability",
+    numberStep: 0.05,
+    sliderStep: 0.01,
+    offsetMin: -1,
+    offsetMax: 1,
+    rangeMax: 1,
+  },
+  {
+    key: "drop",
+    label: "Drop",
+    numberStep: 0.05,
+    sliderStep: 0.01,
+    offsetMin: 0,
+    offsetMax: 1,
+    rangeMax: 1,
+  },
+  {
+    key: "swap",
+    label: "Swap",
+    numberStep: 0.05,
+    sliderStep: 0.01,
+    offsetMin: 0,
+    offsetMax: 1,
+    rangeMax: 1,
+  },
 ];
 
+function SliderField({
+  value,
+  min,
+  max,
+  sliderStep,
+  numberStep,
+  onChange,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  sliderStep: number;
+  numberStep: number;
+  onChange: (next: number) => void;
+}) {
+  const handle = (e: Event) => onChange(Number((e.target as HTMLInputElement).value));
+  return (
+    <div class="field">
+      <input type="range" min={min} max={max} step={sliderStep} value={value} onInput={handle} />
+      <input type="number" step={numberStep} min={min} max={max} value={value} onInput={handle} />
+    </div>
+  );
+}
+
 function OffsetRangeRow({
-  label,
-  step,
+  row,
   value,
   onChange,
 }: {
-  label: string;
-  step: number;
+  row: RowConfig;
   value: ControlRange;
   onChange: (next: ControlRange) => void;
 }) {
   return (
     <>
-      <div class="row-label">{label}</div>
-      <div class="field">
-        <span class="field-label">off</span>
-        <input
-          type="number"
-          step={step}
-          value={value.offset}
-          onInput={(e) =>
-            onChange({ ...value, offset: Number((e.target as HTMLInputElement).value) })
-          }
-        />
-      </div>
-      <div class="field">
-        <span class="field-label">rng</span>
-        <input
-          type="number"
-          step={step}
-          min={0}
-          value={value.range}
-          onInput={(e) =>
-            onChange({ ...value, range: Number((e.target as HTMLInputElement).value) })
-          }
-        />
-      </div>
+      <div class="row-label">{row.label}</div>
+      <SliderField
+        value={value.offset}
+        min={row.offsetMin}
+        max={row.offsetMax}
+        sliderStep={row.sliderStep}
+        numberStep={row.numberStep}
+        onChange={(offset) => onChange({ ...value, offset })}
+      />
+      <SliderField
+        value={value.range}
+        min={0}
+        max={row.rangeMax}
+        sliderStep={row.sliderStep}
+        numberStep={row.numberStep}
+        onChange={(range) => onChange({ ...value, range })}
+      />
     </>
   );
 }
@@ -62,11 +135,13 @@ export function ControlsGrid({
 }) {
   return (
     <div class="controls-grid">
+      <div />
+      <div class="header">Offset</div>
+      <div class="header">Random Range</div>
       {ROWS.map((row) => (
         <OffsetRangeRow
           key={row.key}
-          label={row.label}
-          step={row.step}
+          row={row}
           value={controls[row.key]}
           onChange={(next) => onChange({ ...controls, [row.key]: next })}
         />
