@@ -51,7 +51,11 @@ async function main() {
     bundle: true,
     format: "cjs",
     minify: production,
-    sourcemap: !production,
+    // Always ship a sourcemap — external .map during dev (so browsers /
+    // Node map stack traces automatically) and inline for production, so
+    // the single distributed .cjs in the .ablx stays self-contained and
+    // user-reported stack traces remain decodable.
+    sourcemap: production ? "inline" : true,
     sourcesContent: false,
     platform: "node",
     external: ["@ableton/extensions-sdk"],
