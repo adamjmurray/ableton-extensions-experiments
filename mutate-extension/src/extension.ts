@@ -20,6 +20,7 @@ import {
 import { clipBoundsFor, clipOverlapsRange, coerceNote } from "./helpers.js";
 import mutateDialogHtml from "./mutate-dialog.html";
 import { mulberry32, type Rng } from "./rng.js";
+import { handleTrackArrangementDialog, handleTrackSessionDialog } from "./track-handlers.js";
 import { dropNotes, type Note, swapNotes, transformVelocity } from "./transforms.js";
 import type { DialogPayload, DialogResult } from "./ui/bridge.js";
 
@@ -168,6 +169,16 @@ export function activate(activation: ActivationContext) {
     (arg: unknown) => void handleRangeDialog(arg, deps),
   );
 
+  context.commands.registerCommand(
+    "mutate.trackSessionDialog",
+    (arg: unknown) => void handleTrackSessionDialog(arg, deps),
+  );
+
+  context.commands.registerCommand(
+    "mutate.trackArrangementDialog",
+    (arg: unknown) => void handleTrackArrangementDialog(arg, deps),
+  );
+
   // -------------------------------------------------------------------
   // Quick actions — registered on MidiClip, ClipSlotSelection, and
   // MidiTrack.ArrangementSelection. One command id per action works on
@@ -207,6 +218,12 @@ export function activate(activation: ActivationContext) {
     "mutate.rangeDialog",
   );
   context.ui.registerContextMenuAction("Scene", "Scene...", "mutate.sceneDialog");
+  context.ui.registerContextMenuAction("MidiTrack", "Track (Session)", "mutate.trackSessionDialog");
+  context.ui.registerContextMenuAction(
+    "MidiTrack",
+    "Track (Arrangement)",
+    "mutate.trackArrangementDialog",
+  );
 
   // ClipSlotSelection covers the single-clip case too (Live always wraps a
   // right-clicked clip in a selection of size 1), so registering on MidiClip

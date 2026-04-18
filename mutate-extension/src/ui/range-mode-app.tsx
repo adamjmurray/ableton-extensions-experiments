@@ -51,8 +51,8 @@ export function RangeModeApp({ data }: { data: RangeModePayload }) {
       <div class="toolbar">
         <span class="title">Mutate</span>
         <span class="subtitle">
-          Range {data.timeStart.toFixed(2)} – {data.timeEnd.toFixed(2)} · {cols} track
-          {cols === 1 ? "" : "s"} · {data.totalClipCount} MIDI clip
+          {data.scopeLabel ?? `Range ${data.timeStart.toFixed(2)} – ${data.timeEnd.toFixed(2)}`} ·{" "}
+          {cols} track{cols === 1 ? "" : "s"} · {data.totalClipCount} MIDI clip
           {data.totalClipCount === 1 ? "" : "s"}
         </span>
         <div class="toolbar-right">

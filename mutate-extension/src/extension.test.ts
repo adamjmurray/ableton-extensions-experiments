@@ -40,7 +40,6 @@ describe("activate", () => {
       "Randomize Velocity",
       "Swap Notes",
     ]);
-    // Drums entries were removed before v0.0.1 — make sure they stay gone.
-    expect(titlesByScope("MidiTrack")).toEqual([]);
+    expect(titlesByScope("MidiTrack")).toEqual(["Track (Arrangement)", "Track (Session)"]);
   });
 });

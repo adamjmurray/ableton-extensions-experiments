@@ -40,7 +40,10 @@ export type DialogDeps = {
   describeArrangementSource: (clip: MidiClip<"0.0.5">) => ArrangementSource | null;
 };
 
-async function openArrangementClipDialog(clip: MidiClip<"0.0.5">, deps: DialogDeps): Promise<void> {
+export async function openArrangementClipDialog(
+  clip: MidiClip<"0.0.5">,
+  deps: DialogDeps,
+): Promise<void> {
   const { context, showMutateDialog, describeArrangementSource } = deps;
   const source = describeArrangementSource(clip);
   if (!source) {

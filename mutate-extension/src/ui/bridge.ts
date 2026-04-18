@@ -68,6 +68,9 @@ export type RangeModePayload = {
   timeEnd: number;
   totalClipCount: number;
   tracks: RangeTrackSummary[]; // one entry per track with at least one source clip
+  // Overrides the default "Range X – Y" toolbar subtitle. Used by the
+  // whole-track entry point so the user sees "Track: <name>" instead.
+  scopeLabel?: string;
 };
 
 export type SessionMultiSourceSummary = {
