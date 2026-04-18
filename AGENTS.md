@@ -68,6 +68,11 @@ Valid scopes for `context.ui.registerContextMenuAction()`:
 - Tests use vitest with `@ableton/extensions-sdk/testing` for mocking
 - Run with `vitest run` or `npm test`
 
+### Formatting
+- Biome formats all source under `src/`. Config lives per-extension in `biome.json`.
+- `npm run format` auto-fixes; `npm run format:check` reports without writing.
+- `npm run check` runs `format:check` as a gate — run `npm run format` before finishing a task.
+
 ### Running in Developer Mode
 1. Open Live > Settings > Extensions > click DeveloperMode
 2. Run `npm run dev` (or `npm run dev -- path/to/extension`)
