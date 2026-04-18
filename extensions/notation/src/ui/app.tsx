@@ -20,13 +20,18 @@ const SORT_MODES: { value: SortMode; label: string; title: string }[] = [
 
 // PNG export renders the SVG onto a canvas at this multiple of its native
 // dimensions so the bitmap stays sharp on retina/high-DPI displays. If the
-// scaled bitmap would exceed PNG_MAX_PIXELS (4 bytes per RGBA pixel), the
-// scale factor is reduced — and ultimately clamped to 1× — to avoid OOM on
+// scaled bitmap would exceed PNG_MAX_PIXELS (4 bytes per RGBA pixel) or
+// PNG_MAX_DIMENSION on either axis, the scale factor is reduced — and
+// ultimately clamped to 1× — to avoid OOM or silent render-to-blank on
 // large multi-part scores.
 const PNG_SCALE_FACTOR = 2;
 // 64 megapixels = ~256 MB at RGBA. Browsers typically cap canvas area
 // somewhere between 16 and 256 MP; this is a conservative ceiling.
 const PNG_MAX_PIXELS = 64 * 1024 * 1024;
+// WKWebView (macOS) and WebView2 (Windows) cap canvas on each axis
+// independently; Safari in particular renders blank above ~8192. Clamp
+// each side under that before total-pixel clamping.
+const PNG_MAX_DIMENSION = 8192;
 
 // SVG → base64 without `unescape` (deprecated). Encodes the UTF-8 bytes
 // via TextEncoder, then base64-encodes the resulting binary string.
@@ -184,13 +189,20 @@ function App() {
     img.onload = () => {
       try {
         // Pick the largest scale (≤ PNG_SCALE_FACTOR) whose bitmap fits in
-        // PNG_MAX_PIXELS, then floor to ≥1 so we always produce something.
+        // both PNG_MAX_PIXELS (total area) and PNG_MAX_DIMENSION (per-axis),
+        // then floor to ≥1 so we always produce something. The per-axis cap
+        // matters for long multi-part scores that fit under the total-pixel
+        // budget but still blow past WebView's width/height limit.
         const native = Math.max(1, img.width * img.height);
-        const maxScale = Math.sqrt(PNG_MAX_PIXELS / native);
-        const scale = Math.max(1, Math.min(PNG_SCALE_FACTOR, maxScale));
+        const areaScale = Math.sqrt(PNG_MAX_PIXELS / native);
+        const dimScale = Math.min(
+          PNG_MAX_DIMENSION / Math.max(1, img.width),
+          PNG_MAX_DIMENSION / Math.max(1, img.height),
+        );
+        const scale = Math.max(1, Math.min(PNG_SCALE_FACTOR, areaScale, dimScale));
         if (scale < PNG_SCALE_FACTOR) {
           console.warn(
-            `PNG export: scaled image would exceed ${PNG_MAX_PIXELS} pixels; reducing scale ${PNG_SCALE_FACTOR}× → ${scale.toFixed(2)}×.`,
+            `PNG export: scaled image would exceed limits (${PNG_MAX_PIXELS}px² or ${PNG_MAX_DIMENSION}px/side); reducing scale ${PNG_SCALE_FACTOR}× → ${scale.toFixed(2)}×.`,
           );
         }
 
