@@ -70,7 +70,22 @@ export type RangeModePayload = {
   tracks: RangeTrackSummary[]; // one entry per track with at least one source clip
 };
 
-export type DialogPayload = ClipModePayload | SceneModePayload | RangeModePayload;
+export type SessionMultiSourceSummary = {
+  trackName: string;
+  clipName: string;
+  noteCount: number;
+};
+
+export type SessionMultiPayload = {
+  mode: "sessionMulti";
+  sources: SessionMultiSourceSummary[];
+};
+
+export type DialogPayload =
+  | ClipModePayload
+  | SceneModePayload
+  | RangeModePayload
+  | SessionMultiPayload;
 
 declare global {
   interface Window {
@@ -94,7 +109,13 @@ const FALLBACK_PAYLOAD: ClipModePayload = {
 export function getMutateData(): DialogPayload {
   try {
     const parsed = JSON.parse(window.__MUTATE_DATA__ || "{}") as DialogPayload;
-    if (parsed && (parsed.mode === "clip" || parsed.mode === "scene" || parsed.mode === "range")) {
+    if (
+      parsed &&
+      (parsed.mode === "clip" ||
+        parsed.mode === "scene" ||
+        parsed.mode === "range" ||
+        parsed.mode === "sessionMulti")
+    ) {
       return parsed;
     }
     return FALLBACK_PAYLOAD;

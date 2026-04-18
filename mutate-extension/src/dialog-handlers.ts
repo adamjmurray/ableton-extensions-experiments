@@ -20,6 +20,7 @@ import {
   type SessionSource,
 } from "./apply.js";
 import { clipBoundsFor, clipOverlapsRange, coerceNote } from "./helpers.js";
+import { handleSessionMultiClip } from "./session-multi-handler.js";
 import type {
   ClipModeArrangementPayload,
   ClipModeSessionPayload,
@@ -90,9 +91,7 @@ export async function handleClipDialog(arg: unknown, deps: DialogDeps): Promise<
     return;
   }
   if (clips.length !== 1) {
-    console.log(
-      `Mutate: Clip(s)... needs exactly one MIDI clip (got ${clips.length}); multi-clip mode TBD`,
-    );
+    await handleSessionMultiClip(clips, deps);
     return;
   }
   const sourceClip = clips[0]!;

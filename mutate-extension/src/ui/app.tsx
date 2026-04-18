@@ -3,11 +3,13 @@ import { getMutateData } from "./bridge.js";
 import { ClipModeApp } from "./clip-mode-app.js";
 import { RangeModeApp } from "./range-mode-app.js";
 import { SceneModeApp } from "./scene-mode-app.js";
+import { SessionMultiApp } from "./session-multi-app.js";
 
 function App() {
   const data = getMutateData();
   if (data.mode === "scene") return <SceneModeApp data={data} />;
   if (data.mode === "range") return <RangeModeApp data={data} />;
+  if (data.mode === "sessionMulti") return <SessionMultiApp data={data} />;
   return <ClipModeApp data={data} />;
 }
 

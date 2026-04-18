@@ -60,7 +60,24 @@ export type RangeSource = {
   clips: RangeSourceClip[]; // flat, ordered by (trackIndex, startTime)
 };
 
-export type ApplySource = SessionSource | SceneSource | ArrangementSource | RangeSource;
+export type SessionMultiSourceClip = {
+  track: MidiTrack<"0.0.5">;
+  clip: MidiClip<"0.0.5">;
+  notes: Note[];
+  bounds: ClipBounds;
+};
+
+export type SessionMultiSource = {
+  kind: "sessionMulti";
+  sources: SessionMultiSourceClip[];
+};
+
+export type ApplySource =
+  | SessionSource
+  | SceneSource
+  | ArrangementSource
+  | RangeSource
+  | SessionMultiSource;
 
 export type FillMode = "skip" | "overwrite";
 
@@ -291,4 +308,24 @@ export async function applyArrangement(
   );
 
   await work;
+}
+
+// Multi-clip in-place mutation for a Session clip-slot selection. No variations,
+// no fan-out — each selected clip is rewritten with a seed derived from its
+// index so the clips mutate independently under shared controls.
+export async function applySessionMulti(
+  context: ExtensionContext<"0.0.5">,
+  source: SessionMultiSource,
+  controls: MutateControls,
+  baseSeed: number,
+): Promise<void> {
+  await context.withinTransaction(() =>
+    (async () => {
+      source.sources.forEach((src, i) => {
+        const seed = deriveSeed2D(baseSeed, i, 0);
+        const notes = mutateOneShot(src.notes, controls, seed, src.bounds);
+        src.clip.notes = notes as NoteDescription[];
+      });
+    })(),
+  );
 }
