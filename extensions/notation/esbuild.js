@@ -6,12 +6,14 @@ const production = process.argv.includes("--production");
 const watch = process.argv.includes("--watch");
 
 async function main() {
-  // Phase 1: Bundle the Preact UI (including OSMD) into a single JS string
+  // Phase 1: Bundle the Preact UI (including OSMD) into a single JS string.
+  // The UI is never minified: OSMD ships already-minified, and our own UI
+  // code is small. Minifying the combined bundle broke the webview bridge
+  // (dialog.show() resolved empty), so we leave it alone.
   const uiResult = await esbuild.build({
     entryPoints: ["src/ui/app.tsx"],
     bundle: true,
     format: "iife",
-    minify: production,
     write: false,
     platform: "browser",
     target: "es2020",

@@ -2,6 +2,7 @@
   "main": "dist/extension.js",
   "scripts": {
     "build": "node esbuild.js",
+    "build:production": "node esbuild.js --production",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "check": "npm run typecheck && npm test"
