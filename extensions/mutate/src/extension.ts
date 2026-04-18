@@ -13,9 +13,7 @@ import {
   type NoteDescription,
 } from "@ableton/extensions-sdk";
 
-import stubInterface from "./stub.html";
 import mutateClipModeHtml from "./mutate-clip-mode.html";
-import { shuffleDrums, type Note as ScaffoldNote } from "./mutations.js";
 import { dropNotes, swapNotes, transformVelocity, type ClipBounds, type Note } from "./transforms.js";
 import { mulberry32, type Rng } from "./rng.js";
 import {
@@ -41,39 +39,10 @@ import type {
   SceneSourceSummary,
 } from "./ui/bridge.js";
 
-type StubDialogMode = "drums";
-
-type MutationFn = (notes: ScaffoldNote[]) => ScaffoldNote[];
-
-interface CloseAction {
-  action: "close";
-}
-
-type StubDialogResult = CloseAction;
-
 export function activate(activation: ActivationContext) {
   const context = initialize(activation, "0.0.5");
 
   console.log("Mutate activated!");
-
-  async function openStubDialog(mode: StubDialogMode) {
-    const payload = JSON.stringify({ mode });
-    const html = stubInterface.replace(
-      "</head>",
-      `<script>window.__MUTATE_DATA__='${payload.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}';</script></head>`,
-    );
-    const dataUrl = `data:text/html,${encodeURIComponent(html)}`;
-    try {
-      const dialog = context.createModalDialog();
-      const resultStr = await dialog.show(dataUrl, 480, 240);
-      const result: StubDialogResult = JSON.parse(resultStr);
-      if (result.action !== "close") {
-        console.log(`Mutate: unexpected dialog result for ${mode}:`, resultStr);
-      }
-    } catch (e) {
-      console.error(`Mutate dialog error (${mode}):`, e);
-    }
-  }
 
   function escapePayload(payload: string): string {
     return payload
@@ -156,24 +125,6 @@ export function activate(activation: ActivationContext) {
   }
 
 
-  function readClipNotes(clip: MidiClip<"0.0.5">): ScaffoldNote[] {
-    return clip.notes.map((n) => ({
-      pitch: Number(n.pitch),
-      startTime: Number(n.startTime),
-      duration: Number(n.duration),
-      velocity: Number(n.velocity ?? 64),
-    }));
-  }
-
-  function applyToClip(clip: MidiClip<"0.0.5">, fn: MutationFn, label: string) {
-    const before = readClipNotes(clip);
-    const after = fn(before);
-    clip.notes = after;
-    console.log(
-      `Mutate: ${label} on clip "${String(clip.name)}" — ${before.length} → ${after.length} notes`,
-    );
-  }
-
   function collectMidiClipsFromArg(arg: unknown): MidiClip<"0.0.5">[] {
     if (!arg || typeof arg !== "object") return [];
 
@@ -213,7 +164,7 @@ export function activate(activation: ActivationContext) {
   function runQuickAction(
     arg: unknown,
     label: string,
-    transform: (notes: ScaffoldNote[], rng: Rng) => ScaffoldNote[],
+    transform: (notes: Note[], rng: Rng) => Note[],
   ) {
     const clips = collectMidiClipsFromArg(arg);
     if (clips.length === 0) {
@@ -223,7 +174,7 @@ export function activate(activation: ActivationContext) {
     const rng = mulberry32(Date.now() >>> 0);
     context.withinTransaction(() => {
       for (const clip of clips) {
-        clip.notes = transform(clip.notes as ScaffoldNote[], rng);
+        clip.notes = transform(clip.notes as Note[], rng);
       }
     });
     console.log(`Mutate: ${label} — applied to ${clips.length} clip(s)`);
@@ -562,36 +513,6 @@ export function activate(activation: ActivationContext) {
   );
 
   // -------------------------------------------------------------------
-  // MidiTrack scope
-  // -------------------------------------------------------------------
-
-  context.commands.registerCommand(
-    "mutate.drumsDialog",
-    (arg: unknown) =>
-      void (async (_handle: Handle) => {
-        await openStubDialog("drums");
-      })(arg as Handle),
-  );
-
-  context.commands.registerCommand(
-    "mutate.shuffleDrums",
-    (arg: unknown) => {
-      const track = context.objects.getObjectFromHandle(arg as Handle, MidiTrack);
-      // Apply per session clip on the track. Real shuffleDrums is still a stub
-      // (see mutations.ts) — this just exercises the wiring.
-      let touched = 0;
-      for (const slot of track.clipSlots) {
-        const clip = slot.clip;
-        if (clip instanceof MidiClip) {
-          applyToClip(clip, shuffleDrums, "Shuffle Drums");
-          touched++;
-        }
-      }
-      console.log(`Mutate: Shuffle Drums — applied to ${touched} clip(s) on track`);
-    },
-  );
-
-  // -------------------------------------------------------------------
   // Context menu wiring
   // -------------------------------------------------------------------
 
@@ -613,7 +534,4 @@ export function activate(activation: ActivationContext) {
     context.ui.registerContextMenuAction(scope, "Swap Notes", "mutate.quick.swapNotes");
     context.ui.registerContextMenuAction(scope, "Delete 10%", "mutate.quick.deleteTenPercent");
   }
-
-  context.ui.registerContextMenuAction("MidiTrack", "Drums...", "mutate.drumsDialog");
-  context.ui.registerContextMenuAction("MidiTrack", "Shuffle Drums", "mutate.shuffleDrums");
 }
