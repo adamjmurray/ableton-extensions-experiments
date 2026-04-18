@@ -33,7 +33,17 @@ export type SceneSource = {
   sources: SceneSourceClip[];
 };
 
-export type ApplySource = SessionSource | SceneSource;
+export type ArrangementSource = {
+  kind: "arrangement";
+  track: MidiTrack<"0.0.5">;
+  clip: MidiClip<"0.0.5">;
+  startTime: number;
+  duration: number;
+  notes: Note[];
+  bounds: ClipBounds;
+};
+
+export type ApplySource = SessionSource | SceneSource | ArrangementSource;
 
 export type FillMode = "skip" | "overwrite";
 
@@ -152,3 +162,35 @@ export async function applyScene(
   await work;
 }
 
+export async function applyArrangement(
+  context: ExtensionContext<"0.0.5">,
+  source: ArrangementSource,
+  controls: MutateControls,
+  variations: number,
+  baseSeed: number,
+  mutateSource: boolean,
+): Promise<void> {
+  const work = context.withinTransaction(() =>
+    (async () => {
+      if (mutateSource) {
+        const seed = deriveSeed(baseSeed, 0);
+        const notes = mutateOneShot(source.notes, controls, seed, source.bounds);
+        source.clip.notes = notes as NoteDescription[];
+      }
+
+      // Create N new take lanes in parallel; each gets one variation.
+      // "Mutate N" names are 1-indexed relative to this invocation.
+      const laneTasks = Array.from({ length: variations }, async (_, i) => {
+        const seed = deriveSeed(baseSeed, i + 1);
+        const notes = mutateOneShot(source.notes, controls, seed, source.bounds);
+        const lane = await source.track.createTakeLane();
+        lane.name = `Mutate ${i + 1}`;
+        const created = await lane.createMidiClip(source.startTime, source.duration);
+        created.notes = notes as NoteDescription[];
+      });
+      await Promise.all(laneTasks);
+    })(),
+  );
+
+  await work;
+}

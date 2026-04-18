@@ -5,6 +5,7 @@ import {
   MidiClip,
   MidiTrack,
   Scene,
+  TakeLane,
   type ActivationContext,
   type ArrangementSelection,
   type ClipSlotSelection,
@@ -17,7 +18,14 @@ import mutateClipModeHtml from "./mutate-clip-mode.html";
 import { shuffleDrums, type Note as ScaffoldNote } from "./mutations.js";
 import { dropNotes, swapNotes, transformVelocity, type ClipBounds, type Note } from "./transforms.js";
 import { mulberry32, type Rng } from "./rng.js";
-import { applyScene, applySession, type SceneSource, type SceneSourceClip, type SessionSource } from "./apply.js";
+import {
+  applyScene,
+  applySession,
+  type ArrangementSource,
+  type SceneSource,
+  type SceneSourceClip,
+  type SessionSource,
+} from "./apply.js";
 import type {
   ClipModePayload,
   DialogPayload,
@@ -118,6 +126,30 @@ export function activate(activation: ActivationContext) {
       bounds: clipBoundsFor(clip),
     };
   }
+
+  // Walks up from a clip that lives in the arrangement. Parent is either the
+  // MidiTrack directly, or a TakeLane whose parent is the MidiTrack.
+  // Not yet wired to a command — AJM-197 arrangement branch and AJM-205 range
+  // mode will consume this.
+  function describeArrangementSource(clip: MidiClip<"0.0.5">): ArrangementSource | null {
+    let parent = clip.parent;
+    if (parent instanceof TakeLane) parent = parent.parent;
+    if (!(parent instanceof MidiTrack)) return null;
+    const startTime = Number(clip.startTime);
+    const endTime = Number(clip.endTime);
+    return {
+      kind: "arrangement",
+      track: parent,
+      clip,
+      startTime,
+      duration: endTime - startTime,
+      notes: clip.notes.map(coerceNote),
+      bounds: clipBoundsFor(clip),
+    };
+  }
+
+  // Silence "declared but never read" until AJM-197 arrangement + AJM-205 wire it up.
+  void describeArrangementSource;
 
   function readClipNotes(clip: MidiClip<"0.0.5">): ScaffoldNote[] {
     return clip.notes.map((n) => ({
