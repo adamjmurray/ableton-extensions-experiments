@@ -20,7 +20,7 @@
       "complexity": {
         "noExcessiveLinesPerFunction": {
           "level": "error",
-          "options": { "maxLines": 410 }
+          "options": { "maxLines": 245 }
         }
       },
       "nursery": {
@@ -30,5 +30,17 @@
         }
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["**/*.test.ts", "**/*.test.tsx"],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "noExcessiveLinesPerFunction": "off"
+          }
+        }
+      }
+    }
+  ]
 }
