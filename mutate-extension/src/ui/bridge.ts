@@ -70,6 +70,10 @@ export type RangeModePayload = {
 export type SessionMultiPayload = {
   mode: "sessionMulti";
   preview: PreviewClip[];
+  // True when the selection has more than one clip on at least one track.
+  // In that case variations are disabled (per-track fan-down would have to
+  // pick which source clip "owns" the slots below).
+  multiplePerTrack?: boolean;
 };
 
 export type DialogPayload =

@@ -62,9 +62,11 @@ export type RangeSource = {
 
 export type SessionMultiSourceClip = {
   track: MidiTrack<"0.0.5">;
+  slotIndex: number;
   clip: MidiClip<"0.0.5">;
   notes: Note[];
   bounds: ClipBounds;
+  duration: number;
 };
 
 export type SessionMultiSource = {
@@ -102,7 +104,7 @@ export function nextMutateLaneIndex(track: MidiTrack<"0.0.5">): number {
 // and loop settings are NOT preserved — the alpha SDK exposes no setters
 // for MidiClip.startMarker/endMarker/looping/loopStart/loopEnd, and
 // createMidiClip takes only a length.
-function applyClipMetadata(
+export function applyClipMetadata(
   created: MidiClip<"0.0.5">,
   source: MidiClip<"0.0.5">,
   variationNumber: number,
@@ -136,7 +138,7 @@ function mutateOneShot(
 // (mutateSource ? 1 : 0) + variations, seeded from chainBaseSeed. The first
 // step becomes the in-place result (if enabled) and each subsequent step
 // mutates the previous output.
-function computeSourceOutputs(
+export function computeSourceOutputs(
   notes: Note[],
   controls: MutateControls,
   bounds: ClipBounds,
@@ -460,20 +462,6 @@ export async function applyArrangement(
   });
 }
 
-// Multi-clip in-place mutation for a Session clip-slot selection. No variations,
-// no fan-out — each selected clip is rewritten with a seed derived from its
-// index so the clips mutate independently under shared controls.
-export async function applySessionMulti(
-  context: ExtensionContext<"0.0.5">,
-  source: SessionMultiSource,
-  controls: MutateControls,
-  baseSeed: number,
-): Promise<void> {
-  context.withinTransaction(() => {
-    source.sources.forEach((src, i) => {
-      const seed = deriveSeed2D(baseSeed, i, 0);
-      const notes = mutateOneShot(src.notes, controls, seed, src.bounds);
-      src.clip.notes = notes as NoteDescription[];
-    });
-  });
-}
+// applySessionMulti lives in ./apply-session-multi.ts to keep this file under
+// the per-file line ceiling. Re-export for existing callers.
+export { applySessionMulti } from "./apply-session-multi.js";

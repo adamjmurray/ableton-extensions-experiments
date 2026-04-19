@@ -32,7 +32,14 @@ export async function handleTrackSessionDialog(arg: unknown, deps: DialogDeps): 
     if (!(clip instanceof MidiClip)) continue;
     const notes = clip.notes.map(coerceNote);
     const bounds = clipBoundsFor(clip);
-    sourceClips.push({ track, clip, notes, bounds });
+    sourceClips.push({
+      track,
+      slotIndex: si,
+      clip,
+      notes,
+      bounds,
+      duration: Number(clip.loopEnd),
+    });
     const slotsBelow = slots.slice(si + 1).map((s) => s.clip !== null);
     preview.push({
       trackName,
@@ -47,7 +54,9 @@ export async function handleTrackSessionDialog(arg: unknown, deps: DialogDeps): 
 
   if (sourceClips.length === 0) return;
 
-  const payload: SessionMultiPayload = { mode: "sessionMulti", preview };
+  // Track (Session) is by definition many clips on one track — variations are
+  // disabled, same rationale as multi-clip selections that hit the same track.
+  const payload: SessionMultiPayload = { mode: "sessionMulti", preview, multiplePerTrack: true };
   let result: DialogResult;
   try {
     result = await showMutateDialog(payload);
@@ -59,7 +68,16 @@ export async function handleTrackSessionDialog(arg: unknown, deps: DialogDeps): 
 
   const source: SessionMultiSource = { kind: "sessionMulti", sources: sourceClips };
   try {
-    await applySessionMulti(context, source, result.controls, result.baseSeed);
+    await applySessionMulti(
+      context,
+      source,
+      result.controls,
+      0, // Track (Session) never produces variations
+      result.baseSeed,
+      result.fillMode,
+      result.mutateSource,
+      result.variationMode,
+    );
   } catch (e) {
     console.error("Mutate: applySessionMulti failed:", e);
   }
