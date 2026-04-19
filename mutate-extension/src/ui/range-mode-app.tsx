@@ -7,7 +7,7 @@ import {
   ZERO_CONTROLS,
 } from "../variations.js";
 import { applyMutations, closeDialog, MAX_VARIATIONS, type RangeModePayload } from "./bridge.js";
-import { ControlsGrid } from "./controls.js";
+import { ControlsGrid, VariationCountInput } from "./controls.js";
 
 export function RangeModeApp({ data }: { data: RangeModePayload }) {
   const [controls, setControls] = useState<MutateControls>(ZERO_CONTROLS);
@@ -86,22 +86,7 @@ export function RangeModeApp({ data }: { data: RangeModePayload }) {
           </div>
           <div>
             <div class="section-label">Variations</div>
-            <div class="field">
-              <input
-                type="number"
-                min={0}
-                max={MAX_VARIATIONS}
-                step={1}
-                value={variations}
-                onInput={(e) => {
-                  const n = Math.max(
-                    0,
-                    Math.min(MAX_VARIATIONS, Number((e.target as HTMLInputElement).value) | 0),
-                  );
-                  setVariations(n);
-                }}
-              />
-            </div>
+            <VariationCountInput value={variations} max={MAX_VARIATIONS} onChange={setVariations} />
           </div>
           {variations > 0 && (
             <div>

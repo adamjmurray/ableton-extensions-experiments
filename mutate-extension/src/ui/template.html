@@ -197,6 +197,53 @@
       font-family: inherit;
       font-size: 11px;
     }
+    .stepper {
+      display: inline-flex;
+      align-items: stretch;
+      gap: 0;
+    }
+    .stepper input[type="number"] {
+      width: 44px;
+      padding: 3px 6px;
+      background: var(--input-bg);
+      color: var(--text);
+      border: 1px solid var(--border-dim);
+      border-right: none;
+      border-radius: 2px 0 0 2px;
+      font-family: inherit;
+      font-size: 11px;
+      -moz-appearance: textfield;
+      appearance: textfield;
+    }
+    .stepper input[type="number"]::-webkit-inner-spin-button,
+    .stepper input[type="number"]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    .stepper-buttons {
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--border-dim);
+      border-radius: 0 2px 2px 0;
+      overflow: hidden;
+    }
+    .stepper-btn {
+      width: 16px;
+      height: 11px;
+      padding: 0;
+      font-size: 7px;
+      line-height: 1;
+      background: var(--surface);
+      color: var(--text-dim);
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .stepper-btn:first-child { border-bottom: 1px solid var(--border-dim); }
+    .stepper-btn:hover:not(:disabled) { background: var(--surface-hover); color: var(--text); }
+    .stepper-btn:disabled { opacity: 0.4; cursor: default; }
 
     .hint {
       font-size: 9px;
@@ -236,6 +283,14 @@
       grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
       gap: 10px;
       align-content: start;
+    }
+    .previews-truncated {
+      grid-column: 1 / -1;
+      font-size: 10px;
+      color: var(--text-dim);
+      text-align: center;
+      padding: 6px 0;
+      font-style: italic;
     }
     .variation {
       background: var(--panel);

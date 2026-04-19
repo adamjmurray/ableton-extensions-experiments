@@ -1,5 +1,88 @@
+import { useEffect, useState } from "preact/hooks";
 import type { ControlRange } from "../control.js";
 import type { MutateControls } from "../variations.js";
+
+export function VariationCountInput({
+  value,
+  min = 0,
+  max,
+  onChange,
+}: {
+  value: number;
+  min?: number;
+  max: number;
+  onChange: (next: number) => void;
+}) {
+  const [text, setText] = useState(String(value));
+  const [overMax, setOverMax] = useState(false);
+
+  useEffect(() => {
+    setText(String(value));
+    setOverMax(false);
+  }, [value]);
+
+  const clamp = (n: number) => Math.max(min, Math.min(max, n));
+  const commit = (n: number) => {
+    const c = clamp(n);
+    setOverMax(false);
+    setText(String(c));
+    if (c !== value) onChange(c);
+  };
+
+  return (
+    <>
+      <div class="stepper">
+        <input
+          type="number"
+          min={min}
+          max={max}
+          step={1}
+          value={text}
+          onInput={(e) => {
+            const raw = (e.target as HTMLInputElement).value;
+            setText(raw);
+            if (raw === "") {
+              setOverMax(false);
+              return;
+            }
+            const parsed = Number(raw) | 0;
+            if (Number.isFinite(parsed)) {
+              setOverMax(parsed > max || parsed < min);
+              const c = clamp(parsed);
+              if (c !== value) onChange(c);
+            }
+          }}
+          onBlur={(e) => {
+            const raw = (e.target as HTMLInputElement).value;
+            const parsed = raw === "" ? min : Number(raw) | 0;
+            commit(Number.isFinite(parsed) ? parsed : min);
+          }}
+        />
+        <div class="stepper-buttons">
+          <button
+            type="button"
+            class="stepper-btn"
+            aria-label="Increment"
+            disabled={value >= max}
+            onClick={() => commit(value + 1)}
+          >
+            ▲
+          </button>
+          <button
+            type="button"
+            class="stepper-btn"
+            aria-label="Decrement"
+            disabled={value <= min}
+            onClick={() => commit(value - 1)}
+          >
+            ▼
+          </button>
+        </div>
+      </div>
+      {overMax && <div class="hint warn">Max is {max}</div>}
+    </>
+  );
+}
 
 type RangeRowConfig = {
   key: "velocity" | "start" | "duration" | "probability";

@@ -10,13 +10,14 @@ import {
   ZERO_CONTROLS,
 } from "../variations.js";
 import { applyMutations, type ClipModePayload, closeDialog, MAX_VARIATIONS } from "./bridge.js";
-import { ControlsGrid } from "./controls.js";
+import { ControlsGrid, VariationCountInput } from "./controls.js";
 import { PianoRoll } from "./piano-roll.js";
 
 const SOURCE_WIDTH = 1160;
 const SOURCE_HEIGHT = 140;
 const THUMB_WIDTH = 224;
 const THUMB_HEIGHT = 100;
+const MAX_VISIBLE_PREVIEWS = 16;
 
 export function ClipModeApp({ data }: { data: ClipModePayload }) {
   const [controls, setControls] = useState<MutateControls>(ZERO_CONTROLS);
@@ -131,22 +132,7 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
           </div>
           <div>
             <div class="section-label">Variations</div>
-            <div class="field">
-              <input
-                type="number"
-                min={0}
-                max={MAX_VARIATIONS}
-                step={1}
-                value={variations}
-                onInput={(e) => {
-                  const n = Math.max(
-                    0,
-                    Math.min(MAX_VARIATIONS, Number((e.target as HTMLInputElement).value) | 0),
-                  );
-                  setVariations(n);
-                }}
-              />
-            </div>
+            <VariationCountInput value={variations} max={MAX_VARIATIONS} onChange={setVariations} />
             {!isArrangement && variations > data.availableSlotsBelow && (
               <div class="hint">
                 {variations - data.availableSlotsBelow} new scene
@@ -216,7 +202,7 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
             />
           </div>
         )}
-        {variationNotes.map((notes, i) => {
+        {variationNotes.slice(0, MAX_VISIBLE_PREVIEWS).map((notes, i) => {
           if (data.branch === "arrangement") {
             return (
               <div key={i} class="variation">
@@ -261,6 +247,12 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
             </div>
           );
         })}
+        {variationNotes.length > MAX_VISIBLE_PREVIEWS && (
+          <div class="previews-truncated">
+            ({variationNotes.length - MAX_VISIBLE_PREVIEWS} clip preview
+            {variationNotes.length - MAX_VISIBLE_PREVIEWS === 1 ? "" : "s"} not shown)
+          </div>
+        )}
       </div>
     </div>
   );
