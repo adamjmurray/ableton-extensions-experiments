@@ -44,9 +44,7 @@ export function SessionMultiApp({ data }: { data: SessionMultiPayload }) {
           {trackCount === 1 ? "" : "s"}
         </span>
         <div class="toolbar-right">
-          {!hasMutation && (
-            <span class="hint">Adjust an Offset or Random Range to enable Apply</span>
-          )}
+          {!hasMutation && <span class="hint">Adjust a control to enable Apply</span>}
           <button type="button" class="btn" onClick={() => closeDialog()}>
             Cancel
           </button>

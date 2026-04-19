@@ -16,8 +16,8 @@ export type MutateControls = {
   start: ControlRange;
   duration: ControlRange;
   probability: ControlRange;
-  drop: ControlRange;
-  swap: ControlRange;
+  drop: number;
+  swap: number;
 };
 
 export const ZERO_CONTROLS: MutateControls = {
@@ -25,12 +25,15 @@ export const ZERO_CONTROLS: MutateControls = {
   start: { offset: 0, range: 0 },
   duration: { offset: 0, range: 0 },
   probability: { offset: 0, range: 0 },
-  drop: { offset: 0, range: 0 },
-  swap: { offset: 0, range: 0 },
+  drop: 0,
+  swap: 0,
 };
 
 export function hasAnyMutation(controls: MutateControls): boolean {
-  return Object.values(controls).some((c) => c.offset !== 0 || c.range !== 0);
+  if (controls.drop !== 0 || controls.swap !== 0) return true;
+  return (["velocity", "start", "duration", "probability"] as const).some(
+    (k) => controls[k].offset !== 0 || controls[k].range !== 0,
+  );
 }
 
 export type VariationMode = "independent" | "cumulative";

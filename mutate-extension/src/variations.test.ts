@@ -19,8 +19,8 @@ const ACTIVE: MutateControls = {
   start: { offset: 0, range: 0.1 },
   duration: { offset: 0, range: 0.1 },
   probability: { offset: 0, range: 0.1 },
-  drop: { offset: 0, range: 0 },
-  swap: { offset: 0, range: 0 },
+  drop: 0,
+  swap: 0,
 };
 
 describe("generateVariations", () => {
@@ -54,7 +54,7 @@ describe("generateVariations", () => {
     const source = [note(60), note(62, 1)];
     const controls: MutateControls = {
       ...ZERO_CONTROLS,
-      drop: { offset: 1, range: 0 },
+      drop: 1,
       velocity: { offset: 100, range: 0 },
     };
     const [v] = generateVariations(source, controls, 1, 7, BOUNDS);

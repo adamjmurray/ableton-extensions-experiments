@@ -182,11 +182,11 @@ export function activate(activation: ActivationContext) {
   );
 
   context.commands.registerCommand("mutate.quick.swapNotes", (arg: unknown) =>
-    runQuickAction(arg, (notes, rng) => swapNotes(notes, { offset: 0.25, range: 0 }, rng)),
+    runQuickAction(arg, (notes, rng) => swapNotes(notes, 0.25, rng)),
   );
 
   context.commands.registerCommand("mutate.quick.deleteTenPercent", (arg: unknown) =>
-    runQuickAction(arg, (notes, rng) => dropNotes(notes, { offset: 0.1, range: 0 }, rng)),
+    runQuickAction(arg, (notes, rng) => dropNotes(notes, 0.1, rng)),
   );
 
   // -------------------------------------------------------------------

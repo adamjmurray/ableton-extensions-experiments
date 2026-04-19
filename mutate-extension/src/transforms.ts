@@ -57,19 +57,32 @@ export function transformProbability(notes: Note[], ctrl: ControlRange, rng: Rng
   }));
 }
 
-// ctrl acts as a drop probability: applyRange + clamp to [0, 1], then roll per note.
-export function dropNotes(notes: Note[], ctrl: ControlRange, rng: Rng): Note[] {
-  return notes.filter(() => {
-    const dropProb = clamp(applyRange(0, ctrl, rng), 0, 1);
-    return rng() >= dropProb;
-  });
+// Drops exactly floor(amount * notes.length) notes, chosen uniformly at random.
+// Surviving notes keep their original order.
+export function dropNotes(notes: Note[], amount: number, rng: Rng): Note[] {
+  const frac = clamp(amount, 0, 1);
+  const dropCount = Math.floor(frac * notes.length);
+  if (dropCount <= 0) return notes.slice();
+  if (dropCount >= notes.length) return [];
+  const indices = notes.map((_, i) => i);
+  for (let i = indices.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    const tmp = indices[i]!;
+    indices[i] = indices[j]!;
+    indices[j] = tmp;
+  }
+  const dropSet = new Set(indices.slice(0, dropCount));
+  return notes.filter((_, i) => !dropSet.has(i));
 }
 
-// Random-pairing pitch swap: Fisher–Yates shuffles indices, then per adjacent
-// pair, roll a swap probability from ctrl and exchange pitches on success.
-// Odd-count input leaves the final shuffled index unpaired.
-export function swapNotes(notes: Note[], ctrl: ControlRange, rng: Rng): Note[] {
+// Shuffles indices into adjacent pairs, then swaps pitches on exactly
+// floor(amount * pairCount) pairs. Odd-count input leaves the final index unpaired.
+export function swapNotes(notes: Note[], amount: number, rng: Rng): Note[] {
   const out = notes.map((n) => ({ ...n }));
+  const frac = clamp(amount, 0, 1);
+  const pairCount = Math.floor(out.length / 2);
+  const swapCount = Math.floor(frac * pairCount);
+  if (swapCount <= 0) return out;
   const indices = out.map((_, i) => i);
   for (let i = indices.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
@@ -77,15 +90,12 @@ export function swapNotes(notes: Note[], ctrl: ControlRange, rng: Rng): Note[] {
     indices[i] = indices[j]!;
     indices[j] = tmp;
   }
-  for (let i = 0; i + 1 < indices.length; i += 2) {
-    const a = indices[i]!;
-    const b = indices[i + 1]!;
-    const swapProb = clamp(applyRange(0, ctrl, rng), 0, 1);
-    if (rng() < swapProb) {
-      const tmpPitch = out[a]!.pitch;
-      out[a]!.pitch = out[b]!.pitch;
-      out[b]!.pitch = tmpPitch;
-    }
+  for (let i = 0; i < swapCount; i++) {
+    const a = indices[i * 2]!;
+    const b = indices[i * 2 + 1]!;
+    const tmpPitch = out[a]!.pitch;
+    out[a]!.pitch = out[b]!.pitch;
+    out[b]!.pitch = tmpPitch;
   }
   return out;
 }

@@ -158,6 +158,20 @@
       font-family: inherit;
       font-size: 11px;
     }
+    .controls-grid .divider {
+      grid-column: 1 / -1;
+      height: 1px;
+      background: var(--border-dim);
+      margin: 4px 0;
+    }
+    .controls-grid .amount-cell {
+      grid-column: 2 / span 2;
+      display: flex;
+      justify-content: center;
+    }
+    .controls-grid .amount-header {
+      grid-column: 2 / span 2;
+    }
 
     .right-pane {
       display: flex;

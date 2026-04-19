@@ -1,10 +1,8 @@
 import type { ControlRange } from "../control.js";
 import type { MutateControls } from "../variations.js";
 
-type ControlKey = keyof MutateControls;
-
-type RowConfig = {
-  key: ControlKey;
+type RangeRowConfig = {
+  key: "velocity" | "start" | "duration" | "probability";
   label: string;
   numberStep: number;
   sliderStep: number;
@@ -13,7 +11,14 @@ type RowConfig = {
   rangeMax: number;
 };
 
-const ROWS: RowConfig[] = [
+type AmountRowConfig = {
+  key: "drop" | "swap";
+  label: string;
+  numberStep: number;
+  sliderStep: number;
+};
+
+const RANGE_ROWS: RangeRowConfig[] = [
   {
     key: "velocity",
     label: "Velocity",
@@ -50,24 +55,11 @@ const ROWS: RowConfig[] = [
     offsetMax: 1,
     rangeMax: 1,
   },
-  {
-    key: "drop",
-    label: "Drop",
-    numberStep: 0.05,
-    sliderStep: 0.01,
-    offsetMin: 0,
-    offsetMax: 1,
-    rangeMax: 1,
-  },
-  {
-    key: "swap",
-    label: "Swap",
-    numberStep: 0.05,
-    sliderStep: 0.01,
-    offsetMin: 0,
-    offsetMax: 1,
-    rangeMax: 1,
-  },
+];
+
+const AMOUNT_ROWS: AmountRowConfig[] = [
+  { key: "drop", label: "Drop", numberStep: 0.05, sliderStep: 0.01 },
+  { key: "swap", label: "Swap", numberStep: 0.05, sliderStep: 0.01 },
 ];
 
 function SliderField({
@@ -99,7 +91,7 @@ function OffsetRangeRow({
   value,
   onChange,
 }: {
-  row: RowConfig;
+  row: RangeRowConfig;
   value: ControlRange;
   onChange: (next: ControlRange) => void;
 }) {
@@ -126,6 +118,32 @@ function OffsetRangeRow({
   );
 }
 
+function AmountRow({
+  row,
+  value,
+  onChange,
+}: {
+  row: AmountRowConfig;
+  value: number;
+  onChange: (next: number) => void;
+}) {
+  return (
+    <>
+      <div class="row-label">{row.label}</div>
+      <div class="amount-cell">
+        <SliderField
+          value={value}
+          min={0}
+          max={1}
+          sliderStep={row.sliderStep}
+          numberStep={row.numberStep}
+          onChange={onChange}
+        />
+      </div>
+    </>
+  );
+}
+
 export function ControlsGrid({
   controls,
   onChange,
@@ -138,8 +156,19 @@ export function ControlsGrid({
       <div />
       <div class="header">Offset</div>
       <div class="header">Random Range</div>
-      {ROWS.map((row) => (
+      {RANGE_ROWS.map((row) => (
         <OffsetRangeRow
+          key={row.key}
+          row={row}
+          value={controls[row.key]}
+          onChange={(next) => onChange({ ...controls, [row.key]: next })}
+        />
+      ))}
+      <div class="divider" />
+      <div />
+      <div class="header amount-header">Amount</div>
+      {AMOUNT_ROWS.map((row) => (
+        <AmountRow
           key={row.key}
           row={row}
           value={controls[row.key]}
