@@ -2,7 +2,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:kb": "node scripts/build-kb.ts",
+    "kb": "node scripts/build-kb.ts",
     "dev": "node scripts/dev.ts"
   },
   "devDependencies": {
