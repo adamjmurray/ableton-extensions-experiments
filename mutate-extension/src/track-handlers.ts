@@ -11,8 +11,8 @@ import { type DialogDeps, openArrangementClipDialog } from "./dialog-handlers.js
 import { clipBoundsFor, coerceNote } from "./helpers.js";
 import type {
   DialogResult,
+  RangeClipSummary,
   RangeModePayload,
-  RangeTrackSummary,
   SessionMultiPayload,
   SessionMultiSourceSummary,
 } from "./ui/bridge.js";
@@ -96,18 +96,21 @@ export async function handleTrackArrangementDialog(arg: unknown, deps: DialogDep
 
   const timeStart = Math.min(...clips.map((c) => c.startTime));
   const timeEnd = Math.max(...clips.map((c) => c.startTime + c.duration));
-  const trackSummary: RangeTrackSummary = {
-    trackIndex: Math.max(0, trackIndex),
-    trackName: String(track.name),
-    clipCount: clips.length,
-  };
+  const trackName = String(track.name);
+  const clipSummaries: RangeClipSummary[] = clips
+    .slice()
+    .sort((a, b) => a.startTime - b.startTime)
+    .map((c) => ({
+      trackName,
+      clipName: String(c.clip.name),
+      noteCount: c.notes.length,
+    }));
 
   const payload: RangeModePayload = {
     mode: "range",
     timeStart,
     timeEnd,
-    totalClipCount: clips.length,
-    tracks: [trackSummary],
+    clips: clipSummaries,
     scopeLabel: `Track: ${track.name}`,
   };
   let result: DialogResult;

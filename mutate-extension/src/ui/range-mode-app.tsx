@@ -8,7 +8,6 @@ import {
 } from "../variations.js";
 import { applyMutations, closeDialog, MAX_VARIATIONS, type RangeModePayload } from "./bridge.js";
 import { ControlsGrid } from "./controls.js";
-import { type CellState, IndicatorGrid } from "./indicator-grid.js";
 
 export function RangeModeApp({ data }: { data: RangeModePayload }) {
   const [controls, setControls] = useState<MutateControls>(ZERO_CONTROLS);
@@ -37,23 +36,9 @@ export function RangeModeApp({ data }: { data: RangeModePayload }) {
     });
   };
 
-  const cols = data.tracks.length;
-  const sourceRowOffset = mutateSource ? 1 : 0;
-  const rows = sourceRowOffset + variations;
-
-  const isSourceRow = (row: number) => mutateSource && row === 0;
-  const variationIndexForRow = (row: number) => row - sourceRowOffset;
-
-  const rowLabelAt = (row: number) => {
-    if (isSourceRow(row)) return "Source (in-place)";
-    return `Mutate ${variationIndexForRow(row) + 1}`;
-  };
-  const colLabelAt = (col: number) => data.tracks[col]?.trackName ?? "";
-
-  const stateAt = (row: number, _col: number): CellState => {
-    if (isSourceRow(row)) return "write-overwrite"; // in-place writes
-    return "write-empty"; // new take lane = always empty
-  };
+  const clipCount = data.clips.length;
+  const trackNames = new Set(data.clips.map((c) => c.trackName));
+  const trackCount = trackNames.size;
 
   return (
     <div class="app">
@@ -61,8 +46,8 @@ export function RangeModeApp({ data }: { data: RangeModePayload }) {
         <span class="title">Mutate</span>
         <span class="subtitle">
           {data.scopeLabel ?? `Range ${data.timeStart.toFixed(2)} – ${data.timeEnd.toFixed(2)}`} ·{" "}
-          {cols} track{cols === 1 ? "" : "s"} · {data.totalClipCount} MIDI clip
-          {data.totalClipCount === 1 ? "" : "s"}
+          {trackCount} track{trackCount === 1 ? "" : "s"} · {clipCount} MIDI clip
+          {clipCount === 1 ? "" : "s"}
         </span>
         <div class="toolbar-right">
           {!hasMutation && <span class="hint">Adjust a control to enable Apply</span>}
@@ -77,11 +62,11 @@ export function RangeModeApp({ data }: { data: RangeModePayload }) {
 
       <div class="scene-header">
         <div class="title-line">
-          {data.totalClipCount} MIDI clip{data.totalClipCount === 1 ? "" : "s"} across {cols} track
-          {cols === 1 ? "" : "s"}
+          {clipCount} MIDI clip{clipCount === 1 ? "" : "s"} across {trackCount} track
+          {trackCount === 1 ? "" : "s"}
         </div>
         <div class="subtitle-line">
-          Take lanes are always additive — new lanes append per track. No fill mode.
+          Take lanes are always additive — variations append new lanes per track.
         </div>
       </div>
 
@@ -145,18 +130,17 @@ export function RangeModeApp({ data }: { data: RangeModePayload }) {
       </div>
 
       <div class="indicator-panel">
-        {cols > 0 && rows > 0 ? (
-          <IndicatorGrid
-            rows={rows}
-            cols={cols}
-            stateAt={stateAt}
-            rowLabelAt={rowLabelAt}
-            colLabelAt={colLabelAt}
-          />
+        {clipCount > 0 ? (
+          <ul style={{ listStyle: "none", padding: 0, margin: 0, color: "var(--text-dim)" }}>
+            {data.clips.map((c, i) => (
+              <li key={i} style={{ padding: "2px 0" }}>
+                {c.trackName} · {c.clipName || "(unnamed clip)"} · {c.noteCount} note
+                {c.noteCount === 1 ? "" : "s"}
+              </li>
+            ))}
+          </ul>
         ) : (
-          <div style={{ color: "var(--text-dim)" }}>
-            {cols === 0 ? "No MIDI clips in this range." : "Nothing to apply."}
-          </div>
+          <div style={{ color: "var(--text-dim)" }}>No MIDI clips in this range.</div>
         )}
       </div>
     </div>

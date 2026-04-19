@@ -26,8 +26,8 @@ import type {
   ClipModeSessionPayload,
   DialogPayload,
   DialogResult,
+  RangeClipSummary,
   RangeModePayload,
-  RangeTrackSummary,
   SceneModePayload,
   SceneSourceSummary,
 } from "./ui/bridge.js";
@@ -253,26 +253,21 @@ export async function handleRangeDialog(arg: unknown, deps: DialogDeps): Promise
     return;
   }
 
-  // Multi-clip: build the range-mode payload grouped by track for the UI summary.
-  const byTrack = new Map<number, { trackName: string; clipCount: number }>();
-  for (const rc of rangeClips) {
-    const existing = byTrack.get(rc.trackIndex);
-    if (existing) {
-      existing.clipCount += 1;
-    } else {
-      byTrack.set(rc.trackIndex, { trackName: String(rc.track.name), clipCount: 1 });
-    }
-  }
-  const trackSummaries: RangeTrackSummary[] = Array.from(byTrack.entries())
-    .sort(([a], [b]) => a - b)
-    .map(([trackIndex, { trackName, clipCount }]) => ({ trackIndex, trackName, clipCount }));
+  // Multi-clip: build a flat per-clip summary list for the UI.
+  const clipSummaries: RangeClipSummary[] = rangeClips
+    .slice()
+    .sort((a, b) => a.trackIndex - b.trackIndex || a.startTime - b.startTime)
+    .map((rc) => ({
+      trackName: String(rc.track.name),
+      clipName: String(rc.clip.name),
+      noteCount: rc.notes.length,
+    }));
 
   const payload: RangeModePayload = {
     mode: "range",
     timeStart,
     timeEnd,
-    totalClipCount: rangeClips.length,
-    tracks: trackSummaries,
+    clips: clipSummaries,
   };
 
   let result: DialogResult;

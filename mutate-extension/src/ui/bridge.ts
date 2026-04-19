@@ -57,18 +57,17 @@ export type SceneModePayload = {
   sources: SceneSourceSummary[];
 };
 
-export type RangeTrackSummary = {
-  trackIndex: number;
+export type RangeClipSummary = {
   trackName: string;
-  clipCount: number; // number of source MIDI clips on this track that are in the range
+  clipName: string;
+  noteCount: number;
 };
 
 export type RangeModePayload = {
   mode: "range";
   timeStart: number;
   timeEnd: number;
-  totalClipCount: number;
-  tracks: RangeTrackSummary[]; // one entry per track with at least one source clip
+  clips: RangeClipSummary[]; // one entry per source MIDI clip in the range
   // Overrides the default "Range X – Y" toolbar subtitle. Used by the
   // whole-track entry point so the user sees "Track: <name>" instead.
   scopeLabel?: string;
