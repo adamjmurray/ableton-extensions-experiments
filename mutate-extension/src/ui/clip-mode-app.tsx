@@ -91,7 +91,11 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
           {isArrangement ? " · Arrangement" : ""}
         </span>
         <div class="toolbar-right">
-          {!hasMutation && <span class="hint">Adjust a control to enable Apply</span>}
+          {!hasMutation ? (
+            <span class="hint">Adjust a control to enable Apply</span>
+          ) : !mutateSource && variations === 0 ? (
+            <span class="hint">Mutate this clip or generate variations to apply</span>
+          ) : null}
           <button type="button" class="btn" onClick={() => closeDialog()}>
             Cancel
           </button>
