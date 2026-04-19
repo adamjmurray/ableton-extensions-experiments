@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import { freshSeed, type MutateControls, ZERO_CONTROLS } from "../variations.js";
+import { freshSeed, hasAnyMutation, type MutateControls, ZERO_CONTROLS } from "../variations.js";
 import { applyMutations, closeDialog, type SessionMultiPayload } from "./bridge.js";
 import { ControlsGrid } from "./controls.js";
 
@@ -15,7 +15,11 @@ export function SessionMultiApp({ data }: { data: SessionMultiPayload }) {
     setBaseSeed(freshSeed());
   }, [controls]);
 
+  const hasMutation = hasAnyMutation(controls);
+  const canApply = hasMutation;
+
   const handleApply = () => {
+    if (!canApply) return;
     applyMutations({
       action: "apply",
       controls,
@@ -39,10 +43,13 @@ export function SessionMultiApp({ data }: { data: SessionMultiPayload }) {
           {trackCount === 1 ? "" : "s"}
         </span>
         <div class="toolbar-right">
+          {!hasMutation && (
+            <span class="hint">Adjust an Offset or Random Range to enable Apply</span>
+          )}
           <button type="button" class="btn" onClick={() => closeDialog()}>
             Cancel
           </button>
-          <button type="button" class="btn primary" onClick={handleApply}>
+          <button type="button" class="btn primary" onClick={handleApply} disabled={!canApply}>
             Apply
           </button>
         </div>
@@ -51,8 +58,8 @@ export function SessionMultiApp({ data }: { data: SessionMultiPayload }) {
       <div class="scene-header">
         <div class="title-line">Mutate these clips in place</div>
         <div class="subtitle-line">
-          Shared controls, independent seeds per clip. Select a single clip or scene to generate
-          variations.
+          Shared controls, each clip mutates independently. Select a single clip or scene to
+          generate variations.
         </div>
       </div>
 

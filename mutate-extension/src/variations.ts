@@ -29,6 +29,10 @@ export const ZERO_CONTROLS: MutateControls = {
   swap: { offset: 0, range: 0 },
 };
 
+export function hasAnyMutation(controls: MutateControls): boolean {
+  return Object.values(controls).some((c) => c.offset !== 0 || c.range !== 0);
+}
+
 // Order: drop → swap → start → duration → velocity → probability.
 function mutateOnce(notes: Note[], controls: MutateControls, rng: Rng, bounds: ClipBounds): Note[] {
   notes = dropNotes(notes, controls.drop, rng);

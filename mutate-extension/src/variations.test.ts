@@ -1,7 +1,12 @@
 import { describe, expect, test } from "vitest";
 import { deriveSeed2D, mulberry32 } from "./rng.js";
 import type { ClipBounds, Note } from "./transforms.js";
-import { generateVariations, type MutateControls, ZERO_CONTROLS } from "./variations.js";
+import {
+  generateVariations,
+  hasAnyMutation,
+  type MutateControls,
+  ZERO_CONTROLS,
+} from "./variations.js";
 
 function note(pitch: number, startTime = 0, duration = 1, velocity = 80): Note {
   return { pitch, startTime, duration, velocity };
@@ -81,5 +86,23 @@ describe("generateVariations", () => {
     }
     const values = Array.from(firstDraws.values());
     expect(new Set(values).size).toBe(values.length);
+  });
+});
+
+describe("hasAnyMutation", () => {
+  test("returns false when all controls are zero", () => {
+    expect(hasAnyMutation(ZERO_CONTROLS)).toBe(false);
+  });
+
+  test("returns true when any range is non-zero", () => {
+    expect(hasAnyMutation(ACTIVE)).toBe(true);
+  });
+
+  test("returns true when only an offset is non-zero", () => {
+    const controls: MutateControls = {
+      ...ZERO_CONTROLS,
+      velocity: { offset: 5, range: 0 },
+    };
+    expect(hasAnyMutation(controls)).toBe(true);
   });
 });

@@ -4,6 +4,7 @@ import { deriveSeed } from "../rng.js";
 import {
   freshSeed,
   generateVariations,
+  hasAnyMutation,
   type MutateControls,
   ZERO_CONTROLS,
 } from "../variations.js";
@@ -56,7 +57,8 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
     [data, controls, variations, baseSeed],
   );
 
-  const canApply = mutateSource || variations > 0;
+  const hasMutation = hasAnyMutation(controls);
+  const canApply = (mutateSource || variations > 0) && hasMutation;
   const isArrangement = data.branch === "arrangement";
   const varLabel = isArrangement ? "Mutate" : "Var";
 
@@ -82,6 +84,9 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
           {isArrangement ? " · Arrangement" : ""}
         </span>
         <div class="toolbar-right">
+          {!hasMutation && (
+            <span class="hint">Adjust an Offset or Random Range to enable Apply</span>
+          )}
           <button type="button" class="btn" onClick={() => closeDialog()}>
             Cancel
           </button>

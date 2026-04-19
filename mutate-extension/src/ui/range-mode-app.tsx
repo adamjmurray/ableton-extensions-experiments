@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import { freshSeed, type MutateControls, ZERO_CONTROLS } from "../variations.js";
+import { freshSeed, hasAnyMutation, type MutateControls, ZERO_CONTROLS } from "../variations.js";
 import { applyMutations, closeDialog, MAX_VARIATIONS, type RangeModePayload } from "./bridge.js";
 import { ControlsGrid } from "./controls.js";
 import { type CellState, IndicatorGrid } from "./indicator-grid.js";
@@ -14,7 +14,8 @@ export function RangeModeApp({ data }: { data: RangeModePayload }) {
     setBaseSeed(freshSeed());
   }, [controls, variations]);
 
-  const canApply = mutateSource || variations > 0;
+  const hasMutation = hasAnyMutation(controls);
+  const canApply = (mutateSource || variations > 0) && hasMutation;
 
   const handleApply = () => {
     if (!canApply) return;
@@ -56,6 +57,9 @@ export function RangeModeApp({ data }: { data: RangeModePayload }) {
           {data.totalClipCount === 1 ? "" : "s"}
         </span>
         <div class="toolbar-right">
+          {!hasMutation && (
+            <span class="hint">Adjust an Offset or Random Range to enable Apply</span>
+          )}
           <button type="button" class="btn" onClick={() => closeDialog()}>
             Cancel
           </button>
