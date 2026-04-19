@@ -17,11 +17,11 @@ export function activate(activation: ActivationContext) {
     const track = context.objects.getObjectFromHandle(arg as Handle, MidiTrack);
     const result = findTopLevelDrumPads(track);
     if (!result) {
-      console.log("Shuffle Drums: no top-level drum rack on this track");
+      console.log("Swap Simplers in Drum Rack: no top-level drum rack on this track");
       return;
     }
     if (result.pads.length < 2) {
-      console.log("Shuffle Drums: need at least 2 pads with samples to shuffle");
+      console.log("Swap Simplers in Drum Rack: need at least 2 pads with samples to swap");
       return;
     }
     const rng = mulberry32(Date.now() >>> 0);
@@ -34,5 +34,5 @@ export function activate(activation: ActivationContext) {
     });
   });
 
-  context.ui.registerContextMenuAction("MidiTrack", "Shuffle Drums", "drumShuffle.shuffle");
+  context.ui.registerContextMenuAction("MidiTrack", "Swap Simplers in Drum Rack", "drumShuffle.shuffle");
 }
