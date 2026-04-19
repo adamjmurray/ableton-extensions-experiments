@@ -222,16 +222,28 @@ function SliderField({
   numberStep: number;
   onChange: (next: number) => void;
 }) {
+  const bipolar = min < 0;
+  const pct = ((value - min) / (max - min)) * 100;
+  const clampedPct = Math.max(0, Math.min(100, pct));
+  const fromPct = bipolar ? Math.min(50, clampedPct) : 0;
+  const toPct = bipolar ? Math.max(50, clampedPct) : clampedPct;
+  const sliderStyle = {
+    "--fill-from": `${fromPct}%`,
+    "--fill-to": `${toPct}%`,
+  } as Record<string, string>;
   return (
     <div class="field">
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={sliderStep}
-        value={value}
-        onInput={(e) => onChange(Number((e.target as HTMLInputElement).value))}
-      />
+      <div class={`slider${bipolar ? " slider--bipolar" : ""}`} style={sliderStyle}>
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={sliderStep}
+          value={value}
+          onInput={(e) => onChange(Number((e.target as HTMLInputElement).value))}
+        />
+        {bipolar && <span class="slider-notch" />}
+      </div>
       <NumberField
         value={value}
         min={min}
