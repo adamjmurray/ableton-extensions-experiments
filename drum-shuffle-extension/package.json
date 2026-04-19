@@ -1,0 +1,25 @@
+{
+  "main": "dist/extension.cjs",
+  "scripts": {
+    "build": "node esbuild.js",
+    "build:prod": "node esbuild.js --production",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "format": "biome format --write src",
+    "format:check": "biome format src",
+    "lint": "biome lint src",
+    "lint:fix": "biome lint --write src",
+    "fix": "biome check --write src",
+    "check": "npm run typecheck && npm run format:check && npm run lint && npm test",
+    "package": "npm run build:prod && node ../extensions-sdk/package.cjs ."
+  },
+  "dependencies": {
+    "@ableton/extensions-sdk": "file:../extensions-sdk"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.12",
+    "esbuild": "^0.25.10",
+    "typescript": "^5.6.3",
+    "vitest": "^4.1.4"
+  }
+}
