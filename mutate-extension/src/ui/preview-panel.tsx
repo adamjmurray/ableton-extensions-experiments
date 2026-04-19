@@ -22,6 +22,7 @@ export function PreviewPanel({
   baseSeed,
   fillMode,
   branch,
+  onReroll,
 }: {
   clips: PreviewClip[];
   activeIndex: number;
@@ -33,6 +34,7 @@ export function PreviewPanel({
   baseSeed: number;
   fillMode: FillMode;
   branch: "session" | "arrangement";
+  onReroll: () => void;
 }) {
   const total = clips.length;
   const safeIndex = Math.min(Math.max(0, activeIndex), Math.max(0, total - 1));
@@ -119,6 +121,16 @@ export function PreviewPanel({
             </button>
           </div>
         )}
+        <button
+          type="button"
+          class="btn small reroll"
+          aria-label="Reroll random seed"
+          title="Reroll random seed"
+          onClick={onReroll}
+        >
+          <span class="reroll-label">Reroll</span>
+          <span class="reroll-die">🎲</span>
+        </button>
         <div class="preview-clip-name">
           {active.trackName}
           {active.clipName ? ` · ${active.clipName}` : ""}

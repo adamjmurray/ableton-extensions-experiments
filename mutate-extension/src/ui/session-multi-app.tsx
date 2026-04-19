@@ -70,6 +70,7 @@ export function SessionMultiApp({ data }: { data: SessionMultiPayload }) {
         baseSeed={baseSeed}
         fillMode="skip"
         branch="session"
+        onReroll={() => setBaseSeed(freshSeed())}
       />
     </div>
   );

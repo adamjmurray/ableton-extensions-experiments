@@ -142,6 +142,7 @@ export function SceneModeApp({ data }: { data: SceneModePayload }) {
         baseSeed={baseSeed}
         fillMode={fillMode}
         branch="session"
+        onReroll={() => setBaseSeed(freshSeed())}
       />
     </div>
   );

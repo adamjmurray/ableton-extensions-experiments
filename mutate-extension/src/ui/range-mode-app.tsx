@@ -116,6 +116,7 @@ export function RangeModeApp({ data }: { data: RangeModePayload }) {
         baseSeed={baseSeed}
         fillMode="skip"
         branch="arrangement"
+        onReroll={() => setBaseSeed(freshSeed())}
       />
     </div>
   );

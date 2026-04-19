@@ -147,6 +147,7 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
         baseSeed={baseSeed}
         fillMode={fillMode}
         branch={data.branch}
+        onReroll={() => setBaseSeed(freshSeed())}
       />
     </div>
   );
