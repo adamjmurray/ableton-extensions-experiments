@@ -128,6 +128,7 @@ export async function handleTrackArrangementDialog(arg: unknown, deps: DialogDep
       result.variations,
       result.baseSeed,
       result.mutateSource,
+      result.variationMode,
     );
   } catch (e) {
     console.error("Mutate: applyRange failed:", e);

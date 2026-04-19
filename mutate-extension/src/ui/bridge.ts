@@ -1,6 +1,6 @@
 import type { FillMode } from "../apply.js";
 import type { ClipBounds, Note } from "../transforms.js";
-import type { MutateControls } from "../variations.js";
+import type { MutateControls, VariationMode } from "../variations.js";
 
 export const MAX_VARIATIONS = 32;
 
@@ -11,6 +11,7 @@ export type ApplyMessage = {
   baseSeed: number;
   fillMode: FillMode;
   mutateSource: boolean;
+  variationMode: VariationMode;
 };
 
 export type CloseMessage = { action: "close" };

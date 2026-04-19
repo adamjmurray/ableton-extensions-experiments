@@ -6,6 +6,7 @@ import {
   generateVariations,
   hasAnyMutation,
   type MutateControls,
+  type VariationMode,
   ZERO_CONTROLS,
 } from "../variations.js";
 import { applyMutations, type ClipModePayload, closeDialog, MAX_VARIATIONS } from "./bridge.js";
@@ -22,40 +23,45 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
   const [mutateSource, setMutateSource] = useState(true);
   const [variations, setVariations] = useState(0);
   const [fillMode, setFillMode] = useState<FillMode>("skip");
+  const [variationMode, setVariationMode] = useState<VariationMode>("independent");
   const [baseSeed, setBaseSeed] = useState(() => freshSeed());
 
   useEffect(() => {
     setBaseSeed(freshSeed());
   }, [controls, variations]);
 
-  const inPlaceNotes = useMemo(
-    () =>
-      mutateSource
-        ? generateVariations(
-            data.sourceNotes,
-            controls,
-            1,
-            deriveSeed(baseSeed, 0),
-            data.bounds,
-          )[0]!
-        : null,
-    [data, controls, baseSeed, mutateSource],
-  );
-  const variationNotes = useMemo(
-    () =>
-      Array.from(
-        { length: variations },
-        (_, i) =>
-          generateVariations(
-            data.sourceNotes,
-            controls,
-            1,
-            deriveSeed(baseSeed, i + 1),
-            data.bounds,
-          )[0]!,
-      ),
-    [data, controls, variations, baseSeed],
-  );
+  const { inPlaceNotes, variationNotes } = useMemo(() => {
+    if (variationMode === "cumulative") {
+      const total = (mutateSource ? 1 : 0) + variations;
+      const chain = generateVariations(
+        data.sourceNotes,
+        controls,
+        total,
+        baseSeed,
+        data.bounds,
+        "cumulative",
+      );
+      return {
+        inPlaceNotes: mutateSource ? (chain[0] ?? null) : null,
+        variationNotes: mutateSource ? chain.slice(1) : chain,
+      };
+    }
+    const inPlace = mutateSource
+      ? generateVariations(data.sourceNotes, controls, 1, deriveSeed(baseSeed, 0), data.bounds)[0]!
+      : null;
+    const vars = Array.from(
+      { length: variations },
+      (_, i) =>
+        generateVariations(
+          data.sourceNotes,
+          controls,
+          1,
+          deriveSeed(baseSeed, i + 1),
+          data.bounds,
+        )[0]!,
+    );
+    return { inPlaceNotes: inPlace, variationNotes: vars };
+  }, [data, controls, variations, baseSeed, mutateSource, variationMode]);
 
   const hasMutation = hasAnyMutation(controls);
   const canApply = (mutateSource || variations > 0) && hasMutation;
@@ -71,6 +77,7 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
       baseSeed,
       fillMode,
       mutateSource,
+      variationMode,
     });
   };
 
@@ -145,6 +152,29 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
               </div>
             )}
           </div>
+          {variations > 0 && (
+            <div>
+              <div class="section-label">Variation mode</div>
+              <div class="btn-group">
+                <button
+                  type="button"
+                  class={`tab ${variationMode === "independent" ? "active" : ""}`}
+                  onClick={() => setVariationMode("independent")}
+                  title="Each variation mutates the original clip"
+                >
+                  Independent
+                </button>
+                <button
+                  type="button"
+                  class={`tab ${variationMode === "cumulative" ? "active" : ""}`}
+                  onClick={() => setVariationMode("cumulative")}
+                  title="Each variation mutates the previous variation"
+                >
+                  Cumulative
+                </button>
+              </div>
+            </div>
+          )}
           {!isArrangement && (
             <div>
               <div class="section-label">Fill mode</div>

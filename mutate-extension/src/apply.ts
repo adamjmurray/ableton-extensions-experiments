@@ -6,7 +6,7 @@ import type {
 } from "@ableton/extensions-sdk";
 import { deriveSeed, deriveSeed2D } from "./rng.js";
 import type { ClipBounds, Note } from "./transforms.js";
-import { generateVariations, type MutateControls } from "./variations.js";
+import { generateVariations, type MutateControls, type VariationMode } from "./variations.js";
 
 export type SessionSource = {
   kind: "session";
@@ -124,6 +124,44 @@ function mutateOneShot(
   return result!;
 }
 
+// Produces the ordered outputs for one source clip.
+//   inPlace: notes for the in-place rewrite (null when mutateSource is off)
+//   variations: notes for each variation slot, in order
+//
+// Independent mode calls seedForIndex(0) for the in-place mutation and
+// seedForIndex(vi + 1) for each variation — preserving the legacy seed layout
+// so swapping between independent and "mutateSource" on/off doesn't re-roll
+// the variation thumbnails.
+// Cumulative mode chains outputs instead: the chain has length
+// (mutateSource ? 1 : 0) + variations, seeded from chainBaseSeed. The first
+// step becomes the in-place result (if enabled) and each subsequent step
+// mutates the previous output.
+function computeSourceOutputs(
+  notes: Note[],
+  controls: MutateControls,
+  bounds: ClipBounds,
+  mutateSource: boolean,
+  variations: number,
+  mode: VariationMode,
+  chainBaseSeed: number,
+  seedForIndex: (seedIndex: number) => number,
+): { inPlace: Note[] | null; variations: Note[][] } {
+  if (mode === "cumulative") {
+    const total = (mutateSource ? 1 : 0) + variations;
+    const chain = generateVariations(notes, controls, total, chainBaseSeed, bounds, "cumulative");
+    if (mutateSource) {
+      return { inPlace: chain[0] ?? null, variations: chain.slice(1) };
+    }
+    return { inPlace: null, variations: chain };
+  }
+  const inPlace = mutateSource ? mutateOneShot(notes, controls, seedForIndex(0), bounds) : null;
+  const out: Note[][] = [];
+  for (let vi = 0; vi < variations; vi++) {
+    out.push(mutateOneShot(notes, controls, seedForIndex(vi + 1), bounds));
+  }
+  return { inPlace, variations: out };
+}
+
 export async function applySession(
   context: ExtensionContext<"0.0.5">,
   source: SessionSource,
@@ -132,18 +170,28 @@ export async function applySession(
   baseSeed: number,
   fillMode: FillMode,
   mutateSource: boolean,
+  variationMode: VariationMode,
 ): Promise<void> {
   const song = context.application.song;
   const requiredScenes = source.slotIndex + 1 + variations;
+
+  const outputs = computeSourceOutputs(
+    source.notes,
+    controls,
+    source.bounds,
+    mutateSource,
+    variations,
+    variationMode,
+    baseSeed,
+    (i) => deriveSeed(baseSeed, i),
+  );
 
   const work = context.withinTransaction(() =>
     (async () => {
       const tasks: Promise<void>[] = [];
 
-      if (mutateSource) {
-        const seed = deriveSeed(baseSeed, 0);
-        const notes = mutateOneShot(source.notes, controls, seed, source.bounds);
-        source.clip.notes = notes as NoteDescription[];
+      if (outputs.inPlace) {
+        source.clip.notes = outputs.inPlace as NoteDescription[];
       }
 
       while (song.scenes.length < requiredScenes) {
@@ -154,8 +202,7 @@ export async function applySession(
 
       for (let i = 0; i < variations; i++) {
         const slot = slotsBelow[i]!;
-        const seed = deriveSeed(baseSeed, i + 1);
-        const notes = mutateOneShot(source.notes, controls, seed, source.bounds);
+        const notes = outputs.variations[i]!;
         tasks.push(
           (async () => {
             const occupied = slot.clip !== null;
@@ -183,20 +230,32 @@ export async function applyScene(
   baseSeed: number,
   fillMode: FillMode,
   mutateSource: boolean,
+  variationMode: VariationMode,
 ): Promise<void> {
   const song = context.application.song;
   const maxTargetSceneIndex = source.sceneIndex + variations;
 
+  // One independent chain per source clip.
+  const outputsBySource = source.sources.map((src) =>
+    computeSourceOutputs(
+      src.notes,
+      controls,
+      src.bounds,
+      mutateSource,
+      variations,
+      variationMode,
+      deriveSeed2D(baseSeed, src.trackIndex, 0),
+      (i) => deriveSeed2D(baseSeed, src.trackIndex, i),
+    ),
+  );
+
   const work = context.withinTransaction(() =>
     (async () => {
       // Phase 1: in-place source writes + scene creation.
-      if (mutateSource) {
-        for (const src of source.sources) {
-          const seed = deriveSeed2D(baseSeed, src.trackIndex, 0);
-          const notes = mutateOneShot(src.notes, controls, seed, src.bounds);
-          src.clip.notes = notes as NoteDescription[];
-        }
-      }
+      source.sources.forEach((src, si) => {
+        const inPlace = outputsBySource[si]!.inPlace;
+        if (inPlace) src.clip.notes = inPlace as NoteDescription[];
+      });
       while (song.scenes.length <= maxTargetSceneIndex) {
         await song.createScene(song.scenes.length);
       }
@@ -205,11 +264,10 @@ export async function applyScene(
       const writes: Promise<void>[] = [];
       for (let vi = 0; vi < variations; vi++) {
         const targetSceneIndex = source.sceneIndex + 1 + vi;
-        for (const src of source.sources) {
-          const seed = deriveSeed2D(baseSeed, src.trackIndex, vi + 1);
-          const notes = mutateOneShot(src.notes, controls, seed, src.bounds);
+        source.sources.forEach((src, si) => {
+          const notes = outputsBySource[si]!.variations[vi]!;
           const slot = src.track.clipSlots[targetSceneIndex];
-          if (!slot) continue;
+          if (!slot) return;
           writes.push(
             (async () => {
               const occupied = slot.clip !== null;
@@ -220,7 +278,7 @@ export async function applyScene(
               applyClipMetadata(created, src.clip, vi + 1);
             })(),
           );
-        }
+        });
       }
       await Promise.all(writes);
     })(),
@@ -236,6 +294,7 @@ export async function applyRange(
   variations: number,
   baseSeed: number,
   mutateSource: boolean,
+  variationMode: VariationMode,
 ): Promise<void> {
   // Group source clips by trackIndex so we can create N take lanes per track
   // and put one varied clip per source on each lane.
@@ -252,16 +311,26 @@ export async function applyRange(
     }
   });
 
+  // One independent chain per source clip, keyed by its flat sourceIndex.
+  const outputsBySourceIndex = source.clips.map((src, sourceIndex) =>
+    computeSourceOutputs(
+      src.notes,
+      controls,
+      src.bounds,
+      mutateSource,
+      variations,
+      variationMode,
+      deriveSeed2D(baseSeed, sourceIndex, 0),
+      (i) => deriveSeed2D(baseSeed, sourceIndex, i),
+    ),
+  );
+
   const work = context.withinTransaction(() =>
     (async () => {
-      if (mutateSource) {
-        // In-place: each source clip gets seed (sourceIndex, 0).
-        source.clips.forEach((src, sourceIndex) => {
-          const seed = deriveSeed2D(baseSeed, sourceIndex, 0);
-          const notes = mutateOneShot(src.notes, controls, seed, src.bounds);
-          src.clip.notes = notes as NoteDescription[];
-        });
-      }
+      source.clips.forEach((src, sourceIndex) => {
+        const inPlace = outputsBySourceIndex[sourceIndex]!.inPlace;
+        if (inPlace) src.clip.notes = inPlace as NoteDescription[];
+      });
 
       // Per track: create N take lanes in parallel. Within each lane, the
       // per-clip writes also run in parallel since they operate on distinct
@@ -277,8 +346,7 @@ export async function applyRange(
               lane.name = `Mutate ${baseIndex + vi}`;
               await Promise.all(
                 entries.map(async ({ sourceIndex, src }) => {
-                  const seed = deriveSeed2D(baseSeed, sourceIndex, vi + 1);
-                  const notes = mutateOneShot(src.notes, controls, seed, src.bounds);
+                  const notes = outputsBySourceIndex[sourceIndex]!.variations[vi]!;
                   const created = await lane.createMidiClip(src.startTime, src.duration);
                   created.notes = notes as NoteDescription[];
                   applyClipMetadata(created, src.clip, vi + 1);
@@ -302,13 +370,23 @@ export async function applyArrangement(
   variations: number,
   baseSeed: number,
   mutateSource: boolean,
+  variationMode: VariationMode,
 ): Promise<void> {
+  const outputs = computeSourceOutputs(
+    source.notes,
+    controls,
+    source.bounds,
+    mutateSource,
+    variations,
+    variationMode,
+    baseSeed,
+    (i) => deriveSeed(baseSeed, i),
+  );
+
   const work = context.withinTransaction(() =>
     (async () => {
-      if (mutateSource) {
-        const seed = deriveSeed(baseSeed, 0);
-        const notes = mutateOneShot(source.notes, controls, seed, source.bounds);
-        source.clip.notes = notes as NoteDescription[];
+      if (outputs.inPlace) {
+        source.clip.notes = outputs.inPlace as NoteDescription[];
       }
 
       // Create N new take lanes in parallel; each gets one variation.
@@ -316,8 +394,7 @@ export async function applyArrangement(
       // lane on the track so reruns keep ascending.
       const baseIndex = nextMutateLaneIndex(source.track);
       const laneTasks = Array.from({ length: variations }, async (_, i) => {
-        const seed = deriveSeed(baseSeed, i + 1);
-        const notes = mutateOneShot(source.notes, controls, seed, source.bounds);
+        const notes = outputs.variations[i]!;
         const lane = await source.track.createTakeLane();
         lane.name = `Mutate ${baseIndex + i}`;
         const created = await lane.createMidiClip(source.startTime, source.duration);

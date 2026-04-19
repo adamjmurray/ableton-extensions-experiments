@@ -73,6 +73,40 @@ describe("generateVariations", () => {
     expect(source).toEqual(snapshot);
   });
 
+  test("cumulative mode drifts — each step mutates the previous output", () => {
+    const source = [note(60), note(62, 1), note(64, 2), note(65, 3)];
+    const chain = generateVariations(source, ACTIVE, 4, 123, BOUNDS, "cumulative");
+    expect(chain).toHaveLength(4);
+    // Each link must differ from the previous one (active controls guarantee drift).
+    for (let i = 1; i < chain.length; i++) {
+      expect(chain[i]).not.toEqual(chain[i - 1]);
+    }
+    // And must differ from the independent variations for the same seed/count.
+    const indep = generateVariations(source, ACTIVE, 4, 123, BOUNDS, "independent");
+    expect(chain).not.toEqual(indep);
+  });
+
+  test("cumulative mode is deterministic", () => {
+    const source = [note(60), note(62, 1), note(64, 2)];
+    const a = generateVariations(source, ACTIVE, 3, 7, BOUNDS, "cumulative");
+    const b = generateVariations(source, ACTIVE, 3, 7, BOUNDS, "cumulative");
+    expect(a).toEqual(b);
+  });
+
+  test("independent is the default mode", () => {
+    const source = [note(60), note(62, 1), note(64, 2)];
+    const implicit = generateVariations(source, ACTIVE, 3, 42, BOUNDS);
+    const explicit = generateVariations(source, ACTIVE, 3, 42, BOUNDS, "independent");
+    expect(implicit).toEqual(explicit);
+  });
+
+  test("cumulative mode does not mutate the source array", () => {
+    const source = [note(60), note(62, 1)];
+    const snapshot = source.map((n) => ({ ...n }));
+    generateVariations(source, ACTIVE, 3, 1, BOUNDS, "cumulative");
+    expect(source).toEqual(snapshot);
+  });
+
   // Scene-mode seed derivation: deriveSeed2D uses different mixing constants
   // per axis so (t, v) pairs can't collide via XOR commutativity.
   test("scene-mode 2D seed derivation produces distinct streams", () => {

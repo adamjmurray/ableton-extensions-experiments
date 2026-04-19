@@ -1,5 +1,11 @@
 import { useEffect, useState } from "preact/hooks";
-import { freshSeed, hasAnyMutation, type MutateControls, ZERO_CONTROLS } from "../variations.js";
+import {
+  freshSeed,
+  hasAnyMutation,
+  type MutateControls,
+  type VariationMode,
+  ZERO_CONTROLS,
+} from "../variations.js";
 import { applyMutations, closeDialog, MAX_VARIATIONS, type RangeModePayload } from "./bridge.js";
 import { ControlsGrid } from "./controls.js";
 import { type CellState, IndicatorGrid } from "./indicator-grid.js";
@@ -8,6 +14,7 @@ export function RangeModeApp({ data }: { data: RangeModePayload }) {
   const [controls, setControls] = useState<MutateControls>(ZERO_CONTROLS);
   const [mutateSource, setMutateSource] = useState(true);
   const [variations, setVariations] = useState(0);
+  const [variationMode, setVariationMode] = useState<VariationMode>("independent");
   const [baseSeed, setBaseSeed] = useState(() => freshSeed());
 
   useEffect(() => {
@@ -26,6 +33,7 @@ export function RangeModeApp({ data }: { data: RangeModePayload }) {
       baseSeed,
       fillMode: "skip", // unused in range mode; kept in the message shape for uniformity
       mutateSource,
+      variationMode,
     });
   };
 
@@ -112,6 +120,29 @@ export function RangeModeApp({ data }: { data: RangeModePayload }) {
               />
             </div>
           </div>
+          {variations > 0 && (
+            <div>
+              <div class="section-label">Variation mode</div>
+              <div class="btn-group">
+                <button
+                  type="button"
+                  class={`tab ${variationMode === "independent" ? "active" : ""}`}
+                  onClick={() => setVariationMode("independent")}
+                  title="Each variation mutates the original clip"
+                >
+                  Independent
+                </button>
+                <button
+                  type="button"
+                  class={`tab ${variationMode === "cumulative" ? "active" : ""}`}
+                  onClick={() => setVariationMode("cumulative")}
+                  title="Each variation mutates the previous variation"
+                >
+                  Cumulative
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

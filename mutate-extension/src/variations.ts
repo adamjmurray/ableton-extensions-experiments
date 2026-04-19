@@ -33,6 +33,8 @@ export function hasAnyMutation(controls: MutateControls): boolean {
   return Object.values(controls).some((c) => c.offset !== 0 || c.range !== 0);
 }
 
+export type VariationMode = "independent" | "cumulative";
+
 // Order: drop → swap → start → duration → velocity → probability.
 function mutateOnce(notes: Note[], controls: MutateControls, rng: Rng, bounds: ClipBounds): Note[] {
   notes = dropNotes(notes, controls.drop, rng);
@@ -44,13 +46,26 @@ function mutateOnce(notes: Note[], controls: MutateControls, rng: Rng, bounds: C
   return notes;
 }
 
+// In "independent" mode each variation mutates the original source separately.
+// In "cumulative" mode each variation mutates the previous variation's output,
+// producing a drifting chain: source → v0 → v1 → … → v{count-1}.
 export function generateVariations(
   source: Note[],
   controls: MutateControls,
   count: number,
   baseSeed: number,
   bounds: ClipBounds,
+  mode: VariationMode = "independent",
 ): Note[][] {
+  if (mode === "cumulative") {
+    const out: Note[][] = [];
+    let current = source.map((n) => ({ ...n }));
+    for (let i = 0; i < count; i++) {
+      current = mutateOnce(current, controls, mulberry32(deriveSeed(baseSeed, i)), bounds);
+      out.push(current.map((n) => ({ ...n })));
+    }
+    return out;
+  }
   return Array.from({ length: count }, (_, i) =>
     mutateOnce(
       source.map((n) => ({ ...n })),

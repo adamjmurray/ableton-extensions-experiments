@@ -73,6 +73,7 @@ export async function openArrangementClipDialog(
       result.variations,
       result.baseSeed,
       result.mutateSource,
+      result.variationMode,
     );
   } catch (e) {
     console.error("Mutate: applyArrangement failed:", e);
@@ -121,6 +122,7 @@ export async function handleClipDialog(arg: unknown, deps: DialogDeps): Promise<
       result.baseSeed,
       result.fillMode,
       result.mutateSource,
+      result.variationMode,
     );
   } catch (e) {
     console.error("Mutate: applySession failed:", e);
@@ -198,6 +200,7 @@ export async function handleSceneDialog(arg: unknown, deps: DialogDeps): Promise
       result.baseSeed,
       result.fillMode,
       result.mutateSource,
+      result.variationMode,
     );
   } catch (e) {
     console.error("Mutate: applyScene failed:", e);
@@ -295,6 +298,7 @@ export async function handleRangeDialog(arg: unknown, deps: DialogDeps): Promise
       result.variations,
       result.baseSeed,
       result.mutateSource,
+      result.variationMode,
     );
   } catch (e) {
     console.error("Mutate: applyRange failed:", e);

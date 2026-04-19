@@ -27,6 +27,7 @@ export function SessionMultiApp({ data }: { data: SessionMultiPayload }) {
       baseSeed,
       fillMode: "skip", // unused; kept for message shape uniformity
       mutateSource: true,
+      variationMode: "independent", // unused; no variations in this mode
     });
   };
 
