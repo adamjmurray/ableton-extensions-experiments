@@ -26,7 +26,7 @@
       "nursery": {
         "noExcessiveLinesPerFile": {
           "level": "error",
-          "options": { "maxLines": 470 }
+          "options": { "maxLines": 360 }
         }
       }
     }
@@ -38,6 +38,19 @@
         "rules": {
           "complexity": {
             "noExcessiveLinesPerFunction": "off"
+          },
+          "nursery": {
+            "noExcessiveLinesPerFile": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["**/*.html"],
+      "linter": {
+        "rules": {
+          "nursery": {
+            "noExcessiveLinesPerFile": "off"
           }
         }
       }

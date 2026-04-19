@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { nextMutateLaneIndex } from "./apply.js";
+import { computeSourceOutputs, nextMutateLaneIndex } from "./apply.js";
 import { deriveSeed, deriveSeed2D, mulberry32 } from "./rng.js";
 import type { ClipBounds, Note } from "./transforms.js";
 import { generateVariations, ZERO_CONTROLS } from "./variations.js";
@@ -99,5 +99,150 @@ describe("apply.ts seed-indexing convention", () => {
       }
     }
     expect(new Set(firstDraws.values()).size).toBe(firstDraws.size);
+  });
+});
+
+describe("computeSourceOutputs", () => {
+  const BOUNDS: ClipBounds = { start: 0, end: 4 };
+  const SOURCE: Note[] = [
+    { pitch: 60, startTime: 0, duration: 1, velocity: 80 },
+    { pitch: 62, startTime: 1, duration: 1, velocity: 80 },
+    { pitch: 64, startTime: 2, duration: 1, velocity: 80 },
+  ];
+  const CONTROLS = { ...ZERO_CONTROLS, velocity: { offset: 0, range: 20 } };
+  const BASE_SEED = 1234;
+  const seedForIndex = (i: number) => deriveSeed(BASE_SEED, i);
+
+  test("independent mode: mutateSource=true emits inPlace at seed index 0 and variation i at seed index i+1", () => {
+    const result = computeSourceOutputs(
+      SOURCE,
+      CONTROLS,
+      BOUNDS,
+      true,
+      3,
+      "independent",
+      BASE_SEED,
+      seedForIndex,
+    );
+    expect(result.inPlace).not.toBeNull();
+    expect(result.variations).toHaveLength(3);
+
+    const [expectedInPlace] = generateVariations(SOURCE, CONTROLS, 1, seedForIndex(0), BOUNDS);
+    expect(result.inPlace).toEqual(expectedInPlace);
+    for (let i = 0; i < 3; i++) {
+      const [expected] = generateVariations(SOURCE, CONTROLS, 1, seedForIndex(i + 1), BOUNDS);
+      expect(result.variations[i]).toEqual(expected);
+    }
+  });
+
+  test("independent mode: mutateSource=false emits inPlace=null but same variation seeds", () => {
+    const withSource = computeSourceOutputs(
+      SOURCE,
+      CONTROLS,
+      BOUNDS,
+      true,
+      3,
+      "independent",
+      BASE_SEED,
+      seedForIndex,
+    );
+    const withoutSource = computeSourceOutputs(
+      SOURCE,
+      CONTROLS,
+      BOUNDS,
+      false,
+      3,
+      "independent",
+      BASE_SEED,
+      seedForIndex,
+    );
+    expect(withoutSource.inPlace).toBeNull();
+    // The seed-indexing contract: toggling mutateSource must not re-roll any
+    // variation thumbnail. This is the guarantee callers depend on.
+    expect(withoutSource.variations).toEqual(withSource.variations);
+  });
+
+  test("cumulative mode: mutateSource=true returns chain length = 1 + variations, first step = inPlace", () => {
+    const result = computeSourceOutputs(
+      SOURCE,
+      CONTROLS,
+      BOUNDS,
+      true,
+      3,
+      "cumulative",
+      BASE_SEED,
+      seedForIndex,
+    );
+    const chain = generateVariations(SOURCE, CONTROLS, 4, BASE_SEED, BOUNDS, "cumulative");
+    expect(result.inPlace).toEqual(chain[0]);
+    expect(result.variations).toEqual(chain.slice(1));
+    expect(result.variations).toHaveLength(3);
+  });
+
+  test("cumulative mode: mutateSource=false returns chain length = variations, inPlace=null", () => {
+    const result = computeSourceOutputs(
+      SOURCE,
+      CONTROLS,
+      BOUNDS,
+      false,
+      3,
+      "cumulative",
+      BASE_SEED,
+      seedForIndex,
+    );
+    const chain = generateVariations(SOURCE, CONTROLS, 3, BASE_SEED, BOUNDS, "cumulative");
+    expect(result.inPlace).toBeNull();
+    expect(result.variations).toEqual(chain);
+  });
+
+  test("cumulative and independent diverge at the same seed (cumulative compounds)", () => {
+    const independent = computeSourceOutputs(
+      SOURCE,
+      CONTROLS,
+      BOUNDS,
+      false,
+      3,
+      "independent",
+      BASE_SEED,
+      seedForIndex,
+    );
+    const cumulative = computeSourceOutputs(
+      SOURCE,
+      CONTROLS,
+      BOUNDS,
+      false,
+      3,
+      "cumulative",
+      BASE_SEED,
+      seedForIndex,
+    );
+    // Cumulative chains from a single seed through N steps; independent pulls
+    // N different seeds. They should produce different streams.
+    expect(cumulative.variations).not.toEqual(independent.variations);
+  });
+
+  test("variations=0 with mutateSource=false returns empty outputs in both modes", () => {
+    const indep = computeSourceOutputs(
+      SOURCE,
+      CONTROLS,
+      BOUNDS,
+      false,
+      0,
+      "independent",
+      BASE_SEED,
+      seedForIndex,
+    );
+    const cum = computeSourceOutputs(
+      SOURCE,
+      CONTROLS,
+      BOUNDS,
+      false,
+      0,
+      "cumulative",
+      BASE_SEED,
+      seedForIndex,
+    );
+    expect(indep).toEqual({ inPlace: null, variations: [] });
+    expect(cum).toEqual({ inPlace: null, variations: [] });
   });
 });

@@ -1,18 +1,13 @@
 import type { ExtensionContext, NoteDescription } from "@ableton/extensions-sdk";
 import { applyClipMetadata, computeSourceOutputs } from "./apply.js";
-import type { FillMode, SessionMultiSource, SessionMultiSourceClip } from "./apply-types.js";
+import type { FillMode, SceneSource, SceneSourceClip } from "./apply-types.js";
 import { deriveSeed2D } from "./rng.js";
 import type { Note } from "./transforms.js";
 import type { MutateControls, VariationMode } from "./variations.js";
 
-// Multi-clip Session selection. Each source clip mutates independently under
-// shared controls; variations (when requested) fan down into the slots
-// immediately below the source on its own track. Caller must guarantee at
-// most one source per track so the per-track fan-down has unambiguous
-// ownership of the destination slots.
-export async function applySessionMulti(
+export async function applyScene(
   context: ExtensionContext<"0.0.5">,
-  source: SessionMultiSource,
+  source: SceneSource,
   controls: MutateControls,
   variations: number,
   baseSeed: number,
@@ -21,8 +16,10 @@ export async function applySessionMulti(
   variationMode: VariationMode,
 ): Promise<void> {
   const song = context.application.song;
+  const maxTargetSceneIndex = source.sceneIndex + variations;
 
-  const outputsBySource = source.sources.map((src, i) =>
+  // One independent chain per source clip.
+  const outputsBySource = source.sources.map((src) =>
     computeSourceOutputs(
       src.notes,
       controls,
@@ -30,26 +27,16 @@ export async function applySessionMulti(
       mutateSource,
       variations,
       variationMode,
-      deriveSeed2D(baseSeed, i, 0),
-      (k) => deriveSeed2D(baseSeed, i, k),
+      deriveSeed2D(baseSeed, src.trackIndex, 0),
+      (i) => deriveSeed2D(baseSeed, src.trackIndex, i),
     ),
   );
 
-  if (variations === 0) {
-    if (!mutateSource) return;
-    context.withinTransaction(() => {
-      source.sources.forEach((src, i) => {
-        const inPlace = outputsBySource[i]!.inPlace;
-        if (inPlace) src.clip.notes = inPlace as NoteDescription[];
-      });
-    });
-    return;
-  }
-
-  const requiredScenes = Math.max(...source.sources.map((s) => s.slotIndex + 1 + variations));
+  // Phase 1: create missing scenes. In-place notes are written in the final
+  // phase so they group with the variation-notes writes.
   await context.withinTransaction(() => {
     const scenePromises: Promise<unknown>[] = [];
-    for (let idx = song.scenes.length; idx < requiredScenes; idx++) {
+    for (let idx = song.scenes.length; idx <= maxTargetSceneIndex; idx++) {
       scenePromises.push(song.createScene(idx));
     }
     return Promise.all(scenePromises);
@@ -57,28 +44,24 @@ export async function applySessionMulti(
 
   type Target = {
     slot: (typeof source.sources)[number]["track"]["clipSlots"][number];
-    src: SessionMultiSourceClip;
+    src: SceneSourceClip;
     notes: Note[];
     varIndex: number;
   };
   const targets: Target[] = [];
   const occupiedToDelete: Target[] = [];
-  source.sources.forEach((src, si) => {
-    for (let vi = 0; vi < variations; vi++) {
-      const slot = src.track.clipSlots[src.slotIndex + 1 + vi];
-      if (!slot) continue;
-      const t: Target = {
-        slot,
-        src,
-        notes: outputsBySource[si]!.variations[vi]!,
-        varIndex: vi,
-      };
+  for (let vi = 0; vi < variations; vi++) {
+    const targetSceneIndex = source.sceneIndex + 1 + vi;
+    source.sources.forEach((src, si) => {
+      const slot = src.track.clipSlots[targetSceneIndex];
+      if (!slot) return;
+      const t: Target = { slot, src, notes: outputsBySource[si]!.variations[vi]!, varIndex: vi };
       const occupied = slot.clip !== null;
-      if (occupied && fillMode === "skip") continue;
+      if (occupied && fillMode === "skip") return;
       if (occupied) occupiedToDelete.push(t);
       targets.push(t);
-    }
-  });
+    });
+  }
 
   if (occupiedToDelete.length > 0) {
     await context.withinTransaction(() =>
@@ -91,8 +74,8 @@ export async function applySessionMulti(
   );
 
   context.withinTransaction(() => {
-    source.sources.forEach((src, i) => {
-      const inPlace = outputsBySource[i]!.inPlace;
+    source.sources.forEach((src, si) => {
+      const inPlace = outputsBySource[si]!.inPlace;
       if (inPlace) src.clip.notes = inPlace as NoteDescription[];
     });
     created.forEach((clip, i) => {
