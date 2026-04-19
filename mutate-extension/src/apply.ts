@@ -186,40 +186,52 @@ export async function applySession(
     (i) => deriveSeed(baseSeed, i),
   );
 
-  const work = context.withinTransaction(() =>
-    (async () => {
-      const tasks: Promise<void>[] = [];
+  // Phase 1: create any missing scenes. In-place notes are written in the
+  // final phase so they group with the variation-notes writes.
+  await context.withinTransaction(() => {
+    const scenePromises: Promise<unknown>[] = [];
+    for (let idx = song.scenes.length; idx < requiredScenes; idx++) {
+      scenePromises.push(song.createScene(idx));
+    }
+    return Promise.all(scenePromises);
+  });
 
-      if (outputs.inPlace) {
-        source.clip.notes = outputs.inPlace as NoteDescription[];
-      }
+  // Determine target slots now that scenes exist, and split occupied ones.
+  type Target = { slot: (typeof source.track.clipSlots)[number]; notes: Note[]; varIndex: number };
+  const targets: Target[] = [];
+  const occupiedToDelete: Target[] = [];
+  for (let i = 0; i < variations; i++) {
+    const slot = source.track.clipSlots[source.slotIndex + 1 + i]!;
+    const target: Target = { slot, notes: outputs.variations[i]!, varIndex: i };
+    const occupied = slot.clip !== null;
+    if (occupied && fillMode === "skip") continue;
+    if (occupied) occupiedToDelete.push(target);
+    targets.push(target);
+  }
 
-      while (song.scenes.length < requiredScenes) {
-        await song.createScene(song.scenes.length);
-      }
+  // Phase 2: delete occupied slots (if any).
+  if (occupiedToDelete.length > 0) {
+    await context.withinTransaction(() =>
+      Promise.all(occupiedToDelete.map((t) => t.slot.deleteClip())),
+    );
+  }
 
-      const slotsBelow = source.track.clipSlots.slice(source.slotIndex + 1);
-
-      for (let i = 0; i < variations; i++) {
-        const slot = slotsBelow[i]!;
-        const notes = outputs.variations[i]!;
-        tasks.push(
-          (async () => {
-            const occupied = slot.clip !== null;
-            if (occupied && fillMode === "skip") return;
-            if (occupied) await slot.deleteClip();
-            const created = await slot.createMidiClip(source.duration);
-            created.notes = notes as NoteDescription[];
-            applyClipMetadata(created, source.clip, i + 1);
-          })(),
-        );
-      }
-
-      await Promise.all(tasks);
-    })(),
+  // Phase 3: create all MIDI clips in parallel.
+  const created = await context.withinTransaction(() =>
+    Promise.all(targets.map((t) => t.slot.createMidiClip(source.duration))),
   );
 
-  await work;
+  // Phase 4: in-place notes + set notes + metadata on all created clips (one undo step).
+  context.withinTransaction(() => {
+    if (outputs.inPlace) {
+      source.clip.notes = outputs.inPlace as NoteDescription[];
+    }
+    created.forEach((clip, i) => {
+      const t = targets[i]!;
+      clip.notes = t.notes as NoteDescription[];
+      applyClipMetadata(clip, source.clip, t.varIndex + 1);
+    });
+  });
 }
 
 export async function applyScene(
@@ -249,42 +261,58 @@ export async function applyScene(
     ),
   );
 
-  const work = context.withinTransaction(() =>
-    (async () => {
-      // Phase 1: in-place source writes + scene creation.
-      source.sources.forEach((src, si) => {
-        const inPlace = outputsBySource[si]!.inPlace;
-        if (inPlace) src.clip.notes = inPlace as NoteDescription[];
-      });
-      while (song.scenes.length <= maxTargetSceneIndex) {
-        await song.createScene(song.scenes.length);
-      }
+  // Phase 1: create missing scenes. In-place notes are written in the final
+  // phase so they group with the variation-notes writes.
+  await context.withinTransaction(() => {
+    const scenePromises: Promise<unknown>[] = [];
+    for (let idx = song.scenes.length; idx <= maxTargetSceneIndex; idx++) {
+      scenePromises.push(song.createScene(idx));
+    }
+    return Promise.all(scenePromises);
+  });
 
-      // Phase 2: parallel slot writes for every (variation, source clip) pair.
-      const writes: Promise<void>[] = [];
-      for (let vi = 0; vi < variations; vi++) {
-        const targetSceneIndex = source.sceneIndex + 1 + vi;
-        source.sources.forEach((src, si) => {
-          const notes = outputsBySource[si]!.variations[vi]!;
-          const slot = src.track.clipSlots[targetSceneIndex];
-          if (!slot) return;
-          writes.push(
-            (async () => {
-              const occupied = slot.clip !== null;
-              if (occupied && fillMode === "skip") return;
-              if (occupied) await slot.deleteClip();
-              const created = await slot.createMidiClip(src.duration);
-              created.notes = notes as NoteDescription[];
-              applyClipMetadata(created, src.clip, vi + 1);
-            })(),
-          );
-        });
-      }
-      await Promise.all(writes);
-    })(),
+  type Target = {
+    slot: (typeof source.sources)[number]["track"]["clipSlots"][number];
+    src: SceneSourceClip;
+    notes: Note[];
+    varIndex: number;
+  };
+  const targets: Target[] = [];
+  const occupiedToDelete: Target[] = [];
+  for (let vi = 0; vi < variations; vi++) {
+    const targetSceneIndex = source.sceneIndex + 1 + vi;
+    source.sources.forEach((src, si) => {
+      const slot = src.track.clipSlots[targetSceneIndex];
+      if (!slot) return;
+      const t: Target = { slot, src, notes: outputsBySource[si]!.variations[vi]!, varIndex: vi };
+      const occupied = slot.clip !== null;
+      if (occupied && fillMode === "skip") return;
+      if (occupied) occupiedToDelete.push(t);
+      targets.push(t);
+    });
+  }
+
+  if (occupiedToDelete.length > 0) {
+    await context.withinTransaction(() =>
+      Promise.all(occupiedToDelete.map((t) => t.slot.deleteClip())),
+    );
+  }
+
+  const created = await context.withinTransaction(() =>
+    Promise.all(targets.map((t) => t.slot.createMidiClip(t.src.duration))),
   );
 
-  await work;
+  context.withinTransaction(() => {
+    source.sources.forEach((src, si) => {
+      const inPlace = outputsBySource[si]!.inPlace;
+      if (inPlace) src.clip.notes = inPlace as NoteDescription[];
+    });
+    created.forEach((clip, i) => {
+      const t = targets[i]!;
+      clip.notes = t.notes as NoteDescription[];
+      applyClipMetadata(clip, t.src.clip, t.varIndex + 1);
+    });
+  });
 }
 
 export async function applyRange(
@@ -325,42 +353,63 @@ export async function applyRange(
     ),
   );
 
-  const work = context.withinTransaction(() =>
-    (async () => {
-      source.clips.forEach((src, sourceIndex) => {
-        const inPlace = outputsBySourceIndex[sourceIndex]!.inPlace;
-        if (inPlace) src.clip.notes = inPlace as NoteDescription[];
-      });
+  // Plan lane assignments: one lane per (track, variation) pair.
+  type LanePlan = {
+    track: MidiTrack<"0.0.5">;
+    name: string;
+    vi: number;
+    entries: Array<{ sourceIndex: number; src: RangeSourceClip }>;
+  };
+  const lanePlans: LanePlan[] = [];
+  for (const { track, entries } of byTrack.values()) {
+    const baseIndex = nextMutateLaneIndex(track);
+    for (let vi = 0; vi < variations; vi++) {
+      lanePlans.push({ track, name: `Mutate ${baseIndex + vi}`, vi, entries });
+    }
+  }
 
-      // Per track: create N take lanes in parallel. Within each lane, the
-      // per-clip writes also run in parallel since they operate on distinct
-      // clips on the same new lane. Lane numbering is per-track and starts
-      // after the highest existing "Mutate N" lane so reruns keep ascending.
-      const laneTasks: Promise<void>[] = [];
-      for (const { track, entries } of byTrack.values()) {
-        const baseIndex = nextMutateLaneIndex(track);
-        for (let vi = 0; vi < variations; vi++) {
-          laneTasks.push(
-            (async () => {
-              const lane = await track.createTakeLane();
-              lane.name = `Mutate ${baseIndex + vi}`;
-              await Promise.all(
-                entries.map(async ({ sourceIndex, src }) => {
-                  const notes = outputsBySourceIndex[sourceIndex]!.variations[vi]!;
-                  const created = await lane.createMidiClip(src.startTime, src.duration);
-                  created.notes = notes as NoteDescription[];
-                  applyClipMetadata(created, src.clip, vi + 1);
-                }),
-              );
-            })(),
-          );
-        }
-      }
-      await Promise.all(laneTasks);
-    })(),
+  // Phase 1: create all take lanes in parallel. In-place notes are written in
+  // the final phase so they group with the variation-notes writes.
+  const lanes = await context.withinTransaction(() =>
+    Promise.all(lanePlans.map((p) => p.track.createTakeLane())),
   );
 
-  await work;
+  // Phase 2: set lane names + create all clips in parallel.
+  type ClipPlan = {
+    laneIdx: number;
+    sourceIndex: number;
+    src: RangeSourceClip;
+    vi: number;
+  };
+  const clipPlans: ClipPlan[] = [];
+  lanePlans.forEach((p, laneIdx) => {
+    for (const { sourceIndex, src } of p.entries) {
+      clipPlans.push({ laneIdx, sourceIndex, src, vi: p.vi });
+    }
+  });
+
+  const createdClips = await context.withinTransaction(() => {
+    lanes.forEach((lane, i) => {
+      lane.name = lanePlans[i]!.name;
+    });
+    return Promise.all(
+      clipPlans.map((cp) => lanes[cp.laneIdx]!.createMidiClip(cp.src.startTime, cp.src.duration)),
+    );
+  });
+
+  // Phase 3: in-place notes + set notes + metadata on created clips.
+  context.withinTransaction(() => {
+    source.clips.forEach((src, sourceIndex) => {
+      const inPlace = outputsBySourceIndex[sourceIndex]!.inPlace;
+      if (inPlace) src.clip.notes = inPlace as NoteDescription[];
+    });
+    createdClips.forEach((clip, i) => {
+      const cp = clipPlans[i]!;
+      const notes = outputsBySourceIndex[cp.sourceIndex]!.variations[cp.vi]!;
+      clip.notes = notes as NoteDescription[];
+      applyClipMetadata(clip, cp.src.clip, cp.vi + 1);
+    });
+  });
 }
 
 export async function applyArrangement(
@@ -383,29 +432,32 @@ export async function applyArrangement(
     (i) => deriveSeed(baseSeed, i),
   );
 
-  const work = context.withinTransaction(() =>
-    (async () => {
-      if (outputs.inPlace) {
-        source.clip.notes = outputs.inPlace as NoteDescription[];
-      }
+  const baseIndex = nextMutateLaneIndex(source.track);
 
-      // Create N new take lanes in parallel; each gets one variation.
-      // Lane numbering continues after the highest existing "Mutate N"
-      // lane on the track so reruns keep ascending.
-      const baseIndex = nextMutateLaneIndex(source.track);
-      const laneTasks = Array.from({ length: variations }, async (_, i) => {
-        const notes = outputs.variations[i]!;
-        const lane = await source.track.createTakeLane();
-        lane.name = `Mutate ${baseIndex + i}`;
-        const created = await lane.createMidiClip(source.startTime, source.duration);
-        created.notes = notes as NoteDescription[];
-        applyClipMetadata(created, source.clip, i + 1);
-      });
-      await Promise.all(laneTasks);
-    })(),
+  // Phase 1: create all take lanes in parallel. In-place notes are written in
+  // the final phase so they group with the variation-notes writes.
+  const lanes = await context.withinTransaction(() =>
+    Promise.all(Array.from({ length: variations }, () => source.track.createTakeLane())),
   );
 
-  await work;
+  // Phase 2: set lane names + create clips.
+  const createdClips = await context.withinTransaction(() => {
+    lanes.forEach((lane, i) => {
+      lane.name = `Mutate ${baseIndex + i}`;
+    });
+    return Promise.all(lanes.map((lane) => lane.createMidiClip(source.startTime, source.duration)));
+  });
+
+  // Phase 3: in-place notes + set notes + metadata.
+  context.withinTransaction(() => {
+    if (outputs.inPlace) {
+      source.clip.notes = outputs.inPlace as NoteDescription[];
+    }
+    createdClips.forEach((clip, i) => {
+      clip.notes = outputs.variations[i] as NoteDescription[];
+      applyClipMetadata(clip, source.clip, i + 1);
+    });
+  });
 }
 
 // Multi-clip in-place mutation for a Session clip-slot selection. No variations,
@@ -417,13 +469,11 @@ export async function applySessionMulti(
   controls: MutateControls,
   baseSeed: number,
 ): Promise<void> {
-  await context.withinTransaction(() =>
-    (async () => {
-      source.sources.forEach((src, i) => {
-        const seed = deriveSeed2D(baseSeed, i, 0);
-        const notes = mutateOneShot(src.notes, controls, seed, src.bounds);
-        src.clip.notes = notes as NoteDescription[];
-      });
-    })(),
-  );
+  context.withinTransaction(() => {
+    source.sources.forEach((src, i) => {
+      const seed = deriveSeed2D(baseSeed, i, 0);
+      const notes = mutateOneShot(src.notes, controls, seed, src.bounds);
+      src.clip.notes = notes as NoteDescription[];
+    });
+  });
 }

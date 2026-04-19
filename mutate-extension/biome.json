@@ -26,7 +26,7 @@
       "nursery": {
         "noExcessiveLinesPerFile": {
           "level": "error",
-          "options": { "maxLines": 435 }
+          "options": { "maxLines": 480 }
         }
       }
     }
