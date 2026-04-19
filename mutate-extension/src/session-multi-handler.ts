@@ -36,10 +36,7 @@ export async function handleSessionMultiClip(
     });
   }
 
-  if (sourceClips.length === 0) {
-    console.log("Mutate: Clip(s)... — no session MIDI clips resolved");
-    return;
-  }
+  if (sourceClips.length === 0) return;
 
   const payload: SessionMultiPayload = { mode: "sessionMulti", sources: summaries };
 
@@ -55,7 +52,6 @@ export async function handleSessionMultiClip(
   const source: SessionMultiSource = { kind: "sessionMulti", sources: sourceClips };
   try {
     await applySessionMulti(context, source, result.controls, result.baseSeed);
-    console.log(`Mutate: Clip(s) — mutated ${sourceClips.length} clip(s) in place`);
   } catch (e) {
     console.error("Mutate: applySessionMulti failed:", e);
   }

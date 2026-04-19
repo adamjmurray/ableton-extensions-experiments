@@ -42,10 +42,7 @@ export async function handleTrackSessionDialog(arg: unknown, deps: DialogDeps): 
     });
   }
 
-  if (sourceClips.length === 0) {
-    console.log("Mutate: Track (Session) — no MIDI clips in track");
-    return;
-  }
+  if (sourceClips.length === 0) return;
 
   const payload: SessionMultiPayload = { mode: "sessionMulti", sources: summaries };
   let result: DialogResult;
@@ -60,7 +57,6 @@ export async function handleTrackSessionDialog(arg: unknown, deps: DialogDeps): 
   const source: SessionMultiSource = { kind: "sessionMulti", sources: sourceClips };
   try {
     await applySessionMulti(context, source, result.controls, result.baseSeed);
-    console.log(`Mutate: Track (Session) — mutated ${sourceClips.length} clip(s) in place`);
   } catch (e) {
     console.error("Mutate: applySessionMulti failed:", e);
   }
@@ -92,10 +88,7 @@ export async function handleTrackArrangementDialog(arg: unknown, deps: DialogDep
     });
   }
 
-  if (clips.length === 0) {
-    console.log("Mutate: Track (Arrangement) — no MIDI clips in track");
-    return;
-  }
+  if (clips.length === 0) return;
   if (clips.length === 1) {
     await openArrangementClipDialog(clips[0]!.clip, deps);
     return;
@@ -135,11 +128,6 @@ export async function handleTrackArrangementDialog(arg: unknown, deps: DialogDep
       result.variations,
       result.baseSeed,
       result.mutateSource,
-    );
-    const inPlace = result.mutateSource ? clips.length : 0;
-    const newClips = result.variations * clips.length;
-    console.log(
-      `Mutate: Track (Arrangement) — wrote ${inPlace} in-place + ${newClips} new clip(s) for "${track.name}"`,
     );
   } catch (e) {
     console.error("Mutate: applyRange failed:", e);

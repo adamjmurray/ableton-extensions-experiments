@@ -123,23 +123,15 @@ export function activate(activation: ActivationContext) {
     return [];
   }
 
-  function runQuickAction(
-    arg: unknown,
-    label: string,
-    transform: (notes: Note[], rng: Rng) => Note[],
-  ) {
+  function runQuickAction(arg: unknown, transform: (notes: Note[], rng: Rng) => Note[]) {
     const clips = collectMidiClipsFromArg(arg);
-    if (clips.length === 0) {
-      console.log(`Mutate: ${label} — no MIDI clips in selection`);
-      return;
-    }
+    if (clips.length === 0) return;
     const rng = mulberry32(Date.now() >>> 0);
     context.withinTransaction(() => {
       for (const clip of clips) {
         clip.notes = transform(clip.notes as Note[], rng);
       }
     });
-    console.log(`Mutate: ${label} — applied to ${clips.length} clip(s)`);
   }
 
   const deps: DialogDeps = {
@@ -186,21 +178,15 @@ export function activate(activation: ActivationContext) {
   // -------------------------------------------------------------------
 
   context.commands.registerCommand("mutate.quick.randomizeVelocity", (arg: unknown) =>
-    runQuickAction(arg, "Randomize Velocity", (notes, rng) =>
-      transformVelocity(notes, { offset: 0, range: 15 }, rng),
-    ),
+    runQuickAction(arg, (notes, rng) => transformVelocity(notes, { offset: 0, range: 15 }, rng)),
   );
 
   context.commands.registerCommand("mutate.quick.swapNotes", (arg: unknown) =>
-    runQuickAction(arg, "Swap Notes", (notes, rng) =>
-      swapNotes(notes, { offset: 0.25, range: 0 }, rng),
-    ),
+    runQuickAction(arg, (notes, rng) => swapNotes(notes, { offset: 0.25, range: 0 }, rng)),
   );
 
   context.commands.registerCommand("mutate.quick.deleteTenPercent", (arg: unknown) =>
-    runQuickAction(arg, "Delete 10%", (notes, rng) =>
-      dropNotes(notes, { offset: 0.1, range: 0 }, rng),
-    ),
+    runQuickAction(arg, (notes, rng) => dropNotes(notes, { offset: 0.1, range: 0 }, rng)),
   );
 
   // -------------------------------------------------------------------

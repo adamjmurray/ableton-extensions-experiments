@@ -46,10 +46,7 @@ export async function openArrangementClipDialog(
 ): Promise<void> {
   const { context, showMutateDialog, describeArrangementSource } = deps;
   const source = describeArrangementSource(clip);
-  if (!source) {
-    console.log("Mutate: could not resolve arrangement source for clip");
-    return;
-  }
+  if (!source) return;
   const payload: ClipModeArrangementPayload = {
     mode: "clip",
     branch: "arrangement",
@@ -77,10 +74,6 @@ export async function openArrangementClipDialog(
       result.baseSeed,
       result.mutateSource,
     );
-    const sourceWrite = result.mutateSource ? ` + in-place` : "";
-    console.log(
-      `Mutate: wrote ${result.variations} take lane(s)${sourceWrite} for "${payload.sourceClipName}"`,
-    );
   } catch (e) {
     console.error("Mutate: applyArrangement failed:", e);
   }
@@ -89,20 +82,14 @@ export async function openArrangementClipDialog(
 export async function handleClipDialog(arg: unknown, deps: DialogDeps): Promise<void> {
   const { context, showMutateDialog, collectMidiClipsFromArg, describeSessionSource } = deps;
   const clips = collectMidiClipsFromArg(arg);
-  if (clips.length === 0) {
-    console.log("Mutate: Clip(s)... — no MIDI clips in selection");
-    return;
-  }
+  if (clips.length === 0) return;
   if (clips.length !== 1) {
     await handleSessionMultiClip(clips, deps);
     return;
   }
   const sourceClip = clips[0]!;
   const session = describeSessionSource(sourceClip);
-  if (!session) {
-    console.log("Mutate: clip is not in a session clip slot");
-    return;
-  }
+  if (!session) return;
 
   const slotsBelow = session.track.clipSlots.slice(session.slotIndex + 1);
   const payload: ClipModeSessionPayload = {
@@ -135,10 +122,6 @@ export async function handleClipDialog(arg: unknown, deps: DialogDeps): Promise<
       result.fillMode,
       result.mutateSource,
     );
-    const sourceWrite = result.mutateSource ? ` + in-place` : "";
-    console.log(
-      `Mutate: wrote ${result.variations} slot(s)${sourceWrite} for "${payload.sourceClipName}"`,
-    );
   } catch (e) {
     console.error("Mutate: applySession failed:", e);
   }
@@ -150,10 +133,7 @@ export async function handleSceneDialog(arg: unknown, deps: DialogDeps): Promise
   const song = context.application.song;
   const scenes = song.scenes;
   const sceneIndex = scenes.findIndex((s) => s.handle.id === scene.handle.id);
-  if (sceneIndex < 0) {
-    console.log("Mutate: could not find scene index");
-    return;
-  }
+  if (sceneIndex < 0) return;
 
   const tracks = song.tracks;
   const totalScenes = scenes.length;
@@ -189,10 +169,7 @@ export async function handleSceneDialog(arg: unknown, deps: DialogDeps): Promise
     });
   }
 
-  if (snapshot.length === 0) {
-    console.log(`Mutate: scene "${scene.name}" has no MIDI clips`);
-    return;
-  }
+  if (snapshot.length === 0) return;
 
   const payload: SceneModePayload = {
     mode: "scene",
@@ -222,11 +199,6 @@ export async function handleSceneDialog(arg: unknown, deps: DialogDeps): Promise
       result.fillMode,
       result.mutateSource,
     );
-    const inPlaceCount = result.mutateSource ? snapshot.length : 0;
-    const newCount = result.variations * snapshot.length;
-    console.log(
-      `Mutate: scene "${scene.name}" — wrote ${inPlaceCount} in-place + ${newCount} new clip(s)`,
-    );
   } catch (e) {
     console.error("Mutate: applyScene failed:", e);
   }
@@ -239,14 +211,8 @@ export async function handleSceneDialog(arg: unknown, deps: DialogDeps): Promise
 // indicator-grid dialog.
 export async function handleRangeDialog(arg: unknown, deps: DialogDeps): Promise<void> {
   const { context, showMutateDialog } = deps;
-  if (!arg || typeof arg !== "object") {
-    console.log("Mutate: Clip(s)... — unexpected command arg");
-    return;
-  }
-  if (!("selected_lanes" in arg && "time_selection_start" in arg)) {
-    console.log("Mutate: Clip(s)... — arg is not an ArrangementSelection");
-    return;
-  }
+  if (!arg || typeof arg !== "object") return;
+  if (!("selected_lanes" in arg && "time_selection_start" in arg)) return;
   const selection = arg as ArrangementSelection;
   const timeStart = Number(selection.time_selection_start);
   const timeEnd = Number(selection.time_selection_end);
@@ -278,10 +244,7 @@ export async function handleRangeDialog(arg: unknown, deps: DialogDeps): Promise
     }
   }
 
-  if (rangeClips.length === 0) {
-    console.log("Mutate: Clip(s)... — no MIDI clips in selection");
-    return;
-  }
+  if (rangeClips.length === 0) return;
   if (rangeClips.length === 1) {
     await openArrangementClipDialog(rangeClips[0]!.clip, deps);
     return;
@@ -332,11 +295,6 @@ export async function handleRangeDialog(arg: unknown, deps: DialogDeps): Promise
       result.variations,
       result.baseSeed,
       result.mutateSource,
-    );
-    const inPlace = result.mutateSource ? rangeClips.length : 0;
-    const newClips = result.variations * rangeClips.length;
-    console.log(
-      `Mutate: Clip(s) — wrote ${inPlace} in-place + ${newClips} new clip(s) across ${trackSummaries.length} track(s)`,
     );
   } catch (e) {
     console.error("Mutate: applyRange failed:", e);
