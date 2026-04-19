@@ -36,6 +36,7 @@ export async function handleSessionMultiClip(
       bounds,
       availableSlotsBelow: slotsBelow.length,
       slotsBelowOccupied: slotsBelow,
+      seedAxis: sourceClips.length - 1, // applySessionMulti uses deriveSeed2D(baseSeed, i, ...)
     });
   }
 

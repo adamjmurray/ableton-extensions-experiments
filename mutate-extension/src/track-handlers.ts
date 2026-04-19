@@ -41,6 +41,7 @@ export async function handleTrackSessionDialog(arg: unknown, deps: DialogDeps): 
       bounds,
       availableSlotsBelow: slotsBelow.length,
       slotsBelowOccupied: slotsBelow,
+      seedAxis: sourceClips.length - 1, // applySessionMulti uses deriveSeed2D(baseSeed, i, ...)
     });
   }
 
@@ -98,16 +99,16 @@ export async function handleTrackArrangementDialog(arg: unknown, deps: DialogDep
 
   const timeStart = Math.min(...clips.map((c) => c.startTime));
   const timeEnd = Math.max(...clips.map((c) => c.startTime + c.duration));
+  // Sort so preview order matches applyRange's sourceIndex iteration.
+  clips.sort((a, b) => a.startTime - b.startTime);
   const trackName = String(track.name);
-  const preview: PreviewClip[] = clips
-    .slice()
-    .sort((a, b) => a.startTime - b.startTime)
-    .map((c) => ({
-      trackName,
-      clipName: String(c.clip.name),
-      sourceNotes: c.notes,
-      bounds: c.bounds,
-    }));
+  const preview: PreviewClip[] = clips.map((c, i) => ({
+    trackName,
+    clipName: String(c.clip.name),
+    sourceNotes: c.notes,
+    bounds: c.bounds,
+    seedAxis: i,
+  }));
 
   const payload: RangeModePayload = {
     mode: "range",

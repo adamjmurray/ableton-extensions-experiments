@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from "preact/hooks";
 import type { FillMode } from "../apply.js";
-import { deriveSeed } from "../rng.js";
+import { deriveSeed, deriveSeed2D } from "../rng.js";
 import { generateVariations, type MutateControls, type VariationMode } from "../variations.js";
 import type { PreviewClip } from "./bridge.js";
 import { PianoRoll, type PianoRollColor } from "./piano-roll.js";
@@ -45,13 +45,19 @@ export function PreviewPanel({
 
   const { inPlaceNotes, variationNotes } = useMemo(() => {
     if (!active) return { inPlaceNotes: null, variationNotes: [] };
+    const seedFor =
+      active.seedAxis !== undefined
+        ? (i: number) => deriveSeed2D(baseSeed, active.seedAxis as number, i)
+        : (i: number) => deriveSeed(baseSeed, i);
+    const chainBaseSeed =
+      active.seedAxis !== undefined ? deriveSeed2D(baseSeed, active.seedAxis, 0) : baseSeed;
     if (variationMode === "cumulative") {
       const totalVars = (mutateSource ? 1 : 0) + variations;
       const chain = generateVariations(
         active.sourceNotes,
         controls,
         totalVars,
-        baseSeed,
+        chainBaseSeed,
         active.bounds,
         "cumulative",
       );
@@ -61,24 +67,12 @@ export function PreviewPanel({
       };
     }
     const inPlace = mutateSource
-      ? generateVariations(
-          active.sourceNotes,
-          controls,
-          1,
-          deriveSeed(baseSeed, 0),
-          active.bounds,
-        )[0]!
+      ? generateVariations(active.sourceNotes, controls, 1, seedFor(0), active.bounds)[0]!
       : null;
     const vars = Array.from(
       { length: variations },
       (_, i) =>
-        generateVariations(
-          active.sourceNotes,
-          controls,
-          1,
-          deriveSeed(baseSeed, i + 1),
-          active.bounds,
-        )[0]!,
+        generateVariations(active.sourceNotes, controls, 1, seedFor(i + 1), active.bounds)[0]!,
     );
     return { inPlaceNotes: inPlace, variationNotes: vars };
   }, [active, controls, variations, baseSeed, mutateSource, variationMode]);

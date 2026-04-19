@@ -29,6 +29,11 @@ export type PreviewClip = {
   // Each entry tells whether that slot currently holds a clip.
   slotsBelowOccupied?: boolean[];
   availableSlotsBelow?: number;
+  // Per-clip seed axis, matching what the apply code uses so the preview is
+  // byte-for-byte the same as the actual mutation. Omit for single-clip modes
+  // (apply uses 1D deriveSeed). For multi-clip modes, this must equal the
+  // value the apply path passes as the first axis of deriveSeed2D.
+  seedAxis?: number;
 };
 
 export type ClipModeSessionPayload = {

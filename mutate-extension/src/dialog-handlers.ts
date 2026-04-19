@@ -174,6 +174,7 @@ export async function handleSceneDialog(arg: unknown, deps: DialogDeps): Promise
       bounds,
       availableSlotsBelow: slotsBelow.length,
       slotsBelowOccupied: slotsBelow,
+      seedAxis: ti, // applyScene uses deriveSeed2D(baseSeed, src.trackIndex, i)
     });
   }
 
@@ -258,16 +259,16 @@ export async function handleRangeDialog(arg: unknown, deps: DialogDeps): Promise
     return;
   }
 
-  // Multi-clip: build a flat per-clip preview list for the UI.
-  const preview: PreviewClip[] = rangeClips
-    .slice()
-    .sort((a, b) => a.trackIndex - b.trackIndex || a.startTime - b.startTime)
-    .map((rc) => ({
-      trackName: String(rc.track.name),
-      clipName: String(rc.clip.name),
-      sourceNotes: rc.notes,
-      bounds: rc.bounds,
-    }));
+  // Sort the range clips so preview order matches the sourceIndex applyRange
+  // iterates with — per-clip seeds stay consistent between preview and apply.
+  rangeClips.sort((a, b) => a.trackIndex - b.trackIndex || a.startTime - b.startTime);
+  const preview: PreviewClip[] = rangeClips.map((rc, i) => ({
+    trackName: String(rc.track.name),
+    clipName: String(rc.clip.name),
+    sourceNotes: rc.notes,
+    bounds: rc.bounds,
+    seedAxis: i,
+  }));
 
   const payload: RangeModePayload = {
     mode: "range",
