@@ -1,9 +1,7 @@
-import { useEffect, useMemo, useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import type { FillMode } from "../apply.js";
-import { deriveSeed } from "../rng.js";
 import {
   freshSeed,
-  generateVariations,
   hasAnyMutation,
   type MutateControls,
   type VariationMode,
@@ -11,13 +9,7 @@ import {
 } from "../variations.js";
 import { applyMutations, type ClipModePayload, closeDialog, MAX_VARIATIONS } from "./bridge.js";
 import { ControlsGrid, VariationCountInput } from "./controls.js";
-import { PianoRoll } from "./piano-roll.js";
-
-const SOURCE_WIDTH = 1160;
-const SOURCE_HEIGHT = 140;
-const THUMB_WIDTH = 224;
-const THUMB_HEIGHT = 100;
-const MAX_VISIBLE_PREVIEWS = 16;
+import { PreviewPanel } from "./preview-panel.js";
 
 export function ClipModeApp({ data }: { data: ClipModePayload }) {
   const [controls, setControls] = useState<MutateControls>(ZERO_CONTROLS);
@@ -31,43 +23,10 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
     setBaseSeed(freshSeed());
   }, [controls, variations]);
 
-  const { inPlaceNotes, variationNotes } = useMemo(() => {
-    if (variationMode === "cumulative") {
-      const total = (mutateSource ? 1 : 0) + variations;
-      const chain = generateVariations(
-        data.sourceNotes,
-        controls,
-        total,
-        baseSeed,
-        data.bounds,
-        "cumulative",
-      );
-      return {
-        inPlaceNotes: mutateSource ? (chain[0] ?? null) : null,
-        variationNotes: mutateSource ? chain.slice(1) : chain,
-      };
-    }
-    const inPlace = mutateSource
-      ? generateVariations(data.sourceNotes, controls, 1, deriveSeed(baseSeed, 0), data.bounds)[0]!
-      : null;
-    const vars = Array.from(
-      { length: variations },
-      (_, i) =>
-        generateVariations(
-          data.sourceNotes,
-          controls,
-          1,
-          deriveSeed(baseSeed, i + 1),
-          data.bounds,
-        )[0]!,
-    );
-    return { inPlaceNotes: inPlace, variationNotes: vars };
-  }, [data, controls, variations, baseSeed, mutateSource, variationMode]);
-
   const hasMutation = hasAnyMutation(controls);
   const canApply = (mutateSource || variations > 0) && hasMutation;
   const isArrangement = data.branch === "arrangement";
-  const varLabel = isArrangement ? "Mutate" : "Var";
+  const availableSlotsBelow = data.preview.availableSlotsBelow ?? 0;
 
   const handleApply = () => {
     if (!canApply) return;
@@ -87,8 +46,8 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
       <div class="toolbar">
         <span class="title">Mutate</span>
         <span class="subtitle">
-          {data.sourceClipName || "(unnamed clip)"}
-          {data.trackName ? ` · ${data.trackName}` : ""}
+          {data.preview.clipName || "(unnamed clip)"}
+          {data.preview.trackName ? ` · ${data.preview.trackName}` : ""}
           {isArrangement ? " · Arrangement" : ""}
         </span>
         <div class="toolbar-right">
@@ -104,16 +63,6 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
             Apply
           </button>
         </div>
-      </div>
-
-      <div class="source-panel">
-        <div class="label">Source</div>
-        <PianoRoll
-          notes={data.sourceNotes}
-          bounds={data.bounds}
-          width={SOURCE_WIDTH}
-          height={SOURCE_HEIGHT}
-        />
       </div>
 
       <div class="controls-panel">
@@ -133,10 +82,10 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
           <div>
             <div class="section-label">Variations</div>
             <VariationCountInput value={variations} max={MAX_VARIATIONS} onChange={setVariations} />
-            {!isArrangement && variations > data.availableSlotsBelow && (
+            {!isArrangement && variations > availableSlotsBelow && (
               <div class="hint">
-                {variations - data.availableSlotsBelow} new scene
-                {variations - data.availableSlotsBelow === 1 ? "" : "s"} will be created
+                {variations - availableSlotsBelow} new scene
+                {variations - availableSlotsBelow === 1 ? "" : "s"} will be created
               </div>
             )}
           </div>
@@ -187,73 +136,18 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
         </div>
       </div>
 
-      <div class="variations">
-        {inPlaceNotes && (
-          <div class="variation in-place">
-            <div class="label">
-              <span>Source (in-place)</span>
-              <span class="status">overwrite</span>
-            </div>
-            <PianoRoll
-              notes={inPlaceNotes}
-              bounds={data.bounds}
-              width={THUMB_WIDTH}
-              height={THUMB_HEIGHT}
-            />
-          </div>
-        )}
-        {variationNotes.slice(0, MAX_VISIBLE_PREVIEWS).map((notes, i) => {
-          if (data.branch === "arrangement") {
-            return (
-              <div key={i} class="variation">
-                <div class="label">
-                  <span>
-                    {varLabel} {i + 1}
-                  </span>
-                  <span class="status">new lane</span>
-                </div>
-                <PianoRoll
-                  notes={notes}
-                  bounds={data.bounds}
-                  width={THUMB_WIDTH}
-                  height={THUMB_HEIGHT}
-                />
-              </div>
-            );
-          }
-          const occupied = i < data.slotsBelowOccupied.length && data.slotsBelowOccupied[i];
-          const noSlot = i >= data.availableSlotsBelow;
-          const willSkip = !!occupied && fillMode === "skip";
-          const dimmed = willSkip;
-          let status = "";
-          if (noSlot) status = "new scene";
-          else if (willSkip) status = "skip (occupied)";
-          else if (occupied) status = "overwrite";
-          return (
-            <div key={i} class={`variation${dimmed ? " dimmed" : ""}`}>
-              <div class="label">
-                <span>
-                  {varLabel} {i + 1}
-                </span>
-                {status ? <span class="status">{status}</span> : null}
-              </div>
-              <PianoRoll
-                notes={notes}
-                bounds={data.bounds}
-                width={THUMB_WIDTH}
-                height={THUMB_HEIGHT}
-                dimmed={dimmed}
-              />
-            </div>
-          );
-        })}
-        {variationNotes.length > MAX_VISIBLE_PREVIEWS && (
-          <div class="previews-truncated">
-            ({variationNotes.length - MAX_VISIBLE_PREVIEWS} clip preview
-            {variationNotes.length - MAX_VISIBLE_PREVIEWS === 1 ? "" : "s"} not shown)
-          </div>
-        )}
-      </div>
+      <PreviewPanel
+        clips={[data.preview]}
+        activeIndex={0}
+        onActiveIndexChange={() => {}}
+        controls={controls}
+        variations={variations}
+        mutateSource={mutateSource}
+        variationMode={variationMode}
+        baseSeed={baseSeed}
+        fillMode={fillMode}
+        branch={data.branch}
+      />
     </div>
   );
 }

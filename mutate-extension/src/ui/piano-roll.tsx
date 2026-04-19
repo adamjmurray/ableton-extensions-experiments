@@ -1,18 +1,26 @@
 import type { ClipBounds, Note } from "../transforms.js";
 
+export type PianoRollColor = { r: number; g: number; b: number };
+export const DEFAULT_PIANO_ROLL_COLOR: PianoRollColor = { r: 255, g: 102, b: 17 };
+
 export function PianoRoll({
   notes,
   bounds,
   width,
   height,
   dimmed = false,
+  color = DEFAULT_PIANO_ROLL_COLOR,
 }: {
   notes: Note[];
   bounds: ClipBounds;
   width: number;
   height: number;
   dimmed?: boolean;
+  color?: PianoRollColor;
 }) {
+  const strokeR = Math.min(255, color.r + 34);
+  const strokeG = Math.min(255, color.g + 34);
+  const strokeB = Math.min(255, color.b + 34);
   const span = Math.max(bounds.end - bounds.start, 1e-6);
 
   let minP = 60;
@@ -56,8 +64,8 @@ export function PianoRoll({
               y={Math.max(0, y)}
               width={Math.min(w, width - x)}
               height={h}
-              fill={`rgba(255, 102, 17, ${alpha.toFixed(2)})`}
-              stroke="rgba(255, 136, 51, 0.5)"
+              fill={`rgba(${color.r}, ${color.g}, ${color.b}, ${alpha.toFixed(2)})`}
+              stroke={`rgba(${strokeR}, ${strokeG}, ${strokeB}, 0.5)`}
               stroke-width={0.5}
             />
           );

@@ -6,7 +6,7 @@ import {
 } from "./apply.js";
 import type { DialogDeps } from "./dialog-handlers.js";
 import { clipBoundsFor, coerceNote } from "./helpers.js";
-import type { DialogResult, SessionMultiPayload, SessionMultiSourceSummary } from "./ui/bridge.js";
+import type { DialogResult, PreviewClip, SessionMultiPayload } from "./ui/bridge.js";
 
 // Multi-clip Session selection: shared controls, one in-place mutation per
 // selected clip. No variations (see SessionMultiApp for why).
@@ -17,28 +17,31 @@ export async function handleSessionMultiClip(
   const { context, showMutateDialog } = deps;
 
   const sourceClips: SessionMultiSourceClip[] = [];
-  const summaries: SessionMultiSourceSummary[] = [];
+  const preview: PreviewClip[] = [];
   for (const clip of clips) {
     const slot = clip.parent;
     if (!(slot instanceof ClipSlot)) continue;
     const track = slot.parent;
     if (!(track instanceof MidiTrack)) continue;
-    sourceClips.push({
-      track,
-      clip,
-      notes: clip.notes.map(coerceNote),
-      bounds: clipBoundsFor(clip),
-    });
-    summaries.push({
+    const notes = clip.notes.map(coerceNote);
+    const bounds = clipBoundsFor(clip);
+    sourceClips.push({ track, clip, notes, bounds });
+    const slotIndex = track.clipSlots.findIndex((s) => s.handle.id === slot.handle.id);
+    const slotsBelow =
+      slotIndex >= 0 ? track.clipSlots.slice(slotIndex + 1).map((s) => s.clip !== null) : [];
+    preview.push({
       trackName: String(track.name),
       clipName: String(clip.name),
-      noteCount: clip.notes.length,
+      sourceNotes: notes,
+      bounds,
+      availableSlotsBelow: slotsBelow.length,
+      slotsBelowOccupied: slotsBelow,
     });
   }
 
   if (sourceClips.length === 0) return;
 
-  const payload: SessionMultiPayload = { mode: "sessionMulti", sources: summaries };
+  const payload: SessionMultiPayload = { mode: "sessionMulti", preview };
 
   let result: DialogResult;
   try {

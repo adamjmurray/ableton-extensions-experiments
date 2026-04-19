@@ -2,6 +2,7 @@ import { useEffect, useState } from "preact/hooks";
 import { freshSeed, hasAnyMutation, type MutateControls, ZERO_CONTROLS } from "../variations.js";
 import { applyMutations, closeDialog, type SessionMultiPayload } from "./bridge.js";
 import { ControlsGrid } from "./controls.js";
+import { PreviewPanel } from "./preview-panel.js";
 
 // Multi-slot Session selection: shared controls, one in-place mutation per
 // selected clip (independent seeds). Variations are intentionally omitted —
@@ -10,6 +11,7 @@ import { ControlsGrid } from "./controls.js";
 export function SessionMultiApp({ data }: { data: SessionMultiPayload }) {
   const [controls, setControls] = useState<MutateControls>(ZERO_CONTROLS);
   const [baseSeed, setBaseSeed] = useState(() => freshSeed());
+  const [activeIndex, setActiveIndex] = useState(0);
 
   useEffect(() => {
     setBaseSeed(freshSeed());
@@ -31,9 +33,8 @@ export function SessionMultiApp({ data }: { data: SessionMultiPayload }) {
     });
   };
 
-  const clipCount = data.sources.length;
-  const trackNames = new Set(data.sources.map((s) => s.trackName));
-  const trackCount = trackNames.size;
+  const clipCount = data.preview.length;
+  const trackCount = new Set(data.preview.map((c) => c.trackName)).size;
 
   return (
     <div class="app">
@@ -54,28 +55,22 @@ export function SessionMultiApp({ data }: { data: SessionMultiPayload }) {
         </div>
       </div>
 
-      <div class="scene-header">
-        <div class="title-line">Mutate these clips in place</div>
-        <div class="subtitle-line">
-          Shared controls, each clip mutates independently. Select a single clip or scene to
-          generate variations.
-        </div>
-      </div>
-
       <div class="controls-panel">
         <ControlsGrid controls={controls} onChange={setControls} />
       </div>
 
-      <div class="indicator-panel">
-        <ul style={{ listStyle: "none", padding: 0, margin: 0, color: "var(--text-dim)" }}>
-          {data.sources.map((s, i) => (
-            <li key={i} style={{ padding: "2px 0" }}>
-              {s.trackName} · {s.clipName || "(unnamed clip)"} · {s.noteCount} note
-              {s.noteCount === 1 ? "" : "s"}
-            </li>
-          ))}
-        </ul>
-      </div>
+      <PreviewPanel
+        clips={data.preview}
+        activeIndex={activeIndex}
+        onActiveIndexChange={setActiveIndex}
+        controls={controls}
+        variations={0}
+        mutateSource={true}
+        variationMode="independent"
+        baseSeed={baseSeed}
+        fillMode="skip"
+        branch="session"
+      />
     </div>
   );
 }

@@ -9,7 +9,7 @@ import {
 } from "../variations.js";
 import { applyMutations, closeDialog, MAX_VARIATIONS, type SceneModePayload } from "./bridge.js";
 import { ControlsGrid, VariationCountInput } from "./controls.js";
-import { type CellState, IndicatorGrid } from "./indicator-grid.js";
+import { PreviewPanel } from "./preview-panel.js";
 
 export function SceneModeApp({ data }: { data: SceneModePayload }) {
   const [controls, setControls] = useState<MutateControls>(ZERO_CONTROLS);
@@ -18,6 +18,7 @@ export function SceneModeApp({ data }: { data: SceneModePayload }) {
   const [fillMode, setFillMode] = useState<FillMode>("skip");
   const [variationMode, setVariationMode] = useState<VariationMode>("independent");
   const [baseSeed, setBaseSeed] = useState(() => freshSeed());
+  const [activeIndex, setActiveIndex] = useState(0);
 
   useEffect(() => {
     setBaseSeed(freshSeed());
@@ -39,38 +40,7 @@ export function SceneModeApp({ data }: { data: SceneModePayload }) {
     });
   };
 
-  const cols = data.sources.length;
-  // The indicator grid gets a prepended "source" row when mutateSource is on.
-  const sourceRowOffset = mutateSource ? 1 : 0;
-  const rows = sourceRowOffset + variations;
-  const scenesBelow = data.totalScenesInSong - data.sceneIndex - 1;
-
-  const isSourceRow = (row: number) => mutateSource && row === 0;
-
-  const variationIndexForRow = (row: number) => row - sourceRowOffset;
-
-  const rowIsNewScene = (row: number) => {
-    if (isSourceRow(row)) return false;
-    return variationIndexForRow(row) >= scenesBelow;
-  };
-
-  const rowLabelAt = (row: number) => {
-    if (isSourceRow(row)) return `Scene ${data.sceneIndex + 1}`;
-    const vi = variationIndexForRow(row);
-    return rowIsNewScene(row) ? "New scene" : `Scene ${data.sceneIndex + 1 + 1 + vi}`;
-  };
-
-  const colLabelAt = (col: number) => data.sources[col]?.trackName ?? "";
-
-  const stateAt = (row: number, col: number): CellState => {
-    if (isSourceRow(row)) return "write-overwrite"; // always rewriting live source clips
-    if (rowIsNewScene(row)) return "write-empty";
-    const source = data.sources[col]!;
-    const vi = variationIndexForRow(row);
-    const occupied = source.slotsBelowOccupied[vi] === true;
-    if (!occupied) return "write-empty";
-    return fillMode === "skip" ? "skip" : "write-overwrite";
-  };
+  const clipCount = data.preview.length;
 
   return (
     <div class="app">
@@ -78,7 +48,8 @@ export function SceneModeApp({ data }: { data: SceneModePayload }) {
         <span class="title">Mutate</span>
         <span class="subtitle">
           Scene {data.sceneIndex + 1}
-          {data.sceneName ? `: ${data.sceneName}` : ""}
+          {data.sceneName ? `: ${data.sceneName}` : ""} · {clipCount} MIDI clip
+          {clipCount === 1 ? "" : "s"}
         </span>
         <div class="toolbar-right">
           {!hasMutation ? (
@@ -92,16 +63,6 @@ export function SceneModeApp({ data }: { data: SceneModePayload }) {
           <button type="button" class="btn primary" onClick={handleApply} disabled={!canApply}>
             Apply
           </button>
-        </div>
-      </div>
-
-      <div class="scene-header">
-        <div class="title-line">
-          Source: scene {data.sceneIndex + 1}
-          {data.sceneName ? ` · ${data.sceneName}` : ""}
-        </div>
-        <div class="subtitle-line">
-          {cols} MIDI clip{cols === 1 ? "" : "s"} across {cols} track{cols === 1 ? "" : "s"}
         </div>
       </div>
 
@@ -170,22 +131,18 @@ export function SceneModeApp({ data }: { data: SceneModePayload }) {
         </div>
       </div>
 
-      <div class="indicator-panel">
-        {cols > 0 && rows > 0 ? (
-          <IndicatorGrid
-            rows={rows}
-            cols={cols}
-            stateAt={stateAt}
-            rowLabelAt={rowLabelAt}
-            rowIsNewScene={rowIsNewScene}
-            colLabelAt={colLabelAt}
-          />
-        ) : (
-          <div style={{ color: "var(--text-dim)" }}>
-            {cols === 0 ? "No MIDI clips in this scene." : "Nothing to apply."}
-          </div>
-        )}
-      </div>
+      <PreviewPanel
+        clips={data.preview}
+        activeIndex={activeIndex}
+        onActiveIndexChange={setActiveIndex}
+        controls={controls}
+        variations={variations}
+        mutateSource={mutateSource}
+        variationMode={variationMode}
+        baseSeed={baseSeed}
+        fillMode={fillMode}
+        branch="session"
+      />
     </div>
   );
 }

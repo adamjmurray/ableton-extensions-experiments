@@ -26,10 +26,9 @@ import type {
   ClipModeSessionPayload,
   DialogPayload,
   DialogResult,
-  RangeClipSummary,
+  PreviewClip,
   RangeModePayload,
   SceneModePayload,
-  SceneSourceSummary,
 } from "./ui/bridge.js";
 
 export type DialogDeps = {
@@ -50,10 +49,12 @@ export async function openArrangementClipDialog(
   const payload: ClipModeArrangementPayload = {
     mode: "clip",
     branch: "arrangement",
-    sourceNotes: source.notes,
-    bounds: source.bounds,
-    sourceClipName: String(clip.name),
-    trackName: String(source.track.name),
+    preview: {
+      trackName: String(source.track.name),
+      clipName: String(clip.name),
+      sourceNotes: source.notes,
+      bounds: source.bounds,
+    },
   };
 
   let result: DialogResult;
@@ -96,12 +97,14 @@ export async function handleClipDialog(arg: unknown, deps: DialogDeps): Promise<
   const payload: ClipModeSessionPayload = {
     mode: "clip",
     branch: "session",
-    sourceNotes: session.notes,
-    bounds: session.bounds,
-    sourceClipName: String(sourceClip.name),
-    trackName: String(session.track.name),
-    availableSlotsBelow: slotsBelow.length,
-    slotsBelowOccupied: slotsBelow.map((s) => s.clip !== null),
+    preview: {
+      trackName: String(session.track.name),
+      clipName: String(sourceClip.name),
+      sourceNotes: session.notes,
+      bounds: session.bounds,
+      availableSlotsBelow: slotsBelow.length,
+      slotsBelowOccupied: slotsBelow.map((s) => s.clip !== null),
+    },
   };
 
   let result: DialogResult;
@@ -141,7 +144,7 @@ export async function handleSceneDialog(arg: unknown, deps: DialogDeps): Promise
   const totalScenes = scenes.length;
 
   const snapshot: SceneSourceClip[] = [];
-  const summaries: SceneSourceSummary[] = [];
+  const preview: PreviewClip[] = [];
   for (let ti = 0; ti < tracks.length; ti++) {
     const track = tracks[ti]!;
     if (!(track instanceof MidiTrack)) continue;
@@ -149,12 +152,14 @@ export async function handleSceneDialog(arg: unknown, deps: DialogDeps): Promise
     const clip = slot?.clip;
     if (!(clip instanceof MidiClip)) continue;
 
+    const notes = clip.notes.map(coerceNote);
+    const bounds = clipBoundsFor(clip);
     snapshot.push({
       trackIndex: ti,
       track,
       clip,
-      notes: clip.notes.map(coerceNote),
-      bounds: clipBoundsFor(clip),
+      notes,
+      bounds,
       duration: Number(clip.loopEnd),
     });
 
@@ -162,11 +167,12 @@ export async function handleSceneDialog(arg: unknown, deps: DialogDeps): Promise
     for (let si = sceneIndex + 1; si < totalScenes; si++) {
       slotsBelow.push(track.clipSlots[si]?.clip != null);
     }
-    summaries.push({
-      trackIndex: ti,
+    preview.push({
       trackName: String(track.name),
       clipName: String(clip.name),
-      noteCount: clip.notes.length,
+      sourceNotes: notes,
+      bounds,
+      availableSlotsBelow: slotsBelow.length,
       slotsBelowOccupied: slotsBelow,
     });
   }
@@ -177,8 +183,7 @@ export async function handleSceneDialog(arg: unknown, deps: DialogDeps): Promise
     mode: "scene",
     sceneIndex,
     sceneName: String(scene.name),
-    totalScenesInSong: totalScenes,
-    sources: summaries,
+    preview,
   };
 
   let result: DialogResult;
@@ -211,7 +216,7 @@ export async function handleSceneDialog(arg: unknown, deps: DialogDeps): Promise
 // a drag-selected time range OR a single-clip right-click (Live treats the
 // single clip as a degenerate range). Single-clip goes through the piano-roll
 // preview dialog; multi-clip (or multi-track) goes through the range-mode
-// indicator-grid dialog.
+// range-mode preview dialog.
 export async function handleRangeDialog(arg: unknown, deps: DialogDeps): Promise<void> {
   const { context, showMutateDialog } = deps;
   if (!arg || typeof arg !== "object") return;
@@ -253,21 +258,22 @@ export async function handleRangeDialog(arg: unknown, deps: DialogDeps): Promise
     return;
   }
 
-  // Multi-clip: build a flat per-clip summary list for the UI.
-  const clipSummaries: RangeClipSummary[] = rangeClips
+  // Multi-clip: build a flat per-clip preview list for the UI.
+  const preview: PreviewClip[] = rangeClips
     .slice()
     .sort((a, b) => a.trackIndex - b.trackIndex || a.startTime - b.startTime)
     .map((rc) => ({
       trackName: String(rc.track.name),
       clipName: String(rc.clip.name),
-      noteCount: rc.notes.length,
+      sourceNotes: rc.notes,
+      bounds: rc.bounds,
     }));
 
   const payload: RangeModePayload = {
     mode: "range",
     timeStart,
     timeEnd,
-    clips: clipSummaries,
+    preview,
   };
 
   let result: DialogResult;

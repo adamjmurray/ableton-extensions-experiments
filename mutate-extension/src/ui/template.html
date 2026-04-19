@@ -97,20 +97,6 @@
       cursor: pointer;
     }
 
-    .source-panel {
-      padding: 10px 12px;
-      background: var(--panel);
-      border-bottom: 1px solid var(--border-dim);
-      flex-shrink: 0;
-    }
-    .source-panel .label {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 1.5px;
-      color: var(--text-dim);
-      margin-bottom: 6px;
-    }
-
     .controls-panel {
       display: flex;
       padding: 12px;
@@ -284,14 +270,6 @@
       gap: 10px;
       align-content: start;
     }
-    .previews-truncated {
-      grid-column: 1 / -1;
-      font-size: 10px;
-      color: var(--text-dim);
-      text-align: center;
-      padding: 6px 0;
-      font-style: italic;
-    }
     .variation {
       background: var(--panel);
       border: 1px solid var(--border-dim);
@@ -327,84 +305,54 @@
       display: block;
     }
 
-    .scene-header {
-      padding: 10px 12px;
-      background: var(--panel);
-      border-bottom: 1px solid var(--border-dim);
-      flex-shrink: 0;
-    }
-    .scene-header .title-line {
-      font-size: 12px;
-      font-weight: 500;
-      margin-bottom: 2px;
-    }
-    .scene-header .subtitle-line {
-      font-size: 11px;
-      color: var(--text-dim);
-    }
-
-    .indicator-panel {
+    .preview-panel {
       flex: 1;
       overflow: auto;
       padding: 12px;
       background: var(--bg);
-    }
-    .indicator-grid {
-      display: inline-block;
-    }
-    .grid-col-labels {
-      display: flex;
-      gap: 2px;
-      margin-bottom: 4px;
-      height: 48px;
-      align-items: flex-end;
-    }
-    .grid-col-label {
-      font-size: 9px;
-      color: var(--text-dim);
-      writing-mode: vertical-lr;
-      transform: rotate(180deg);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-height: 48px;
-    }
-    .grid-body {
       display: flex;
       flex-direction: column;
+      gap: 10px;
     }
-    .grid-row {
+    .preview-header {
       display: flex;
       align-items: center;
-      margin-bottom: 2px;
+      gap: 12px;
     }
-    .grid-row-label {
-      width: 86px;
-      padding-right: 4px;
+    .preview-header .label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-dim);
+    }
+    .preview-header .btn.small {
+      padding: 2px 8px;
+      font-size: 10px;
+    }
+    .clip-picker {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .clip-picker-label {
       font-size: 10px;
       color: var(--text-dim);
-      text-align: right;
+      min-width: 70px;
+      text-align: center;
+    }
+    .preview-clip-name {
+      font-size: 11px;
+      color: var(--text);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .grid-row-label.new-scene {
-      color: var(--accent);
-    }
-    .grid-cell {
-      border-radius: 2px;
-      border: 1px solid transparent;
-    }
-    .grid-cell--write-empty {
-      background: var(--accent);
-    }
-    .grid-cell--write-overwrite {
-      background: var(--accent);
-      border-color: #ff3333;
-    }
-    .grid-cell--skip {
-      background: var(--surface);
-      opacity: 0.35;
+    .preview-source .mini-label {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-dim);
+      margin-bottom: 4px;
     }
   </style>
 </head>

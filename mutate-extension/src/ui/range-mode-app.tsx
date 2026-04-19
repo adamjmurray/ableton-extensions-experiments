@@ -8,6 +8,7 @@ import {
 } from "../variations.js";
 import { applyMutations, closeDialog, MAX_VARIATIONS, type RangeModePayload } from "./bridge.js";
 import { ControlsGrid, VariationCountInput } from "./controls.js";
+import { PreviewPanel } from "./preview-panel.js";
 
 export function RangeModeApp({ data }: { data: RangeModePayload }) {
   const [controls, setControls] = useState<MutateControls>(ZERO_CONTROLS);
@@ -15,6 +16,7 @@ export function RangeModeApp({ data }: { data: RangeModePayload }) {
   const [variations, setVariations] = useState(0);
   const [variationMode, setVariationMode] = useState<VariationMode>("independent");
   const [baseSeed, setBaseSeed] = useState(() => freshSeed());
+  const [activeIndex, setActiveIndex] = useState(0);
 
   useEffect(() => {
     setBaseSeed(freshSeed());
@@ -36,9 +38,8 @@ export function RangeModeApp({ data }: { data: RangeModePayload }) {
     });
   };
 
-  const clipCount = data.clips.length;
-  const trackNames = new Set(data.clips.map((c) => c.trackName));
-  const trackCount = trackNames.size;
+  const clipCount = data.preview.length;
+  const trackCount = new Set(data.preview.map((c) => c.trackName)).size;
 
   return (
     <div class="app">
@@ -57,16 +58,6 @@ export function RangeModeApp({ data }: { data: RangeModePayload }) {
           <button type="button" class="btn primary" onClick={handleApply} disabled={!canApply}>
             Apply
           </button>
-        </div>
-      </div>
-
-      <div class="scene-header">
-        <div class="title-line">
-          {clipCount} MIDI clip{clipCount === 1 ? "" : "s"} across {trackCount} track
-          {trackCount === 1 ? "" : "s"}
-        </div>
-        <div class="subtitle-line">
-          Take lanes are always additive — variations append new lanes per track.
         </div>
       </div>
 
@@ -114,20 +105,18 @@ export function RangeModeApp({ data }: { data: RangeModePayload }) {
         </div>
       </div>
 
-      <div class="indicator-panel">
-        {clipCount > 0 ? (
-          <ul style={{ listStyle: "none", padding: 0, margin: 0, color: "var(--text-dim)" }}>
-            {data.clips.map((c, i) => (
-              <li key={i} style={{ padding: "2px 0" }}>
-                {c.trackName} · {c.clipName || "(unnamed clip)"} · {c.noteCount} note
-                {c.noteCount === 1 ? "" : "s"}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <div style={{ color: "var(--text-dim)" }}>No MIDI clips in this range.</div>
-        )}
-      </div>
+      <PreviewPanel
+        clips={data.preview}
+        activeIndex={activeIndex}
+        onActiveIndexChange={setActiveIndex}
+        controls={controls}
+        variations={variations}
+        mutateSource={mutateSource}
+        variationMode={variationMode}
+        baseSeed={baseSeed}
+        fillMode="skip"
+        branch="arrangement"
+      />
     </div>
   );
 }

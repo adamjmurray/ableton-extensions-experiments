@@ -11,10 +11,9 @@ import { type DialogDeps, openArrangementClipDialog } from "./dialog-handlers.js
 import { clipBoundsFor, coerceNote } from "./helpers.js";
 import type {
   DialogResult,
-  RangeClipSummary,
+  PreviewClip,
   RangeModePayload,
   SessionMultiPayload,
-  SessionMultiSourceSummary,
 } from "./ui/bridge.js";
 
 // "Mutate: Track (Session)" — reuses the SessionMulti flow: shared controls,
@@ -25,26 +24,29 @@ export async function handleTrackSessionDialog(arg: unknown, deps: DialogDeps): 
   const trackName = String(track.name);
 
   const sourceClips: SessionMultiSourceClip[] = [];
-  const summaries: SessionMultiSourceSummary[] = [];
-  for (const slot of track.clipSlots) {
+  const preview: PreviewClip[] = [];
+  const slots = track.clipSlots;
+  for (let si = 0; si < slots.length; si++) {
+    const slot = slots[si]!;
     const clip = slot.clip;
     if (!(clip instanceof MidiClip)) continue;
-    sourceClips.push({
-      track,
-      clip,
-      notes: clip.notes.map(coerceNote),
-      bounds: clipBoundsFor(clip),
-    });
-    summaries.push({
+    const notes = clip.notes.map(coerceNote);
+    const bounds = clipBoundsFor(clip);
+    sourceClips.push({ track, clip, notes, bounds });
+    const slotsBelow = slots.slice(si + 1).map((s) => s.clip !== null);
+    preview.push({
       trackName,
       clipName: String(clip.name),
-      noteCount: clip.notes.length,
+      sourceNotes: notes,
+      bounds,
+      availableSlotsBelow: slotsBelow.length,
+      slotsBelowOccupied: slotsBelow,
     });
   }
 
   if (sourceClips.length === 0) return;
 
-  const payload: SessionMultiPayload = { mode: "sessionMulti", sources: summaries };
+  const payload: SessionMultiPayload = { mode: "sessionMulti", preview };
   let result: DialogResult;
   try {
     result = await showMutateDialog(payload);
@@ -97,20 +99,21 @@ export async function handleTrackArrangementDialog(arg: unknown, deps: DialogDep
   const timeStart = Math.min(...clips.map((c) => c.startTime));
   const timeEnd = Math.max(...clips.map((c) => c.startTime + c.duration));
   const trackName = String(track.name);
-  const clipSummaries: RangeClipSummary[] = clips
+  const preview: PreviewClip[] = clips
     .slice()
     .sort((a, b) => a.startTime - b.startTime)
     .map((c) => ({
       trackName,
       clipName: String(c.clip.name),
-      noteCount: c.notes.length,
+      sourceNotes: c.notes,
+      bounds: c.bounds,
     }));
 
   const payload: RangeModePayload = {
     mode: "range",
     timeStart,
     timeEnd,
-    clips: clipSummaries,
+    preview,
     scopeLabel: `Track: ${track.name}`,
   };
   let result: DialogResult;

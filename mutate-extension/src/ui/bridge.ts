@@ -18,70 +18,53 @@ export type CloseMessage = { action: "close" };
 
 export type DialogResult = ApplyMessage | CloseMessage;
 
+// Per-clip data the preview panel needs to render + compute mutations.
+// Session-context clips also carry slot-conflict info for variation status badges.
+export type PreviewClip = {
+  trackName: string;
+  clipName: string;
+  sourceNotes: Note[];
+  bounds: ClipBounds;
+  // Session-context only. length = number of existing scenes below this clip.
+  // Each entry tells whether that slot currently holds a clip.
+  slotsBelowOccupied?: boolean[];
+  availableSlotsBelow?: number;
+};
+
 export type ClipModeSessionPayload = {
   mode: "clip";
   branch: "session";
-  sourceNotes: Note[];
-  bounds: ClipBounds;
-  sourceClipName: string;
-  trackName: string;
-  availableSlotsBelow: number;
-  slotsBelowOccupied: boolean[];
+  preview: PreviewClip; // always exactly one
 };
 
 export type ClipModeArrangementPayload = {
   mode: "clip";
   branch: "arrangement";
-  sourceNotes: Note[];
-  bounds: ClipBounds;
-  sourceClipName: string;
-  trackName: string;
+  preview: PreviewClip;
 };
 
 export type ClipModePayload = ClipModeSessionPayload | ClipModeArrangementPayload;
-
-export type SceneSourceSummary = {
-  trackIndex: number;
-  trackName: string;
-  clipName: string;
-  noteCount: number;
-  // length = totalScenesInSong - sceneIndex - 1 (i.e. existing scenes below source)
-  slotsBelowOccupied: boolean[];
-};
 
 export type SceneModePayload = {
   mode: "scene";
   sceneIndex: number;
   sceneName: string;
-  totalScenesInSong: number;
-  sources: SceneSourceSummary[];
-};
-
-export type RangeClipSummary = {
-  trackName: string;
-  clipName: string;
-  noteCount: number;
+  preview: PreviewClip[]; // one per MIDI clip in the scene
 };
 
 export type RangeModePayload = {
   mode: "range";
   timeStart: number;
   timeEnd: number;
-  clips: RangeClipSummary[]; // one entry per source MIDI clip in the range
+  preview: PreviewClip[]; // sorted by (trackIndex, startTime)
   // Overrides the default "Range X – Y" toolbar subtitle. Used by the
   // whole-track entry point so the user sees "Track: <name>" instead.
   scopeLabel?: string;
 };
 
-export type SessionMultiSourceSummary = {
-  trackName: string;
-  clipName: string;
-  noteCount: number;
-};
-
 export type SessionMultiPayload = {
   mode: "sessionMulti";
-  sources: SessionMultiSourceSummary[];
+  preview: PreviewClip[];
 };
 
 export type DialogPayload =
@@ -101,12 +84,14 @@ declare global {
 const FALLBACK_PAYLOAD: ClipModePayload = {
   mode: "clip",
   branch: "session",
-  sourceNotes: [],
-  bounds: { start: 0, end: 4 },
-  sourceClipName: "",
-  trackName: "",
-  availableSlotsBelow: 0,
-  slotsBelowOccupied: [],
+  preview: {
+    trackName: "",
+    clipName: "",
+    sourceNotes: [],
+    bounds: { start: 0, end: 4 },
+    availableSlotsBelow: 0,
+    slotsBelowOccupied: [],
+  },
 };
 
 export function getMutateData(): DialogPayload {
