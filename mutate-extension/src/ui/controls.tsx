@@ -145,6 +145,68 @@ const AMOUNT_ROWS: AmountRowConfig[] = [
   { key: "swap", label: "Swap", numberStep: 0.05, sliderStep: 0.01 },
 ];
 
+function NumberField({
+  value,
+  min,
+  max,
+  step,
+  integer = false,
+  onChange,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  integer?: boolean;
+  onChange: (next: number) => void;
+}) {
+  const [text, setText] = useState(String(value));
+
+  useEffect(() => {
+    if (Number(text) !== value) setText(String(value));
+  }, [value]);
+
+  const clamp = (n: number) => {
+    const v = integer ? Math.trunc(n) : n;
+    return Math.max(min, Math.min(max, v));
+  };
+
+  return (
+    <input
+      type="number"
+      step={step}
+      min={min}
+      max={max}
+      value={text}
+      onKeyDown={(e) => {
+        if (integer && (e.key === "." || e.key === "e" || e.key === "E")) {
+          e.preventDefault();
+        }
+        if (min >= 0 && e.key === "-") {
+          e.preventDefault();
+        }
+      }}
+      onInput={(e) => {
+        const raw = (e.target as HTMLInputElement).value;
+        setText(raw);
+        if (raw === "" || raw === "-" || raw.endsWith(".")) return;
+        const parsed = Number(raw);
+        if (Number.isFinite(parsed)) {
+          const c = clamp(parsed);
+          if (c !== value) onChange(c);
+        }
+      }}
+      onBlur={(e) => {
+        const raw = (e.target as HTMLInputElement).value;
+        const parsed = raw === "" || raw === "-" ? value : Number(raw);
+        const c = Number.isFinite(parsed) ? clamp(parsed) : value;
+        setText(String(c));
+        if (c !== value) onChange(c);
+      }}
+    />
+  );
+}
+
 function SliderField({
   value,
   min,
@@ -160,11 +222,24 @@ function SliderField({
   numberStep: number;
   onChange: (next: number) => void;
 }) {
-  const handle = (e: Event) => onChange(Number((e.target as HTMLInputElement).value));
   return (
     <div class="field">
-      <input type="range" min={min} max={max} step={sliderStep} value={value} onInput={handle} />
-      <input type="number" step={numberStep} min={min} max={max} value={value} onInput={handle} />
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={sliderStep}
+        value={value}
+        onInput={(e) => onChange(Number((e.target as HTMLInputElement).value))}
+      />
+      <NumberField
+        value={value}
+        min={min}
+        max={max}
+        step={numberStep}
+        integer={Number.isInteger(numberStep) && Number.isInteger(sliderStep)}
+        onChange={onChange}
+      />
     </div>
   );
 }
