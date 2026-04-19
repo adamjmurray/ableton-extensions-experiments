@@ -134,25 +134,27 @@ export function SceneModeApp({ data }: { data: SceneModePayload }) {
               />
             </div>
           </div>
-          <div>
-            <div class="section-label">Fill mode</div>
-            <div class="btn-group">
-              <button
-                type="button"
-                class={`tab ${fillMode === "skip" ? "active" : ""}`}
-                onClick={() => setFillMode("skip")}
-              >
-                Skip
-              </button>
-              <button
-                type="button"
-                class={`tab ${fillMode === "overwrite" ? "active" : ""}`}
-                onClick={() => setFillMode("overwrite")}
-              >
-                Overwrite
-              </button>
+          {variations > 0 && (
+            <div>
+              <div class="section-label">Occupied slots</div>
+              <div class="btn-group">
+                <button
+                  type="button"
+                  class={`tab ${fillMode === "skip" ? "active" : ""}`}
+                  onClick={() => setFillMode("skip")}
+                >
+                  Skip
+                </button>
+                <button
+                  type="button"
+                  class={`tab ${fillMode === "overwrite" ? "active" : ""}`}
+                  onClick={() => setFillMode("overwrite")}
+                >
+                  Overwrite
+                </button>
+              </div>
             </div>
-          </div>
+          )}
           {variations > 0 && (
             <div>
               <div class="section-label">Variation mode</div>

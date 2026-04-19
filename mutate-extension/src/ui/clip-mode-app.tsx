@@ -173,9 +173,9 @@ export function ClipModeApp({ data }: { data: ClipModePayload }) {
               </div>
             </div>
           )}
-          {!isArrangement && (
+          {!isArrangement && variations > 0 && (
             <div>
-              <div class="section-label">Fill mode</div>
+              <div class="section-label">Occupied slots</div>
               <div class="btn-group">
                 <button
                   type="button"
