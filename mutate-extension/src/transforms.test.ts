@@ -3,8 +3,10 @@ import { mulberry32 } from "./rng.js";
 import {
   type ClipBounds,
   dropNotes,
+  dropNotesByChance,
   type Note,
   swapNotes,
+  swapNotesByChance,
   transformDuration,
   transformProbability,
   transformStart,
@@ -287,5 +289,40 @@ describe("swapNotes", () => {
 
   test("empty input returns empty", () => {
     expect(swapNotes([], 1, mulberry32(1))).toEqual([]);
+  });
+});
+
+describe("dropNotesByChance", () => {
+  test("chance = 0 keeps all", () => {
+    const input = Array.from({ length: 10 }, (_, i) => note(60 + i));
+    expect(dropNotesByChance(input, 0, mulberry32(1))).toHaveLength(10);
+  });
+
+  test("chance = 1 drops all", () => {
+    const input = Array.from({ length: 10 }, (_, i) => note(60 + i));
+    expect(dropNotesByChance(input, 1, mulberry32(1))).toHaveLength(0);
+  });
+
+  test("chance = 0.5 over 1000 notes drops roughly half", () => {
+    const input = Array.from({ length: 1000 }, (_, i) => note(60 + (i % 12)));
+    const out = dropNotesByChance(input, 0.5, mulberry32(42));
+    expect(out.length).toBeGreaterThan(350);
+    expect(out.length).toBeLessThan(650);
+  });
+});
+
+describe("swapNotesByChance", () => {
+  test("chance = 0 leaves all pitches unchanged", () => {
+    const input = [note(60), note(62), note(64), note(65)];
+    const out = swapNotesByChance(input, 0, mulberry32(1));
+    expect(out.map((n) => n.pitch)).toEqual([60, 62, 64, 65]);
+  });
+
+  test("chance = 1 over 20 notes preserves pitch multiset", () => {
+    const input = Array.from({ length: 20 }, (_, i) => note(60 + i));
+    const out = swapNotesByChance(input, 1, mulberry32(7));
+    const before = input.map((n) => n.pitch).sort((a, b) => a - b);
+    const after = out.map((n) => n.pitch).sort((a, b) => a - b);
+    expect(after).toEqual(before);
   });
 });

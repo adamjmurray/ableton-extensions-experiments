@@ -21,7 +21,12 @@ import { clipBoundsFor, clipOverlapsRange, coerceNote } from "./helpers.js";
 import mutateDialogHtml from "./mutate-dialog.html";
 import { mulberry32, type Rng } from "./rng.js";
 import { handleTrackArrangementDialog, handleTrackSessionDialog } from "./track-handlers.js";
-import { dropNotes, type Note, swapNotes, transformVelocity } from "./transforms.js";
+import {
+  dropNotesByChance,
+  type Note,
+  swapNotesByChance,
+  transformVelocity,
+} from "./transforms.js";
 import type { DialogPayload, DialogResult } from "./ui/bridge.js";
 
 export function activate(activation: ActivationContext) {
@@ -182,11 +187,11 @@ export function activate(activation: ActivationContext) {
   );
 
   context.commands.registerCommand("mutate.quick.swapNotes", (arg: unknown) =>
-    runQuickAction(arg, (notes, rng) => swapNotes(notes, 0.25, rng)),
+    runQuickAction(arg, (notes, rng) => swapNotesByChance(notes, 0.25, rng)),
   );
 
   context.commands.registerCommand("mutate.quick.deleteTenPercent", (arg: unknown) =>
-    runQuickAction(arg, (notes, rng) => dropNotes(notes, 0.1, rng)),
+    runQuickAction(arg, (notes, rng) => dropNotesByChance(notes, 0.1, rng)),
   );
 
   // -------------------------------------------------------------------
@@ -217,10 +222,18 @@ export function activate(activation: ActivationContext) {
   for (const scope of ["ClipSlotSelection", "MidiTrack.ArrangementSelection"] as const) {
     context.ui.registerContextMenuAction(
       scope,
-      "Randomize Velocity",
+      "Randomize Velocity (±15)",
       "mutate.quick.randomizeVelocity",
     );
-    context.ui.registerContextMenuAction(scope, "Swap Notes", "mutate.quick.swapNotes");
-    context.ui.registerContextMenuAction(scope, "Delete 10%", "mutate.quick.deleteTenPercent");
+    context.ui.registerContextMenuAction(
+      scope,
+      "Swap Notes (25% chance per note)",
+      "mutate.quick.swapNotes",
+    );
+    context.ui.registerContextMenuAction(
+      scope,
+      "Delete Notes (10% chance per note)",
+      "mutate.quick.deleteTenPercent",
+    );
   }
 }

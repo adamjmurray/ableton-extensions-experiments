@@ -58,7 +58,7 @@ const RANGE_ROWS: RangeRowConfig[] = [
 ];
 
 const AMOUNT_ROWS: AmountRowConfig[] = [
-  { key: "drop", label: "Drop", numberStep: 0.05, sliderStep: 0.01 },
+  { key: "drop", label: "Delete", numberStep: 0.05, sliderStep: 0.01 },
   { key: "swap", label: "Swap", numberStep: 0.05, sliderStep: 0.01 },
 ];
 

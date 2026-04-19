@@ -75,6 +75,37 @@ export function dropNotes(notes: Note[], amount: number, rng: Rng): Note[] {
   return notes.filter((_, i) => !dropSet.has(i));
 }
 
+// Per-note probability roll: each note independently drops with probability `chance`.
+// Used by the quick-action context menu items, where the count is not exact.
+export function dropNotesByChance(notes: Note[], chance: number, rng: Rng): Note[] {
+  const p = clamp(chance, 0, 1);
+  return notes.filter(() => rng() >= p);
+}
+
+// Per-pair probability roll: random shuffle into pairs, then each pair independently
+// swaps pitches with probability `chance`. Odd-count input leaves the final index unpaired.
+export function swapNotesByChance(notes: Note[], chance: number, rng: Rng): Note[] {
+  const out = notes.map((n) => ({ ...n }));
+  const p = clamp(chance, 0, 1);
+  const indices = out.map((_, i) => i);
+  for (let i = indices.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    const tmp = indices[i]!;
+    indices[i] = indices[j]!;
+    indices[j] = tmp;
+  }
+  for (let i = 0; i + 1 < indices.length; i += 2) {
+    if (rng() < p) {
+      const a = indices[i]!;
+      const b = indices[i + 1]!;
+      const tmpPitch = out[a]!.pitch;
+      out[a]!.pitch = out[b]!.pitch;
+      out[b]!.pitch = tmpPitch;
+    }
+  }
+  return out;
+}
+
 // Shuffles indices into adjacent pairs, then swaps pitches on exactly
 // floor(amount * pairCount) pairs. Odd-count input leaves the final index unpaired.
 export function swapNotes(notes: Note[], amount: number, rng: Rng): Note[] {

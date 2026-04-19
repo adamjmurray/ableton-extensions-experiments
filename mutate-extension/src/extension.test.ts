@@ -30,15 +30,15 @@ describe("activate", () => {
     expect(titlesByScope("Scene")).toEqual(["Scene..."]);
     expect(titlesByScope("ClipSlotSelection")).toEqual([
       "Clip(s)...",
-      "Delete 10%",
-      "Randomize Velocity",
-      "Swap Notes",
+      "Delete Notes (10% chance per note)",
+      "Randomize Velocity (±15)",
+      "Swap Notes (25% chance per note)",
     ]);
     expect(titlesByScope("MidiTrack.ArrangementSelection")).toEqual([
       "Clip(s)...",
-      "Delete 10%",
-      "Randomize Velocity",
-      "Swap Notes",
+      "Delete Notes (10% chance per note)",
+      "Randomize Velocity (±15)",
+      "Swap Notes (25% chance per note)",
     ]);
     expect(titlesByScope("MidiTrack")).toEqual(["Track (Arrangement)", "Track (Session)"]);
   });
