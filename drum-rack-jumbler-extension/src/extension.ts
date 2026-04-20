@@ -109,6 +109,33 @@ export function activate(activation: ActivationContext) {
     context.ui.registerContextMenuAction("MidiTrack", label, id);
   }
 
+  context.commands.registerCommand("drumRackJumbler.zeroPitch", async (arg: unknown) => {
+    const pads = resolvePads(arg);
+    if (!pads) {
+      console.log("Zero Pitch Shift Simplers: no top-level drum rack on this track");
+      return;
+    }
+    const ops: Promise<void>[] = [];
+    for (const pad of pads) {
+      const transpose = findParameter(pad.simpler, "Transpose");
+      const detune = findParameter(pad.simpler, "Detune");
+      if (transpose) ops.push(transpose.setValue(0));
+      if (detune) ops.push(detune.setValue(0));
+    }
+    if (ops.length === 0) {
+      console.log("Zero Pitch Shift Simplers: no Transpose/Detune parameters found on any Simpler");
+      return;
+    }
+    await context.withinTransaction(async () => {
+      await Promise.all(ops);
+    });
+  });
+  context.ui.registerContextMenuAction(
+    "MidiTrack",
+    "Zero Pitch Shift Simplers",
+    "drumRackJumbler.zeroPitch",
+  );
+
   registerPitchCommand("drumRackJumbler.pitch1", "Pitch Shift Simplers (±1 semitone)", 1, true);
   registerPitchCommand(
     "drumRackJumbler.pitch12",
