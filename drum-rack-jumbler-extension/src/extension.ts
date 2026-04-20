@@ -13,7 +13,7 @@ import { type DrumPad, findTopLevelDrumPads } from "./walker.js";
 export function activate(activation: ActivationContext) {
   const context = initialize(activation, "0.0.5");
 
-  console.log("Drum Rack Mangler activated!");
+  console.log("Drum Rack Jumbler activated!");
 
   function resolvePads(arg: unknown): DrumPad[] | null {
     const track = context.objects.getObjectFromHandle(arg as Handle, MidiTrack);
@@ -24,7 +24,7 @@ export function activate(activation: ActivationContext) {
     return simpler.parameters.find((p) => p.name === name) ?? null;
   }
 
-  context.commands.registerCommand("drumRackMangler.shuffle", async (arg: unknown) => {
+  context.commands.registerCommand("drumRackJumbler.shuffle", async (arg: unknown) => {
     const pads = resolvePads(arg);
     if (!pads) {
       console.log("Swap Simplers in Drum Rack: no top-level drum rack on this track");
@@ -103,15 +103,15 @@ export function activate(activation: ActivationContext) {
     context.ui.registerContextMenuAction("MidiTrack", label, id);
   }
 
-  registerPitchCommand("drumRackMangler.pitch1", "Pitch Shift Simplers (±1 semitone)", 1, true);
+  registerPitchCommand("drumRackJumbler.pitch1", "Pitch Shift Simplers (±1 semitone)", 1, true);
   registerPitchCommand(
-    "drumRackMangler.pitch12",
+    "drumRackJumbler.pitch12",
     "Pitch Shift Simplers (±12 semitones)",
     12,
     false,
   );
   registerPitchCommand(
-    "drumRackMangler.pitch24",
+    "drumRackJumbler.pitch24",
     "Pitch Shift Simplers (±24 semitones)",
     24,
     false,
@@ -120,6 +120,6 @@ export function activate(activation: ActivationContext) {
   context.ui.registerContextMenuAction(
     "MidiTrack",
     "Swap Simplers in Drum Rack",
-    "drumRackMangler.shuffle",
+    "drumRackJumbler.shuffle",
   );
 }
