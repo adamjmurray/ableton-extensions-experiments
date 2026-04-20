@@ -198,7 +198,7 @@ copy("package.json", "sdk--package.json");
 copy("tsconfig.json", "sdk--tsconfig.json");
 
 // --- Our extensions (all git-tracked files, except package-lock.json) ---
-const extensions = ["notation-extension", "mutate-extension"];
+const extensions = ["notation-extension", "mutate-extension", "drum-rack-jumbler-extension"];
 const extensionSkipFiles = new Set(["package-lock.json"]);
 
 for (const ext of extensions) {
