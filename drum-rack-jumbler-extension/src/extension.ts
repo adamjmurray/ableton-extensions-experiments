@@ -8,7 +8,7 @@ import {
 } from "@ableton/extensions-sdk";
 import { derange } from "./derange.js";
 import { mulberry32, type Rng } from "./rng.js";
-import { type DrumPad, findTopLevelDrumPads } from "./walker.js";
+import { type DrumPad, findTopLevelDrumChains, findTopLevelDrumPads } from "./walker.js";
 
 export function activate(activation: ActivationContext) {
   const context = initialize(activation, "0.0.5");
@@ -24,23 +24,29 @@ export function activate(activation: ActivationContext) {
     return simpler.parameters.find((p) => p.name === name) ?? null;
   }
 
-  context.commands.registerCommand("drumRackJumbler.shuffle", async (arg: unknown) => {
-    const pads = resolvePads(arg);
-    if (!pads) {
-      console.log("Swap Simplers in Drum Rack: no top-level drum rack on this track");
+  // Remaps DrumChain.receivingNote across the rack so each pad is triggered
+  // by a different MIDI note. Works on any pad contents (Simpler, Drum
+  // Sampler, nested racks, empty) because it only touches the DrumChain
+  // itself, not the devices inside. The visible pad grid follows
+  // receivingNote, so pads visually rearrange too.
+  context.commands.registerCommand("drumRackJumbler.swapDrumPads", async (arg: unknown) => {
+    const track = context.objects.getObjectFromHandle(arg as Handle, MidiTrack);
+    const drumChains = findTopLevelDrumChains(track);
+    if (!drumChains) {
+      console.log("Swap Drum Pads: no top-level drum rack on this track");
       return;
     }
-    if (pads.length < 2) {
-      console.log("Swap Simplers in Drum Rack: need at least 2 pads with samples to swap");
+    if (drumChains.length < 2) {
+      console.log("Swap Drum Pads: need at least 2 pads to swap");
       return;
     }
     const rng = mulberry32(Date.now() >>> 0);
-    const shuffledPaths = derange(
-      pads.map((p) => p.path),
-      rng,
-    );
-    await context.withinTransaction(async () => {
-      await Promise.all(pads.map((pad, i) => pad.simpler.replaceSample(shuffledPaths[i]!)));
+    const originalNotes = drumChains.map((c) => c.receivingNote);
+    const shuffledNotes = derange(originalNotes, rng);
+    context.withinTransaction(() => {
+      drumChains.forEach((chain, i) => {
+        chain.receivingNote = shuffledNotes[i]!;
+      });
     });
   });
 
@@ -119,7 +125,7 @@ export function activate(activation: ActivationContext) {
 
   context.ui.registerContextMenuAction(
     "MidiTrack",
-    "Swap Simplers in Drum Rack",
-    "drumRackJumbler.shuffle",
+    "Swap Drum Pads",
+    "drumRackJumbler.swapDrumPads",
   );
 }
