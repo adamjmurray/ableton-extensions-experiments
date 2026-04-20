@@ -1,5 +1,6 @@
 import {
   type ActivationContext,
+  DataModelObject,
   type DeviceParameter,
   type Handle,
   initialize,
@@ -15,8 +16,22 @@ export function activate(activation: ActivationContext) {
 
   console.log("Drum Rack Jumbler activated!");
 
+  // Context-menu args can be a MidiTrack handle (right-click track header) or
+  // a MidiClip/ClipSlot handle (right-click a clip in Session/Arrangement).
+  // Walk up the parent chain to find the containing MidiTrack.
+  function resolveTrack(arg: unknown): MidiTrack<"0.0.5"> | null {
+    const obj = context.objects.getObjectFromHandle(arg as Handle, DataModelObject);
+    let current: DataModelObject<"0.0.5"> | null = obj;
+    while (current) {
+      if (current instanceof MidiTrack) return current;
+      current = current.parent;
+    }
+    return null;
+  }
+
   function resolvePads(arg: unknown): DrumPad[] | null {
-    const track = context.objects.getObjectFromHandle(arg as Handle, MidiTrack);
+    const track = resolveTrack(arg);
+    if (!track) return null;
     return findTopLevelDrumPads(track)?.pads ?? null;
   }
 
@@ -35,7 +50,11 @@ export function activate(activation: ActivationContext) {
   // itself, not the devices inside. The visible pad grid follows
   // receivingNote, so pads visually rearrange too.
   context.commands.registerCommand("drumRackJumbler.swapDrumPads", async (arg: unknown) => {
-    const track = context.objects.getObjectFromHandle(arg as Handle, MidiTrack);
+    const track = resolveTrack(arg);
+    if (!track) {
+      console.log("Swap Drum Pads: could not resolve track from selection");
+      return;
+    }
     const drumChains = findTopLevelDrumChains(track);
     if (!drumChains) {
       console.log("Swap Drum Pads: no top-level drum rack on this track");
@@ -56,7 +75,11 @@ export function activate(activation: ActivationContext) {
   });
 
   context.commands.registerCommand("drumRackJumbler.randomizePan", async (arg: unknown) => {
-    const track = context.objects.getObjectFromHandle(arg as Handle, MidiTrack);
+    const track = resolveTrack(arg);
+    if (!track) {
+      console.log("Randomize Panning: could not resolve track from selection");
+      return;
+    }
     const drumChains = findTopLevelDrumChains(track);
     if (!drumChains) {
       console.log("Randomize Panning: no top-level drum rack on this track");
@@ -74,7 +97,11 @@ export function activate(activation: ActivationContext) {
   });
 
   context.commands.registerCommand("drumRackJumbler.centerPan", async (arg: unknown) => {
-    const track = context.objects.getObjectFromHandle(arg as Handle, MidiTrack);
+    const track = resolveTrack(arg);
+    if (!track) {
+      console.log("Center All Panning: could not resolve track from selection");
+      return;
+    }
     const drumChains = findTopLevelDrumChains(track);
     if (!drumChains) {
       console.log("Center All Panning: no top-level drum rack on this track");
@@ -182,41 +209,22 @@ export function activate(activation: ActivationContext) {
   });
 
   // -------------------------------------------------------------------
-  // Menu order is the registration order below.
+  // Menu order is the registration order below. Each action is registered
+  // for both MidiTrack (right-click track header) and MidiClip (right-click
+  // a clip in Session or Arrangement) scopes — the handler walks parents to
+  // find the containing track either way.
   // -------------------------------------------------------------------
-  context.ui.registerContextMenuAction(
-    "MidiTrack",
-    "Swap Drum Pads",
-    "drumRackJumbler.swapDrumPads",
-  );
-  context.ui.registerContextMenuAction(
-    "MidiTrack",
-    "Randomize Panning",
-    "drumRackJumbler.randomizePan",
-  );
-  context.ui.registerContextMenuAction(
-    "MidiTrack",
-    "Center All Panning",
-    "drumRackJumbler.centerPan",
-  );
-  context.ui.registerContextMenuAction(
-    "MidiTrack",
-    "Pitch Shift Simplers (±1 semitone)",
-    "drumRackJumbler.pitch1",
-  );
-  context.ui.registerContextMenuAction(
-    "MidiTrack",
-    "Pitch Shift Simplers (±12 semitones)",
-    "drumRackJumbler.pitch12",
-  );
-  context.ui.registerContextMenuAction(
-    "MidiTrack",
-    "Pitch Shift Simplers (±24 semitones)",
-    "drumRackJumbler.pitch24",
-  );
-  context.ui.registerContextMenuAction(
-    "MidiTrack",
-    "Reset Simpler Pitch Shifts",
-    "drumRackJumbler.resetPitch",
-  );
+  const menuItems: [string, string][] = [
+    ["Swap Drum Pads", "drumRackJumbler.swapDrumPads"],
+    ["Randomize Panning", "drumRackJumbler.randomizePan"],
+    ["Center All Panning", "drumRackJumbler.centerPan"],
+    ["Pitch Shift Simplers (±1 semitone)", "drumRackJumbler.pitch1"],
+    ["Pitch Shift Simplers (±12 semitones)", "drumRackJumbler.pitch12"],
+    ["Pitch Shift Simplers (±24 semitones)", "drumRackJumbler.pitch24"],
+    ["Reset Simpler Pitch Shifts", "drumRackJumbler.resetPitch"],
+  ];
+  for (const [label, commandId] of menuItems) {
+    context.ui.registerContextMenuAction("MidiTrack", label, commandId);
+    context.ui.registerContextMenuAction("MidiClip", label, commandId);
+  }
 }
