@@ -135,7 +135,14 @@ multi-clip entry points render each clip on its own staff in a score layout.
 ### Known limitations
 - Webview (WKWebView/WebView2) does not support `download` attribute or `navigator.clipboard` —
   file export goes through extension host via `close_and_send`, Cmd+C doesn't work
-- SDK properties may return BigInt — always coerce with `Number()` / `String()` before serializing
+- SDK properties may return BigInt — always coerce with `Number()` / `String()` before serializing.
+  For debug logging of unknown shapes, `JSON.stringify` throws on BigInt; use a replacer:
+  ```ts
+  const stringify = (v: unknown) =>
+    JSON.stringify(v, (_k, val) => (typeof val === "bigint" ? Number(val) : val));
+  ```
+  Context-menu command handlers receive the target handle as a BigInt `arg`, so logging
+  `arg` directly needs this replacer (or `String(arg)` for scalars)
 - Dialog communication is one-way: data injected before show, single JSON result on close
 - The alpha SDK reports `clip.endMarker` at the absolute clip end rather than the
   playback end, so renderers use `clip.loopEnd` as the effective end regardless of
