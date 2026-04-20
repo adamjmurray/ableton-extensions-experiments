@@ -136,6 +136,46 @@ export function activate(activation: ActivationContext) {
     "drumRackJumbler.zeroPitch",
   );
 
+  context.commands.registerCommand("drumRackJumbler.randomizePan", async (arg: unknown) => {
+    const track = context.objects.getObjectFromHandle(arg as Handle, MidiTrack);
+    const drumChains = findTopLevelDrumChains(track);
+    if (!drumChains) {
+      console.log("Randomize Panning: no top-level drum rack on this track");
+      return;
+    }
+    const rng = mulberry32(Date.now() >>> 0);
+    await context.withinTransaction(async () => {
+      await Promise.all(
+        drumChains.map((chain) => {
+          const pan = chain.mixerDevice.panning;
+          return pan.setValue(pan.min + rng() * (pan.max - pan.min));
+        }),
+      );
+    });
+  });
+  context.ui.registerContextMenuAction(
+    "MidiTrack",
+    "Randomize Panning",
+    "drumRackJumbler.randomizePan",
+  );
+
+  context.commands.registerCommand("drumRackJumbler.centerPan", async (arg: unknown) => {
+    const track = context.objects.getObjectFromHandle(arg as Handle, MidiTrack);
+    const drumChains = findTopLevelDrumChains(track);
+    if (!drumChains) {
+      console.log("Center All Panning: no top-level drum rack on this track");
+      return;
+    }
+    await context.withinTransaction(async () => {
+      await Promise.all(drumChains.map((chain) => chain.mixerDevice.panning.setValue(0)));
+    });
+  });
+  context.ui.registerContextMenuAction(
+    "MidiTrack",
+    "Center All Panning",
+    "drumRackJumbler.centerPan",
+  );
+
   registerPitchCommand("drumRackJumbler.pitch1", "Pitch Shift Simplers (±1 semitone)", 1, true);
   registerPitchCommand(
     "drumRackJumbler.pitch12",
