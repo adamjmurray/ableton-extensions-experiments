@@ -1,4 +1,4 @@
-import type { NoteDescription } from "@ableton/extensions-sdk";
+import type { NoteDescription } from "@ableton-extensions/sdk";
 import type { ClipBounds, Note } from "./transforms.js";
 
 // Minimal shape for the subset of MidiClip fields clipBoundsFor reads —

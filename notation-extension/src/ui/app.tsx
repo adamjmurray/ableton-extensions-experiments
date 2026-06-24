@@ -4,9 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import {
   type ClipData,
   closeDialog,
-  exportFile,
   getNotationData,
   type NotationData,
+  saveMusicXmlAndClose,
+  savePngAndClose,
+  saveSvgAndClose,
 } from "./bridge.js";
 import { notesToMusicXML, type SortMode, sortClipsForScore } from "./musicxml.js";
 import { assignUnnamedIndices, buildFullPartName, truncatePartName } from "./part-name.js";
@@ -28,45 +30,12 @@ const SORT_MODES: { value: SortMode; label: string; title: string }[] = [
   { value: "native", label: "Native", title: "Preserve selection order" },
 ];
 
-// PNG export renders the SVG onto a canvas at this multiple of its native
-// dimensions so the bitmap stays sharp on retina/high-DPI displays. If the
-// scaled bitmap would exceed PNG_MAX_PIXELS (4 bytes per RGBA pixel) or
-// PNG_MAX_DIMENSION on either axis, the scale factor is reduced — and
-// ultimately clamped to 1× — to avoid OOM or silent render-to-blank on
-// large multi-part scores.
-const PNG_SCALE_FACTOR = 2;
-// 64 megapixels = ~256 MB at RGBA. Browsers typically cap canvas area
-// somewhere between 16 and 256 MP; this is a conservative ceiling.
-const PNG_MAX_PIXELS = 64 * 1024 * 1024;
-// WKWebView (macOS) and WebView2 (Windows) cap canvas on each axis
-// independently; Safari in particular renders blank above ~8192. Clamp
-// each side under that before total-pixel clamping.
-const PNG_MAX_DIMENSION = 8192;
-
-// SVG → base64 without `unescape` (deprecated). Encodes the UTF-8 bytes
-// via TextEncoder, then base64-encodes the resulting binary string.
-function svgToBase64(svgData: string): string {
-  const bytes = new TextEncoder().encode(svgData);
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!);
-  return btoa(binary);
-}
-
-// Walk SVG text nodes and attach an SVG <title> child showing the full,
-// untruncated part name. We match by exact equality against the truncation
-// OSMD renders (same MAX_PART_NAME_LENGTH + "…" rule as the MusicXML
-// emitter), so even when two parts share the same truncation prefix, we
-// only attach a tooltip when we can unambiguously recover the full name.
-// Ambiguous truncations get a joined-with-" / " label so hovering still
-// disambiguates which parts collapsed into the shown text.
 function injectPartNameTooltips(container: HTMLDivElement | null, clips: ClipData[]): void {
   if (!container) return;
   const svg = container.querySelector("svg");
   if (!svg) return;
 
   const SVG_NS = "http://www.w3.org/2000/svg";
-  // Mirror the gating in notesToMusicXML: clips with a track name skip the
-  // "(unnamed #N)" fallback; only when both are blank is the label used.
   let unnamedCount = 0;
   const fullNames = clips.map((c, i) => {
     const clipName = (c.clip.name ?? "").trim();
@@ -75,8 +44,6 @@ function injectPartNameTooltips(container: HTMLDivElement | null, clips: ClipDat
     return buildFullPartName(c.clip.trackName, label, i);
   });
 
-  // Group full names by the label OSMD renders for them. A truncation with
-  // multiple entries is an unavoidable collision — we show all of them.
   const byRendered = new Map<string, string[]>();
   for (const full of fullNames) {
     const rendered = truncatePartName(full);
@@ -89,8 +56,6 @@ function injectPartNameTooltips(container: HTMLDivElement | null, clips: ClipDat
   texts.forEach((textEl) => {
     const content = textEl.textContent ?? "";
     const candidates = byRendered.get(content);
-    // Only label text nodes that were actually truncated; everything else
-    // is either another OSMD label or the full, unambiguous part name.
     if (!candidates || !content.endsWith("…")) return;
     if (textEl.querySelector("title")) return;
     const titleEl = document.createElementNS(SVG_NS, "title");
@@ -99,26 +64,108 @@ function injectPartNameTooltips(container: HTMLDivElement | null, clips: ClipDat
   });
 }
 
+// PNG export renders the SVG onto a canvas at PNG_SCALE_FACTOR× CSS size
+// (×devicePixelRatio) so it stays sharp on high-DPI displays. If the scaled
+// bitmap would exceed PNG_MAX_PIXELS (total RGBA area) or PNG_MAX_DIMENSION on
+// either axis, the scale is reduced — ultimately to 1× — to avoid OOM or a
+// silent render-to-blank on large multi-part scores. WKWebView (macOS) and
+// WebView2 (Windows) cap each axis (Safari renders blank above ~8192) and total
+// canvas area independently.
+const PNG_SCALE_FACTOR = 2;
+// 64 megapixels ≈ 256 MB at RGBA; a conservative ceiling under typical browser caps.
+const PNG_MAX_PIXELS = 64 * 1024 * 1024;
+// Clamp each side under WebView's per-axis limit before total-pixel clamping.
+const PNG_MAX_DIMENSION = 8192;
+
+// Largest scale ≤ desired whose bitmap fits both the per-axis and total-pixel
+// caps, floored to ≥1 so we always produce something.
+function clampPngScale(desired: number, cssWidth: number, cssHeight: number): number {
+  const native = Math.max(1, cssWidth * cssHeight);
+  const areaScale = Math.sqrt(PNG_MAX_PIXELS / native);
+  const dimScale = Math.min(
+    PNG_MAX_DIMENSION / Math.max(1, cssWidth),
+    PNG_MAX_DIMENSION / Math.max(1, cssHeight),
+  );
+  const scale = Math.max(1, Math.min(desired, areaScale, dimScale));
+  if (scale < desired) {
+    console.warn(
+      `PNG export: scaled image would exceed limits (${PNG_MAX_PIXELS}px² or ${PNG_MAX_DIMENSION}px/side); reducing scale ${desired}× → ${scale.toFixed(2)}×.`,
+    );
+  }
+  return scale;
+}
+
+async function renderScoreToPngBlob(container: HTMLDivElement): Promise<Blob | undefined> {
+  const svg = container.querySelector("svg");
+  if (!svg) return;
+
+  const rect = svg.getBoundingClientRect();
+  const cloned = svg.cloneNode(true) as SVGSVGElement;
+  cloned.setAttribute("width", String(rect.width));
+  cloned.setAttribute("height", String(rect.height));
+  if (!cloned.getAttribute("xmlns")) {
+    cloned.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  }
+
+  const serializer = new XMLSerializer();
+  const svgString = serializer.serializeToString(cloned);
+  const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(svgBlob);
+
+  const img = new Image();
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error("Failed to load SVG"));
+    img.src = url;
+  });
+
+  const desiredScale = Math.max(1, Math.floor(PNG_SCALE_FACTOR * window.devicePixelRatio));
+  const scale = clampPngScale(desiredScale, rect.width, rect.height);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.floor(rect.width * scale);
+  canvas.height = Math.floor(rect.height * scale);
+  const ctx = canvas.getContext("2d")!;
+  ctx.scale(scale, scale);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, rect.width, rect.height);
+  ctx.drawImage(img, 0, 0, rect.width, rect.height);
+  URL.revokeObjectURL(url);
+
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+  if (!blob) throw new Error("Canvas export failed");
+  return blob;
+}
+
 function App() {
   const data = useRef<NotationData>(assignUnnamedIndices(getNotationData()));
   const emptyStateMessage = data.current.emptyStateMessage;
-  const [errorBanner, setErrorBanner] = useState<string | undefined>(data.current.errorMessage);
+  const lastSavedPath =
+    data.current.lastSavedExportPath ??
+    data.current.lastSavedPngPath ??
+    data.current.lastSavedMusicXmlPath;
   const containerRef = useRef<HTMLDivElement>(null);
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
+  const latestMusicXmlRef = useRef("");
+  const baseStatusRef = useRef("Loading...");
 
   const hasDrumClip = data.current.clips.some((c) => c.isDrumRack);
 
   const isMultiClip = data.current.clips.length > 1;
 
-  const [grid, setGrid] = useState<QuantizeGrid>("16th");
+  const [grid, setGrid] = useState<QuantizeGrid>(data.current.initialUiState?.grid ?? "16th");
   const [status, setStatus] = useState("Loading...");
-  const [debugXML, setDebugXML] = useState("");
-  const [timeSigNum, setTimeSigNum] = useState(data.current.timeSignature.numerator);
-  const [timeSigDen, setTimeSigDen] = useState(data.current.timeSignature.denominator);
-  const [legato, setLegato] = useState(false);
-  const [showTempo, setShowTempo] = useState(false);
-  const [drumHeads, setDrumHeads] = useState(hasDrumClip);
-  const [sortMode, setSortMode] = useState<SortMode>("pitch");
+  const [timeSigNum, setTimeSigNum] = useState(
+    data.current.initialUiState?.timeSigNum ?? data.current.timeSignature.numerator,
+  );
+  const [timeSigDen, setTimeSigDen] = useState(
+    data.current.initialUiState?.timeSigDen ?? data.current.timeSignature.denominator,
+  );
+  const [legato, setLegato] = useState(data.current.initialUiState?.legato ?? false);
+  const [showTempo, setShowTempo] = useState(data.current.initialUiState?.showTempo ?? false);
+  const [drumHeads, setDrumHeads] = useState(data.current.initialUiState?.drumHeads ?? hasDrumClip);
+  const [sortMode, setSortMode] = useState<SortMode>(
+    data.current.initialUiState?.sortMode ?? "pitch",
+  );
 
   const renderNotation = useCallback(
     async (
@@ -149,8 +196,7 @@ function App() {
         legato,
         showTempo ? data.current.tempo : undefined,
       );
-
-      setDebugXML(musicXML);
+      latestMusicXmlRef.current = musicXML;
 
       try {
         if (!osmdRef.current) {
@@ -173,12 +219,14 @@ function App() {
         osmdRef.current.render();
         injectPartNameTooltips(containerRef.current, orderedClips);
         const partsLabel = orderedClips.length > 1 ? ` | ${orderedClips.length} parts` : "";
-        setStatus(
-          `${totalNotes} notes${partsLabel} | ${g} quantization | ${tsNum}/${tsDen}${legato ? " | legato" : ""}`,
-        );
+        const statusText = `${totalNotes} notes${partsLabel} | ${g} quantization | ${tsNum}/${tsDen}${legato ? " | legato" : ""}`;
+        baseStatusRef.current = statusText;
+        setStatus(statusText);
       } catch (e) {
         console.error("OSMD render error:", e);
-        setStatus(`Render error: ${e}`);
+        const errorText = `Render error: ${e}`;
+        baseStatusRef.current = errorText;
+        setStatus(errorText);
       }
     },
     [],
@@ -188,76 +236,97 @@ function App() {
     renderNotation(grid, timeSigNum, timeSigDen, legato, showTempo, drumHeads, sortMode);
   }, [grid, timeSigNum, timeSigDen, legato, showTempo, drumHeads, sortMode, renderNotation]);
 
-  const clipName =
-    data.current.clips.length === 1 ? data.current.clips[0]?.clip.name || "notation" : "score";
+  async function saveImage() {
+    try {
+      if (!containerRef.current) return;
+      const blob = await renderScoreToPngBlob(containerRef.current);
+      if (!blob) return;
+      const pngDataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const out = reader.result;
+          if (typeof out === "string") resolve(out);
+          else reject(new Error("Failed to serialize PNG data"));
+        };
+        reader.onerror = () => reject(new Error("Failed to read PNG blob"));
+        reader.readAsDataURL(blob);
+      });
+      savePngAndClose(pngDataUrl, {
+        grid,
+        timeSigNum,
+        timeSigDen,
+        legato,
+        showTempo,
+        drumHeads,
+        sortMode,
+      });
+    } catch (e) {
+      console.error("Save failed:", e);
+      setStatus(`Save failed: ${e}`);
+      setTimeout(() => setStatus(baseStatusRef.current), 3000);
+    }
+  }
 
-  const handleExportSVG = useCallback(() => {
+  function saveSvg() {
     if (!containerRef.current) return;
     const svg = containerRef.current.querySelector("svg");
-    if (!svg) return;
+    if (!svg) {
+      setStatus("SVG export unavailable: score not rendered yet");
+      setTimeout(() => setStatus(baseStatusRef.current), 3000);
+      return;
+    }
 
-    const svgData = new XMLSerializer().serializeToString(svg);
-    exportFile(svgData, `${clipName}.svg`);
-  }, [clipName]);
+    const cloned = svg.cloneNode(true) as SVGSVGElement;
+    const rect = svg.getBoundingClientRect();
+    cloned.setAttribute("width", String(rect.width));
+    cloned.setAttribute("height", String(rect.height));
+    if (!cloned.getAttribute("xmlns")) {
+      cloned.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    }
 
-  const handleExportPNG = useCallback(() => {
-    if (!containerRef.current) return;
-    const svg = containerRef.current.querySelector("svg");
-    if (!svg) return;
+    const serializer = new XMLSerializer();
+    const svgString = serializer.serializeToString(cloned);
+    saveSvgAndClose(svgString, {
+      grid,
+      timeSigNum,
+      timeSigDen,
+      legato,
+      showTempo,
+      drumHeads,
+      sortMode,
+    });
+  }
 
-    const svgData = new XMLSerializer().serializeToString(svg);
-    const img = new Image();
+  function saveMusicXml() {
+    const musicXml = latestMusicXmlRef.current;
+    if (!musicXml) {
+      setStatus("MusicXML export unavailable: score not rendered yet");
+      setTimeout(() => setStatus(baseStatusRef.current), 3000);
+      return;
+    }
+    saveMusicXmlAndClose(musicXml, {
+      grid,
+      timeSigNum,
+      timeSigDen,
+      legato,
+      showTempo,
+      drumHeads,
+      sortMode,
+    });
+  }
 
-    img.onload = () => {
-      try {
-        // Pick the largest scale (≤ PNG_SCALE_FACTOR) whose bitmap fits in
-        // both PNG_MAX_PIXELS (total area) and PNG_MAX_DIMENSION (per-axis),
-        // then floor to ≥1 so we always produce something. The per-axis cap
-        // matters for long multi-part scores that fit under the total-pixel
-        // budget but still blow past WebView's width/height limit.
-        const native = Math.max(1, img.width * img.height);
-        const areaScale = Math.sqrt(PNG_MAX_PIXELS / native);
-        const dimScale = Math.min(
-          PNG_MAX_DIMENSION / Math.max(1, img.width),
-          PNG_MAX_DIMENSION / Math.max(1, img.height),
-        );
-        const scale = Math.max(1, Math.min(PNG_SCALE_FACTOR, areaScale, dimScale));
-        if (scale < PNG_SCALE_FACTOR) {
-          console.warn(
-            `PNG export: scaled image would exceed limits (${PNG_MAX_PIXELS}px² or ${PNG_MAX_DIMENSION}px/side); reducing scale ${PNG_SCALE_FACTOR}× → ${scale.toFixed(2)}×.`,
-          );
-        }
-
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d")!;
-        canvas.width = Math.floor(img.width * scale);
-        canvas.height = Math.floor(img.height * scale);
-        ctx.scale(scale, scale);
-        ctx.fillStyle = "white";
-        ctx.fillRect(0, 0, img.width, img.height);
-        ctx.drawImage(img, 0, 0);
-
-        const dataUrl = canvas.toDataURL("image/png");
-        const base64 = dataUrl.replace(/^data:image\/png;base64,/, "");
-        exportFile(base64, `${clipName}.png`, "base64");
-      } catch (e) {
-        console.error("PNG export failed during canvas encode:", e);
-        setStatus(`PNG export failed: ${e instanceof Error ? e.message : String(e)}`);
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && (e.key === "s" || e.key === "S")) {
+        const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+        if (tag === "input" || tag === "textarea" || tag === "select") return;
+        e.preventDefault();
+        void saveImage();
       }
-    };
-
-    img.onerror = (e) => {
-      console.error("PNG export failed: could not load SVG into Image:", e);
-      setStatus("PNG export failed: could not render SVG");
-    };
-
-    img.src = `data:image/svg+xml;base64,${svgToBase64(svgData)}`;
-  }, [clipName]);
-
-  const handleExportXML = useCallback(() => {
-    if (!debugXML) return;
-    exportFile(debugXML, `${clipName}.music.xml`);
-  }, [debugXML, clipName]);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [grid, timeSigNum, timeSigDen, legato, showTempo, drumHeads, sortMode]);
 
   if (emptyStateMessage) {
     return (
@@ -370,41 +439,38 @@ function App() {
           </label>
         )}
 
-        <div class="toolbar-group toolbar-export-group">
-          <span class="toolbar-label">Export</span>
-          <button type="button" class="btn-export" onClick={handleExportPNG} title="Export as PNG">
-            &#8595; PNG
-          </button>
-          <button type="button" class="btn-export" onClick={handleExportSVG} title="Export as SVG">
-            &#8595; SVG
-          </button>
-          <button
-            type="button"
-            class="btn-export"
-            onClick={handleExportXML}
-            title="Export as MusicXML"
-          >
-            &#8595; MusicXML
-          </button>
-        </div>
-
+        <button
+          type="button"
+          class="btn-copy"
+          onClick={saveImage}
+          title="Save PNG to storage directory (Ctrl/Cmd+S)"
+        >
+          Save PNG
+        </button>
+        <button
+          type="button"
+          class="btn-copy"
+          onClick={saveSvg}
+          title="Save SVG to storage directory"
+        >
+          Save SVG
+        </button>
+        <button
+          type="button"
+          class="btn-copy"
+          onClick={saveMusicXml}
+          title="Save MusicXML to storage directory"
+        >
+          Save MusicXML
+        </button>
         <button type="button" class="btn-close" onClick={closeDialog} title="Close">
           &#10005;
         </button>
       </div>
 
-      {errorBanner && (
-        <div class="error-banner" role="alert">
-          <span class="error-banner-message">{errorBanner}</span>
-          <button
-            type="button"
-            class="error-banner-dismiss"
-            onClick={() => setErrorBanner(undefined)}
-            title="Dismiss"
-            aria-label="Dismiss error"
-          >
-            &#10005;
-          </button>
+      {lastSavedPath && (
+        <div class="saved-path-bar" title={lastSavedPath}>
+          Saved: {lastSavedPath}
         </div>
       )}
 

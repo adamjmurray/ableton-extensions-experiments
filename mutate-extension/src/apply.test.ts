@@ -4,7 +4,7 @@ import { deriveSeed, deriveSeed2D, mulberry32 } from "./rng.js";
 import type { ClipBounds, Note } from "./transforms.js";
 import { generateVariations, ZERO_CONTROLS } from "./variations.js";
 
-// Shape-matching stand-in for MidiTrack<"0.0.5">. `nextMutateLaneIndex`
+// Shape-matching stand-in for MidiTrack<"1.0.0">. `nextMutateLaneIndex`
 // only reads `.takeLanes[].name`, so a minimal object is enough.
 type FakeLane = { name: string };
 function fakeTrack(names: string[]) {

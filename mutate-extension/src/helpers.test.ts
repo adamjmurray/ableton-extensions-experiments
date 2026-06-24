@@ -1,4 +1,4 @@
-import type { NoteDescription } from "@ableton/extensions-sdk";
+import type { NoteDescription } from "@ableton-extensions/sdk";
 import { describe, expect, test } from "vitest";
 import { clipBoundsFor, clipOverlapsRange, coerceNote } from "./helpers.js";
 

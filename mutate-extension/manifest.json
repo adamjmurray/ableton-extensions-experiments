@@ -3,5 +3,5 @@
   "author": "Adam Murray",
   "entry": "dist/extension.cjs",
   "version": "0.0.1",
-  "minimumApiVersion": "0.0.5"
+  "minimumApiVersion": "1.0.0"
 }

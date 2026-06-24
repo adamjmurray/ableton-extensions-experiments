@@ -1,4 +1,4 @@
-import type { ExtensionContext, NoteDescription } from "@ableton/extensions-sdk";
+import type { ExtensionContext, NoteDescription } from "@ableton-extensions/sdk";
 import { applyClipMetadata, computeSourceOutputs } from "./apply.js";
 import type { FillMode, SessionMultiSource, SessionMultiSourceClip } from "./apply-types.js";
 import { deriveSeed2D } from "./rng.js";
@@ -11,7 +11,7 @@ import type { MutateControls, VariationMode } from "./variations.js";
 // most one source per track so the per-track fan-down has unambiguous
 // ownership of the destination slots.
 export async function applySessionMulti(
-  context: ExtensionContext<"0.0.5">,
+  context: ExtensionContext<"1.0.0">,
   source: SessionMultiSource,
   controls: MutateControls,
   variations: number,

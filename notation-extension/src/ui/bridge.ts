@@ -1,10 +1,9 @@
-// Communication between webview and extension host
-
 declare global {
   interface Window {
     webkit?: { messageHandlers?: { live?: { postMessage(msg: unknown): void } } };
     chrome?: { webview?: { postMessage(msg: unknown): void } };
     __NOTATION_DATA__?: string;
+    __NOTATION_DATA_URL__?: string;
   }
 }
 
@@ -21,9 +20,6 @@ export interface ClipData {
     name: string;
     trackName: string;
     trackIndex?: number;
-    // Sequential 1-based index assigned at dialog-open time, counting only
-    // clips with no name. Used so the "(unnamed #N)" fallback label stays
-    // stable across sort-mode changes (AJM-189).
     unnamedIndex?: number;
     startMarker: number;
     endMarker: number;
@@ -32,9 +28,6 @@ export interface ClipData {
     loopEnd: number;
     arrangementStartTime?: number;
   };
-  // True when the clip's track has a drum rack (or contains one in a nested
-  // instrument rack). Drum-rack clips render with x noteheads to make them
-  // visually distinct from pitched parts.
   isDrumRack?: boolean;
 }
 
@@ -45,10 +38,18 @@ export interface NotationData {
   scaleName: string;
   timeSignature: { numerator: number; denominator: number };
   emptyStateMessage?: string;
-  // Set by the extension host when a previous export failed. Surfaced as a
-  // dismissable banner below the toolbar so the user can see what went wrong
-  // on the next dialog iteration.
-  errorMessage?: string;
+  lastSavedExportPath?: string;
+  lastSavedPngPath?: string;
+  lastSavedMusicXmlPath?: string;
+  initialUiState?: {
+    grid: "16th" | "16th-triplet" | "32nd";
+    timeSigNum: number;
+    timeSigDen: number;
+    legato: boolean;
+    showTempo: boolean;
+    drumHeads: boolean;
+    sortMode: "pitch" | "track" | "native";
+  };
 }
 
 function doSendMessage(message: unknown) {
@@ -59,21 +60,104 @@ function doSendMessage(message: unknown) {
   }
 }
 
-export function closeDialog() {
-  const message = { name: "close_and_send", args: [JSON.stringify({ action: "close" })] };
+type DialogAction =
+  | { action: "close" }
+  | {
+      action: "save_png";
+      pngDataUrl: string;
+      uiState: {
+        grid: "16th" | "16th-triplet" | "32nd";
+        timeSigNum: number;
+        timeSigDen: number;
+        legato: boolean;
+        showTempo: boolean;
+        drumHeads: boolean;
+        sortMode: "pitch" | "track" | "native";
+      };
+    }
+  | {
+      action: "save_musicxml";
+      musicXml: string;
+      uiState: {
+        grid: "16th" | "16th-triplet" | "32nd";
+        timeSigNum: number;
+        timeSigDen: number;
+        legato: boolean;
+        showTempo: boolean;
+        drumHeads: boolean;
+        sortMode: "pitch" | "track" | "native";
+      };
+    }
+  | {
+      action: "save_svg";
+      svgString: string;
+      uiState: {
+        grid: "16th" | "16th-triplet" | "32nd";
+        timeSigNum: number;
+        timeSigDen: number;
+        legato: boolean;
+        showTempo: boolean;
+        drumHeads: boolean;
+        sortMode: "pitch" | "track" | "native";
+      };
+    };
+
+function sendDialogAction(action: DialogAction) {
+  const message = { method: "close_and_send", params: [JSON.stringify(action)] };
   doSendMessage(message);
 }
 
-export function exportFile(data: string, filename: string, encoding: "utf8" | "base64" = "utf8") {
-  const message = {
-    name: "close_and_send",
-    args: [JSON.stringify({ action: "export", data, filename, encoding })],
-  };
-  doSendMessage(message);
+export function closeDialog() {
+  sendDialogAction({ action: "close" });
+}
+
+export function savePngAndClose(
+  pngDataUrl: string,
+  uiState: {
+    grid: "16th" | "16th-triplet" | "32nd";
+    timeSigNum: number;
+    timeSigDen: number;
+    legato: boolean;
+    showTempo: boolean;
+    drumHeads: boolean;
+    sortMode: "pitch" | "track" | "native";
+  },
+) {
+  sendDialogAction({ action: "save_png", pngDataUrl, uiState });
+}
+
+export function saveMusicXmlAndClose(
+  musicXml: string,
+  uiState: {
+    grid: "16th" | "16th-triplet" | "32nd";
+    timeSigNum: number;
+    timeSigDen: number;
+    legato: boolean;
+    showTempo: boolean;
+    drumHeads: boolean;
+    sortMode: "pitch" | "track" | "native";
+  },
+) {
+  sendDialogAction({ action: "save_musicxml", musicXml, uiState });
+}
+
+export function saveSvgAndClose(
+  svgString: string,
+  uiState: {
+    grid: "16th" | "16th-triplet" | "32nd";
+    timeSigNum: number;
+    timeSigDen: number;
+    legato: boolean;
+    showTempo: boolean;
+    drumHeads: boolean;
+    sortMode: "pitch" | "track" | "native";
+  },
+) {
+  sendDialogAction({ action: "save_svg", svgString, uiState });
 }
 
 export function getNotationData(): NotationData {
-  const raw = window.__NOTATION_DATA__;
+  const raw = readNotationPayload();
   if (typeof raw === "string") {
     try {
       return JSON.parse(raw);
@@ -101,4 +185,29 @@ export function getNotationData(): NotationData {
     scaleName: "Major",
     timeSignature: { numerator: 4, denominator: 4 },
   };
+}
+
+function readNotationPayload(): string | undefined {
+  if (typeof window.__NOTATION_DATA__ === "string") {
+    return window.__NOTATION_DATA__;
+  }
+
+  const payloadUrl = window.__NOTATION_DATA_URL__;
+  if (typeof payloadUrl !== "string") {
+    return undefined;
+  }
+
+  try {
+    const xhr = new XMLHttpRequest();
+    xhr.open("GET", payloadUrl, false);
+    xhr.send();
+
+    if ((xhr.status >= 200 && xhr.status < 300) || xhr.status === 0) {
+      return xhr.responseText;
+    }
+  } catch {
+    // fall through to scaffold
+  }
+
+  return undefined;
 }

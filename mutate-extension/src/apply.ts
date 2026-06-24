@@ -1,4 +1,4 @@
-import type { MidiClip, MidiTrack } from "@ableton/extensions-sdk";
+import type { MidiClip, MidiTrack } from "@ableton-extensions/sdk";
 import type { ClipBounds, Note } from "./transforms.js";
 import { generateVariations, type MutateControls, type VariationMode } from "./variations.js";
 
@@ -6,7 +6,7 @@ import { generateVariations, type MutateControls, type VariationMode } from "./v
 // suffix so that successive invocations produce distinct labels
 // ("Mutate 1", "Mutate 2", then "Mutate 3", "Mutate 4", …) instead of
 // stacking duplicates.
-export function nextMutateLaneIndex(track: MidiTrack<"0.0.5">): number {
+export function nextMutateLaneIndex(track: MidiTrack<"1.0.0">): number {
   let max = 0;
   for (const lane of track.takeLanes) {
     const match = /^Mutate (\d+)$/.exec(String(lane.name));
@@ -24,8 +24,8 @@ export function nextMutateLaneIndex(track: MidiTrack<"0.0.5">): number {
 // for MidiClip.startMarker/endMarker/looping/loopStart/loopEnd, and
 // createMidiClip takes only a length.
 export function applyClipMetadata(
-  created: MidiClip<"0.0.5">,
-  source: MidiClip<"0.0.5">,
+  created: MidiClip<"1.0.0">,
+  source: MidiClip<"1.0.0">,
   variationNumber: number,
 ): void {
   created.name = `${String(source.name)} var. ${variationNumber}`;

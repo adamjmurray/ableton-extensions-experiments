@@ -1,4 +1,4 @@
-import type { ExtensionContext, NoteDescription } from "@ableton/extensions-sdk";
+import type { ExtensionContext, NoteDescription } from "@ableton-extensions/sdk";
 import { applyClipMetadata, computeSourceOutputs } from "./apply.js";
 import type { FillMode, SessionSource } from "./apply-types.js";
 import { deriveSeed } from "./rng.js";
@@ -6,7 +6,7 @@ import type { Note } from "./transforms.js";
 import type { MutateControls, VariationMode } from "./variations.js";
 
 export async function applySession(
-  context: ExtensionContext<"0.0.5">,
+  context: ExtensionContext<"1.0.0">,
   source: SessionSource,
   controls: MutateControls,
   variations: number,

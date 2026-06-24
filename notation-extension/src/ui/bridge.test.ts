@@ -4,15 +4,26 @@ import { getNotationData } from "./bridge.js";
 // bridge.ts reads `window.__NOTATION_DATA__` in the webview context. Under
 // vitest (node), `window` does not exist, so we install a minimal stand-in
 // around each test and tear it down afterwards.
-const g = globalThis as unknown as { window?: { __NOTATION_DATA__?: string } };
+const g = globalThis as unknown as {
+  window?: { __NOTATION_DATA__?: string; __NOTATION_DATA_URL__?: string };
+  XMLHttpRequest?: new () => {
+    status: number;
+    responseText: string;
+    open: (method: string, url: string, async: boolean) => void;
+    send: () => void;
+  };
+};
 
 describe("getNotationData", () => {
+  const originalXMLHttpRequest = g.XMLHttpRequest;
+
   beforeEach(() => {
     g.window = {};
   });
 
   afterEach(() => {
     delete g.window;
+    g.XMLHttpRequest = originalXMLHttpRequest;
   });
 
   it("parses a valid JSON payload from window.__NOTATION_DATA__", () => {
@@ -75,7 +86,57 @@ describe("getNotationData", () => {
       scaleName: "Major",
       timeSignature: { numerator: 4, denominator: 4 },
       emptyStateMessage: "No notes in this clip.",
+      lastSavedPngPath: "/tmp/notation-score-20260514-073000.png",
     });
     expect(getNotationData().emptyStateMessage).toBe("No notes in this clip.");
+    expect(getNotationData().lastSavedPngPath).toBe("/tmp/notation-score-20260514-073000.png");
+  });
+
+  it("loads payload from window.__NOTATION_DATA_URL__ when inline payload is absent", () => {
+    const payload = {
+      clips: [],
+      tempo: 90,
+      rootNote: 7,
+      scaleName: "Mixolydian",
+      timeSignature: { numerator: 7, denominator: 8 },
+    };
+    const payloadText = JSON.stringify(payload);
+
+    class MockXMLHttpRequest {
+      status = 0;
+      responseText = "";
+
+      open(_method: string, _url: string, _async: boolean) {}
+
+      send() {
+        this.status = 200;
+        this.responseText = payloadText;
+      }
+    }
+
+    g.XMLHttpRequest = MockXMLHttpRequest;
+    g.window!.__NOTATION_DATA_URL__ = "file:///tmp/notation-dialog.data.json";
+
+    expect(getNotationData()).toEqual(payload);
+  });
+
+  it("returns scaffold when loading payload URL throws", () => {
+    class MockXMLHttpRequest {
+      status = 0;
+      responseText = "";
+
+      open(_method: string, _url: string, _async: boolean) {}
+
+      send() {
+        throw new Error("load failed");
+      }
+    }
+
+    g.XMLHttpRequest = MockXMLHttpRequest;
+    g.window!.__NOTATION_DATA_URL__ = "file:///tmp/notation-dialog.data.json";
+
+    const data = getNotationData();
+    expect(data.clips).toHaveLength(1);
+    expect(data.tempo).toBe(120);
   });
 });

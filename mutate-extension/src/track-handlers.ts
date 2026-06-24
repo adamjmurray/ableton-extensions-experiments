@@ -1,4 +1,4 @@
-import { type Handle, MidiClip, MidiTrack } from "@ableton/extensions-sdk";
+import { type Handle, MidiClip, MidiTrack } from "@ableton-extensions/sdk";
 import {
   applyRange,
   applySessionMulti,
@@ -20,7 +20,7 @@ import type {
 // independent seeds per clip, in-place only. Empty clip slots are ignored.
 export async function handleTrackSessionDialog(arg: unknown, deps: DialogDeps): Promise<void> {
   const { context, showMutateDialog } = deps;
-  const track = context.objects.getObjectFromHandle(arg as Handle, MidiTrack);
+  const track = context.getObjectFromHandle(arg as Handle, MidiTrack);
   const trackName = String(track.name);
 
   const sourceClips: SessionMultiSourceClip[] = [];
@@ -88,7 +88,7 @@ export async function handleTrackSessionDialog(arg: unknown, deps: DialogDeps): 
 // falls through to the piano-roll preview dialog.
 export async function handleTrackArrangementDialog(arg: unknown, deps: DialogDeps): Promise<void> {
   const { context, showMutateDialog } = deps;
-  const track = context.objects.getObjectFromHandle(arg as Handle, MidiTrack);
+  const track = context.getObjectFromHandle(arg as Handle, MidiTrack);
   const trackIndex = context.application.song.tracks.findIndex(
     (t) => t.handle.id === track.handle.id,
   );

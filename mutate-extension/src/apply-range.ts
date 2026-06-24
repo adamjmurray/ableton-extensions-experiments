@@ -1,11 +1,11 @@
-import type { ExtensionContext, MidiTrack, NoteDescription } from "@ableton/extensions-sdk";
+import type { ExtensionContext, MidiTrack, NoteDescription } from "@ableton-extensions/sdk";
 import { applyClipMetadata, computeSourceOutputs, nextMutateLaneIndex } from "./apply.js";
 import type { RangeSource, RangeSourceClip } from "./apply-types.js";
 import { deriveSeed2D } from "./rng.js";
 import type { MutateControls, VariationMode } from "./variations.js";
 
 export async function applyRange(
-  context: ExtensionContext<"0.0.5">,
+  context: ExtensionContext<"1.0.0">,
   source: RangeSource,
   controls: MutateControls,
   variations: number,
@@ -17,7 +17,7 @@ export async function applyRange(
   // and put one varied clip per source on each lane.
   const byTrack = new Map<
     number,
-    { track: MidiTrack<"0.0.5">; entries: Array<{ sourceIndex: number; src: RangeSourceClip }> }
+    { track: MidiTrack<"1.0.0">; entries: Array<{ sourceIndex: number; src: RangeSourceClip }> }
   >();
   source.clips.forEach((src, sourceIndex) => {
     const existing = byTrack.get(src.trackIndex);
@@ -44,7 +44,7 @@ export async function applyRange(
 
   // Plan lane assignments: one lane per (track, variation) pair.
   type LanePlan = {
-    track: MidiTrack<"0.0.5">;
+    track: MidiTrack<"1.0.0">;
     name: string;
     vi: number;
     entries: Array<{ sourceIndex: number; src: RangeSourceClip }>;

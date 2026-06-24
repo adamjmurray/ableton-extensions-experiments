@@ -2,7 +2,7 @@
 // they can be unit-tested without pulling in extension.ts (which imports the
 // virtual `notation.html` module resolved only at build time by esbuild).
 
-import type { MidiClip } from "@ableton/extensions-sdk";
+import type { MidiClip } from "@ableton-extensions/sdk";
 
 export interface ClipInfo {
   notes: { pitch: number; startTime: number; duration: number; velocity: number }[];

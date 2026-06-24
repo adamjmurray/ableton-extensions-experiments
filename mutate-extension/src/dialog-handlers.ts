@@ -6,7 +6,7 @@ import {
   MidiClip,
   MidiTrack,
   Scene,
-} from "@ableton/extensions-sdk";
+} from "@ableton-extensions/sdk";
 import {
   type ArrangementSource,
   applyArrangement,
@@ -32,15 +32,15 @@ import type {
 } from "./ui/bridge.js";
 
 export type DialogDeps = {
-  context: ExtensionContext<"0.0.5">;
+  context: ExtensionContext<"1.0.0">;
   showMutateDialog: (payload: DialogPayload) => Promise<DialogResult>;
-  collectMidiClipsFromArg: (arg: unknown) => MidiClip<"0.0.5">[];
-  describeSessionSource: (clip: MidiClip<"0.0.5">) => SessionSource | null;
-  describeArrangementSource: (clip: MidiClip<"0.0.5">) => ArrangementSource | null;
+  collectMidiClipsFromArg: (arg: unknown) => MidiClip<"1.0.0">[];
+  describeSessionSource: (clip: MidiClip<"1.0.0">) => SessionSource | null;
+  describeArrangementSource: (clip: MidiClip<"1.0.0">) => ArrangementSource | null;
 };
 
 export async function openArrangementClipDialog(
-  clip: MidiClip<"0.0.5">,
+  clip: MidiClip<"1.0.0">,
   deps: DialogDeps,
 ): Promise<void> {
   const { context, showMutateDialog, describeArrangementSource } = deps;
@@ -134,7 +134,7 @@ export async function handleClipDialog(arg: unknown, deps: DialogDeps): Promise<
 
 export async function handleSceneDialog(arg: unknown, deps: DialogDeps): Promise<void> {
   const { context, showMutateDialog } = deps;
-  const scene = context.objects.getObjectFromHandle(arg as Handle, Scene);
+  const scene = context.getObjectFromHandle(arg as Handle, Scene);
   const song = context.application.song;
   const scenes = song.scenes;
   const sceneIndex = scenes.findIndex((s) => s.handle.id === scene.handle.id);
@@ -229,7 +229,7 @@ export async function handleRangeDialog(arg: unknown, deps: DialogDeps): Promise
   // Collect MIDI clips overlapping the range, keeping the track association.
   const rangeClips: RangeSourceClip[] = [];
   for (const h of selection.selected_lanes) {
-    const obj = context.objects.getObjectFromHandle(h, DataModelObject);
+    const obj = context.getObjectFromHandle(h, DataModelObject);
     if (!(obj instanceof MidiTrack)) continue;
     const trackIndex = context.application.song.tracks.findIndex(
       (t) => t.handle.id === obj.handle.id,

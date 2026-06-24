@@ -1,4 +1,4 @@
-import type { ExtensionContext, NoteDescription } from "@ableton/extensions-sdk";
+import type { ExtensionContext, NoteDescription } from "@ableton-extensions/sdk";
 import { applyClipMetadata, computeSourceOutputs } from "./apply.js";
 import type { FillMode, SceneSource, SceneSourceClip } from "./apply-types.js";
 import { deriveSeed2D } from "./rng.js";
@@ -6,7 +6,7 @@ import type { Note } from "./transforms.js";
 import type { MutateControls, VariationMode } from "./variations.js";
 
 export async function applyScene(
-  context: ExtensionContext<"0.0.5">,
+  context: ExtensionContext<"1.0.0">,
   source: SceneSource,
   controls: MutateControls,
   variations: number,

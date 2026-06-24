@@ -1,4 +1,4 @@
-import { type ActivationContext, initialize } from "@ableton/extensions-sdk";
+import { type ActivationContext, initialize } from "@ableton-extensions/sdk";
 import type { ClipInfo } from "./clip-utils.js";
 import {
   type HandlerDeps,
@@ -12,7 +12,7 @@ import {
 import { showNotationDialog as runNotationDialog } from "./dialog.js";
 
 export function activate(activation: ActivationContext) {
-  const context = initialize(activation, "0.0.5");
+  const context = initialize(activation, "1.0.0");
 
   console.log("Notation activated!");
 
@@ -42,7 +42,17 @@ export function activate(activation: ActivationContext) {
   }
 
   function showNotationDialog(clips: ClipInfo[], emptyStateMessage?: string) {
-    return runNotationDialog({ context, getMetadata: getSongMetadata }, clips, emptyStateMessage);
+    return runNotationDialog(
+      {
+        context,
+        reportDialogPath: (filePath: string) => {
+          console.log(`Notation: wrote file to ${filePath}`);
+        },
+        getMetadata: getSongMetadata,
+      },
+      clips,
+      emptyStateMessage,
+    );
   }
 
   const deps: HandlerDeps = { context, getSongMetadata, showNotationDialog };

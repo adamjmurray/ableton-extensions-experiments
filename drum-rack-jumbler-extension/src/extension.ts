@@ -6,22 +6,22 @@ import {
   initialize,
   MidiTrack,
   type Simpler,
-} from "@ableton/extensions-sdk";
+} from "@ableton-extensions/sdk";
 import { derange } from "./derange.js";
 import { mulberry32, type Rng } from "./rng.js";
 import { type DrumPad, findTopLevelDrumChains, findTopLevelDrumPads } from "./walker.js";
 
 export function activate(activation: ActivationContext) {
-  const context = initialize(activation, "0.0.5");
+  const context = initialize(activation, "1.0.0");
 
   console.log("Drum Rack Jumbler activated!");
 
   // Context-menu args can be a MidiTrack handle (right-click track header) or
   // a MidiClip/ClipSlot handle (right-click a clip in Session/Arrangement).
   // Walk up the parent chain to find the containing MidiTrack.
-  function resolveTrack(arg: unknown): MidiTrack<"0.0.5"> | null {
-    const obj = context.objects.getObjectFromHandle(arg as Handle, DataModelObject);
-    let current: DataModelObject<"0.0.5"> | null = obj;
+  function resolveTrack(arg: unknown): MidiTrack<"1.0.0"> | null {
+    const obj = context.getObjectFromHandle(arg as Handle, DataModelObject);
+    let current: DataModelObject<"1.0.0"> | null = obj;
     while (current) {
       if (current instanceof MidiTrack) return current;
       current = current.parent;
@@ -35,7 +35,7 @@ export function activate(activation: ActivationContext) {
     return findTopLevelDrumPads(track)?.pads ?? null;
   }
 
-  function findParameter(simpler: Simpler<"0.0.5">, name: string): DeviceParameter<"0.0.5"> | null {
+  function findParameter(simpler: Simpler<"1.0.0">, name: string): DeviceParameter<"1.0.0"> | null {
     return simpler.parameters.find((p) => p.name === name) ?? null;
   }
 
@@ -89,7 +89,7 @@ export function activate(activation: ActivationContext) {
     await context.withinTransaction(async () => {
       await Promise.all(
         drumChains.map((chain) => {
-          const pan = chain.mixerDevice.panning;
+          const pan = chain.mixer.panning;
           return pan.setValue(pan.min + rng() * (pan.max - pan.min));
         }),
       );
@@ -108,7 +108,7 @@ export function activate(activation: ActivationContext) {
       return;
     }
     await context.withinTransaction(async () => {
-      await Promise.all(drumChains.map((chain) => chain.mixerDevice.panning.setValue(0)));
+      await Promise.all(drumChains.map((chain) => chain.mixer.panning.setValue(0)));
     });
   });
 
@@ -118,8 +118,8 @@ export function activate(activation: ActivationContext) {
   async function randomizePitch(pads: DrumPad[], maxSemitones: number, continuous: boolean) {
     const rng: Rng = mulberry32(Date.now() >>> 0);
     type Target = {
-      transpose: DeviceParameter<"0.0.5">;
-      detune: DeviceParameter<"0.0.5"> | null;
+      transpose: DeviceParameter<"1.0.0">;
+      detune: DeviceParameter<"1.0.0"> | null;
       semitones: number;
       cents: number;
     };

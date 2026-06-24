@@ -1,7 +1,7 @@
-import { DrumChain, type MidiTrack, RackDevice, Simpler } from "@ableton/extensions-sdk";
+import { DrumChain, type MidiTrack, RackDevice, Simpler } from "@ableton-extensions/sdk";
 
 export type DrumPad = {
-  simpler: Simpler<"0.0.5">;
+  simpler: Simpler<"1.0.0">;
   path: string;
 };
 
@@ -14,10 +14,10 @@ export type DrumPad = {
 // Drum Rack chains once wrapped in an Instrument Rack (see
 // notation-extension/src/drum-rack.ts for details), so recursing would
 // return misleading results. Top-level only by design.
-export function findTopLevelDrumChains(track: MidiTrack<"0.0.5">): DrumChain<"0.0.5">[] | null {
+export function findTopLevelDrumChains(track: MidiTrack<"1.0.0">): DrumChain<"1.0.0">[] | null {
   for (const device of track.devices) {
     if (!(device instanceof RackDevice)) continue;
-    const drumChains = device.chains.filter((c): c is DrumChain<"0.0.5"> => c instanceof DrumChain);
+    const drumChains = device.chains.filter((c): c is DrumChain<"1.0.0"> => c instanceof DrumChain);
     if (drumChains.length === 0) continue;
     return drumChains;
   }
@@ -27,12 +27,12 @@ export function findTopLevelDrumChains(track: MidiTrack<"0.0.5">): DrumChain<"0.
 // Simpler pads with loaded samples. Used by commands that need to mutate
 // Simpler parameters (pitch shift, panning). Pads that aren't Simplers, or
 // Simplers without a sample, are skipped.
-export function findTopLevelDrumPads(track: MidiTrack<"0.0.5">): { pads: DrumPad[] } | null {
+export function findTopLevelDrumPads(track: MidiTrack<"1.0.0">): { pads: DrumPad[] } | null {
   const drumChains = findTopLevelDrumChains(track);
   if (!drumChains) return null;
   const pads: DrumPad[] = [];
   for (const chain of drumChains) {
-    const simpler = chain.devices.find((d): d is Simpler<"0.0.5"> => d instanceof Simpler);
+    const simpler = chain.devices.find((d): d is Simpler<"1.0.0"> => d instanceof Simpler);
     if (!simpler) continue;
     const path = simpler.sample?.filePath;
     if (!path) continue;

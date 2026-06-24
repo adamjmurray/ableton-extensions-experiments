@@ -1,11 +1,11 @@
-import type { MidiClip, MidiTrack } from "@ableton/extensions-sdk";
+import type { MidiClip, MidiTrack } from "@ableton-extensions/sdk";
 import type { ClipBounds, Note } from "./transforms.js";
 
 export type SessionSource = {
   kind: "session";
-  track: MidiTrack<"0.0.5">;
+  track: MidiTrack<"1.0.0">;
   slotIndex: number;
-  clip: MidiClip<"0.0.5">;
+  clip: MidiClip<"1.0.0">;
   duration: number;
   notes: Note[];
   bounds: ClipBounds;
@@ -13,8 +13,8 @@ export type SessionSource = {
 
 export type SceneSourceClip = {
   trackIndex: number;
-  track: MidiTrack<"0.0.5">;
-  clip: MidiClip<"0.0.5">;
+  track: MidiTrack<"1.0.0">;
+  clip: MidiClip<"1.0.0">;
   notes: Note[];
   bounds: ClipBounds;
   duration: number;
@@ -28,8 +28,8 @@ export type SceneSource = {
 
 export type ArrangementSource = {
   kind: "arrangement";
-  track: MidiTrack<"0.0.5">;
-  clip: MidiClip<"0.0.5">;
+  track: MidiTrack<"1.0.0">;
+  clip: MidiClip<"1.0.0">;
   startTime: number;
   duration: number;
   notes: Note[];
@@ -38,8 +38,8 @@ export type ArrangementSource = {
 
 export type RangeSourceClip = {
   trackIndex: number;
-  track: MidiTrack<"0.0.5">;
-  clip: MidiClip<"0.0.5">;
+  track: MidiTrack<"1.0.0">;
+  clip: MidiClip<"1.0.0">;
   startTime: number;
   duration: number;
   notes: Note[];
@@ -54,9 +54,9 @@ export type RangeSource = {
 };
 
 export type SessionMultiSourceClip = {
-  track: MidiTrack<"0.0.5">;
+  track: MidiTrack<"1.0.0">;
   slotIndex: number;
-  clip: MidiClip<"0.0.5">;
+  clip: MidiClip<"1.0.0">;
   notes: Note[];
   bounds: ClipBounds;
   duration: number;

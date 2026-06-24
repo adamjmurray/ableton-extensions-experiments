@@ -8,7 +8,7 @@ import {
   MidiClip,
   MidiTrack,
   Scene,
-} from "@ableton/extensions-sdk";
+} from "@ableton-extensions/sdk";
 import {
   beatsPerMeasure,
   buildFlattenedClipInfo,
@@ -30,7 +30,7 @@ export type SongMetadata = {
 };
 
 export type HandlerDeps = {
-  context: ExtensionContext<"0.0.5">;
+  context: ExtensionContext<"1.0.0">;
   getSongMetadata: () => SongMetadata;
   showNotationDialog: (clips: ClipInfo[], emptyStateMessage?: string) => Promise<void>;
 };
@@ -83,7 +83,7 @@ export async function handleShowSelection(
 
   type SelectedTrack = {
     trackIdx: number;
-    track: MidiTrack<"0.0.5">;
+    track: MidiTrack<"1.0.0">;
     trackName: string;
     isDrum: boolean;
   };
@@ -92,7 +92,7 @@ export async function handleShowSelection(
   let maxScene = -Infinity;
 
   for (const handle of selection.selected_clip_slots) {
-    const slot = context.objects.getObjectFromHandle(handle, ClipSlot);
+    const slot = context.getObjectFromHandle(handle, ClipSlot);
     const track = findMidiTrack(slot);
     if (!track) continue;
     const trackIdx = songTracks.findIndex((t) => t.handle.id === track.handle.id);
@@ -171,7 +171,7 @@ export async function handleShowSelection(
 
 export async function handleShowScene(sceneHandle: Handle, deps: HandlerDeps): Promise<void> {
   const { context, showNotationDialog } = deps;
-  const scene = context.objects.getObjectFromHandle(sceneHandle, Scene);
+  const scene = context.getObjectFromHandle(sceneHandle, Scene);
   const scenes = context.application.song.scenes;
   const sceneIndex = scenes.findIndex((s) => s.handle.id === scene.handle.id);
   if (sceneIndex < 0) {
@@ -214,8 +214,8 @@ export async function handleShowArrangementSelection(
 ): Promise<void> {
   const { context, getSongMetadata, showNotationDialog } = deps;
   const tracks = selection.selected_lanes
-    .map((handle) => context.objects.getObjectFromHandle(handle, DataModelObject))
-    .filter((obj): obj is MidiTrack<"0.0.5"> => obj instanceof MidiTrack);
+    .map((handle) => context.getObjectFromHandle(handle, DataModelObject))
+    .filter((obj): obj is MidiTrack<"1.0.0"> => obj instanceof MidiTrack);
 
   if (tracks.length === 0) {
     await showNotationDialog([], "No MIDI tracks in the selection.");
@@ -317,8 +317,8 @@ export async function handleShowArrangementRange(
 ): Promise<void> {
   const { context, getSongMetadata, showNotationDialog } = deps;
   const tracks = selection.selected_lanes
-    .map((handle) => context.objects.getObjectFromHandle(handle, DataModelObject))
-    .filter((obj): obj is MidiTrack<"0.0.5"> => obj instanceof MidiTrack);
+    .map((handle) => context.getObjectFromHandle(handle, DataModelObject))
+    .filter((obj): obj is MidiTrack<"1.0.0"> => obj instanceof MidiTrack);
 
   if (tracks.length === 0) {
     await showNotationDialog([], "No MIDI tracks in the selection.");
@@ -391,7 +391,7 @@ export async function handleShowTrackSession(
   deps: HandlerDeps,
 ): Promise<void> {
   const { context, getSongMetadata, showNotationDialog } = deps;
-  const track = context.objects.getObjectFromHandle(trackHandle, MidiTrack);
+  const track = context.getObjectFromHandle(trackHandle, MidiTrack);
   const trackName = String(track.name);
   const isDrum = isDrumRackTrack(track);
   const bpm = beatsPerMeasure(getSongMetadata().timeSignature);
@@ -439,7 +439,7 @@ export async function handleShowTrackArrangement(
   deps: HandlerDeps,
 ): Promise<void> {
   const { context, getSongMetadata, showNotationDialog } = deps;
-  const track = context.objects.getObjectFromHandle(trackHandle, MidiTrack);
+  const track = context.getObjectFromHandle(trackHandle, MidiTrack);
   const trackName = String(track.name);
   const isDrum = isDrumRackTrack(track);
   const bpm = beatsPerMeasure(getSongMetadata().timeSignature);

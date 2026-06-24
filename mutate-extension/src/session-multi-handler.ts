@@ -1,4 +1,4 @@
-import { ClipSlot, type MidiClip, MidiTrack } from "@ableton/extensions-sdk";
+import { ClipSlot, type MidiClip, MidiTrack } from "@ableton-extensions/sdk";
 import {
   applySessionMulti,
   type SessionMultiSource,
@@ -14,7 +14,7 @@ import type { DialogResult, PreviewClip, SessionMultiPayload } from "./ui/bridge
 // destination slots is unambiguous. If any track has more than one selected
 // clip, variations are disabled and we mutate in place only.
 export async function handleSessionMultiClip(
-  clips: MidiClip<"0.0.5">[],
+  clips: MidiClip<"1.0.0">[],
   deps: DialogDeps,
 ): Promise<void> {
   const { context, showMutateDialog } = deps;

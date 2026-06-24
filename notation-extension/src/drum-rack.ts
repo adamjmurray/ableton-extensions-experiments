@@ -8,17 +8,17 @@ import {
   DrumChain,
   MidiTrack,
   RackDevice,
-} from "@ableton/extensions-sdk";
+} from "@ableton-extensions/sdk";
 import { nameSuggestsDrums } from "./clip-utils.js";
 
 // Walk up an object's parent chain until a MidiTrack is found. Returns the
 // MidiTrack or null if the chain terminates first.
-export function findMidiTrack(obj: DataModelObject<"0.0.5"> | null): MidiTrack<"0.0.5"> | null {
-  let current: DataModelObject<"0.0.5"> | null = obj;
+export function findMidiTrack(obj: DataModelObject<"1.0.0"> | null): MidiTrack<"1.0.0"> | null {
+  let current: DataModelObject<"1.0.0"> | null = obj;
   while (current && !(current instanceof MidiTrack)) {
-    current = current.parent as DataModelObject<"0.0.5"> | null;
+    current = current.parent as DataModelObject<"1.0.0"> | null;
   }
-  return current;
+  return current as MidiTrack<"1.0.0"> | null;
 }
 
 // Structural check for a top-level Drum Rack on a track: walk the track's
@@ -33,7 +33,7 @@ export function findMidiTrack(obj: DataModelObject<"0.0.5"> | null): MidiTrack<"
 // yields empty `.chains`, so a 0-chain fallback false-positives. Until the
 // SDK classifies nested drum-rack chains correctly, we only auto-detect the
 // top-level case here and fall back to name heuristics in the caller.
-export function hasTopLevelDrumRack(devices: Device<"0.0.5">[]): boolean {
+export function hasTopLevelDrumRack(devices: Device<"1.0.0">[]): boolean {
   for (const d of devices) {
     if (!(d instanceof RackDevice)) continue;
     for (const chain of d.chains) {
@@ -47,11 +47,11 @@ export function hasTopLevelDrumRack(devices: Device<"0.0.5">[]): boolean {
 // when a track either contains a top-level Drum Rack, is named like a drum
 // track, or holds a rack whose name suggests drums. See nameSuggestsDrums
 // (clip-utils.ts) for the token list.
-export function isDrumRackTrack(track: MidiTrack<"0.0.5"> | null): boolean {
+export function isDrumRackTrack(track: MidiTrack<"1.0.0"> | null): boolean {
   if (!track) return false;
   if (hasTopLevelDrumRack(track.devices)) return true;
   if (nameSuggestsDrums(String(track.name))) return true;
-  const firstRack = track.devices.find((d): d is RackDevice<"0.0.5"> => d instanceof RackDevice);
+  const firstRack = track.devices.find((d): d is RackDevice<"1.0.0"> => d instanceof RackDevice);
   if (firstRack && nameSuggestsDrums(String(firstRack.name))) return true;
   return false;
 }

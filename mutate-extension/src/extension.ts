@@ -9,7 +9,7 @@ import {
   MidiClip,
   MidiTrack,
   TakeLane,
-} from "@ableton/extensions-sdk";
+} from "@ableton-extensions/sdk";
 import type { ArrangementSource, SessionSource } from "./apply.js";
 import {
   type DialogDeps,
@@ -30,7 +30,7 @@ import {
 import type { DialogPayload, DialogResult } from "./ui/bridge.js";
 
 export function activate(activation: ActivationContext) {
-  const context = initialize(activation, "0.0.5");
+  const context = initialize(activation, "1.0.0");
 
   console.log("Mutate activated!");
 
@@ -50,12 +50,11 @@ export function activate(activation: ActivationContext) {
       `<script>window.__MUTATE_DATA__='${escapePayload(JSON.stringify(payload))}';</script></head>`,
     );
     const dataUrl = `data:text/html,${encodeURIComponent(html)}`;
-    const dialog = context.createModalDialog();
-    const resultStr = await dialog.show(dataUrl, 1200, 800);
+    const resultStr = await context.ui.showModalDialog(dataUrl, 1200, 800);
     return JSON.parse(resultStr) as DialogResult;
   }
 
-  function describeSessionSource(clip: MidiClip<"0.0.5">): SessionSource | null {
+  function describeSessionSource(clip: MidiClip<"1.0.0">): SessionSource | null {
     const slot = clip.parent;
     if (!(slot instanceof ClipSlot)) return null;
     const track = slot.parent;
@@ -73,7 +72,7 @@ export function activate(activation: ActivationContext) {
 
   // Walks up from a clip that lives in the arrangement. Parent is either the
   // MidiTrack directly, or a TakeLane whose parent is the MidiTrack.
-  function describeArrangementSource(clip: MidiClip<"0.0.5">): ArrangementSource | null {
+  function describeArrangementSource(clip: MidiClip<"1.0.0">): ArrangementSource | null {
     let parent = clip.parent;
     if (parent instanceof TakeLane) parent = parent.parent;
     if (!(parent instanceof MidiTrack)) return null;
@@ -90,14 +89,14 @@ export function activate(activation: ActivationContext) {
     };
   }
 
-  function collectMidiClipsFromArg(arg: unknown): MidiClip<"0.0.5">[] {
+  function collectMidiClipsFromArg(arg: unknown): MidiClip<"1.0.0">[] {
     if (!arg || typeof arg !== "object") return [];
 
     if ("selected_clip_slots" in arg) {
       const sel = arg as ClipSlotSelection;
-      const clips: MidiClip<"0.0.5">[] = [];
+      const clips: MidiClip<"1.0.0">[] = [];
       for (const handle of sel.selected_clip_slots) {
-        const slot = context.objects.getObjectFromHandle(handle, ClipSlot);
+        const slot = context.getObjectFromHandle(handle, ClipSlot);
         if (slot.clip instanceof MidiClip) clips.push(slot.clip);
       }
       return clips;
@@ -107,9 +106,9 @@ export function activate(activation: ActivationContext) {
       const sel = arg as ArrangementSelection;
       const start = Number(sel.time_selection_start);
       const end = Number(sel.time_selection_end);
-      const clips: MidiClip<"0.0.5">[] = [];
+      const clips: MidiClip<"1.0.0">[] = [];
       for (const h of sel.selected_lanes) {
-        const obj = context.objects.getObjectFromHandle(h, DataModelObject);
+        const obj = context.getObjectFromHandle(h, DataModelObject);
         if (!(obj instanceof MidiTrack)) continue;
         for (const clip of obj.arrangementClips) {
           if (!(clip instanceof MidiClip)) continue;
@@ -122,7 +121,7 @@ export function activate(activation: ActivationContext) {
     }
 
     if ("id" in arg) {
-      return [context.objects.getObjectFromHandle(arg as Handle, MidiClip)];
+      return [context.getObjectFromHandle(arg as Handle, MidiClip)];
     }
 
     return [];

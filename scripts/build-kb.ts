@@ -1,5 +1,13 @@
 import { execSync } from "node:child_process";
-import { cpSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { basename, extname, join, relative } from "node:path";
 
 const SDK = "extensions-sdk";
@@ -175,27 +183,22 @@ for (const file of walkFiles(join(SDK, "examples"))) {
   copy(rel, outputName(flatten(rel)));
 }
 
-// --- Type declarations (ESM .d.mts only, skip CLI and .map files) ---
-const typeFiles: [string, string][] = [
-  ["dist/index.d.mts", "types--index.d.mts"],
-  ["dist/testing/index.d.mts", "types--testing--index.d.mts"],
-];
-
-// Find the Application .d.mts file (has a hash in the name)
-for (const entry of readdirSync(join(SDK, "dist"))) {
-  if (entry.startsWith("Application") && entry.endsWith(".d.mts")) {
-    typeFiles.push([`dist/${entry}`, "types--Application.d.mts"]);
-    break;
-  }
+// --- SDK type declarations + package metadata (extracted from the SDK tgz) ---
+// The beta SDK is distributed as an npm tarball; its bundled .d.mts type
+// declarations and package.json live inside `package/` within the archive.
+const sdkTgz = readdirSync(SDK).find(
+  (f) => f.startsWith("ableton-extensions-sdk-") && f.endsWith(".tgz"),
+);
+if (sdkTgz) {
+  const tmp = join(OUT, ".sdk-tgz");
+  mkdirSync(tmp);
+  execSync(
+    `tar xzf ${JSON.stringify(join(SDK, sdkTgz))} -C ${JSON.stringify(tmp)} package/dist/index.d.mts package/package.json`,
+  );
+  cpSync(join(tmp, "package/dist/index.d.mts"), join(OUT, outputName("types--index.d.mts")));
+  cpSync(join(tmp, "package/package.json"), join(OUT, "sdk--package.json"));
+  rmSync(tmp, { recursive: true, force: true });
 }
-
-for (const [src, out] of typeFiles) {
-  copy(src, outputName(out));
-}
-
-// --- SDK config ---
-copy("package.json", "sdk--package.json");
-copy("tsconfig.json", "sdk--tsconfig.json");
 
 // --- Our extensions (all git-tracked files, except package-lock.json) ---
 const extensions = ["notation-extension", "mutate-extension", "drum-rack-jumbler-extension"];
@@ -207,6 +210,8 @@ for (const ext of extensions) {
     .filter(Boolean);
   for (const rel of tracked) {
     if (extensionSkipFiles.has(basename(rel))) continue;
+    // Skip files that are tracked but no longer on disk (e.g. deleted, not yet committed).
+    if (!existsSync(rel)) continue;
     cpSync(rel, join(OUT, outputName(flatten(rel))));
   }
 }

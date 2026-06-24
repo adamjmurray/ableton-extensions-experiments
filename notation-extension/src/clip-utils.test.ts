@@ -1,4 +1,4 @@
-import type { MidiClip } from "@ableton/extensions-sdk";
+import type { MidiClip } from "@ableton-extensions/sdk";
 import { describe, expect, it } from "vitest";
 import {
   beatsPerMeasure,

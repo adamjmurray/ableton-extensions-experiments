@@ -1,11 +1,11 @@
-import type { ExtensionContext, NoteDescription } from "@ableton/extensions-sdk";
+import type { ExtensionContext, NoteDescription } from "@ableton-extensions/sdk";
 import { applyClipMetadata, computeSourceOutputs, nextMutateLaneIndex } from "./apply.js";
 import type { ArrangementSource } from "./apply-types.js";
 import { deriveSeed } from "./rng.js";
 import type { MutateControls, VariationMode } from "./variations.js";
 
 export async function applyArrangement(
-  context: ExtensionContext<"0.0.5">,
+  context: ExtensionContext<"1.0.0">,
   source: ArrangementSource,
   controls: MutateControls,
   variations: number,
