@@ -9,15 +9,23 @@ extension does, see [README.md](README.md); for the deeper SDK/architecture note
 - **Node.js 25+** (native TypeScript — the scripts here run `.ts` directly).
 - **An Ableton Live beta** with Extensions support (Live 12 Beta or Live 13 Beta).
   The SDK is in beta, so Extensions only run in the beta builds.
+- **The Extensions SDK**, obtained from Ableton (see below) — it is **not** included
+  in this repo.
 - Install each extension's dependencies once: `cd <name>-extension && npm install`.
 
 ## Project layout
 
 Each extension is a self-contained project in its own `<name>-extension/` directory
-(`notation-extension/`, `mutate-extension/`, `drum-rack-jumbler-extension/`). The SDK
-distribution lives in [`extensions-sdk/`](extensions-sdk/) and is depended on by path
-(the `*.tgz` tarballs). Don't modify anything under `extensions-sdk/` — it's a vendored
-drop.
+(`notation-extension/`, `mutate-extension/`, `drum-rack-jumbler-extension/`).
+
+The extensions depend on the SDK by path — the `*.tgz` tarballs in an `extensions-sdk/`
+directory next to them. **That directory is gitignored and not committed**: Ableton's
+SDK license forbids redistributing the (confidential, beta) SDK, so each developer
+obtains it from Ableton and drops it in place. Get the SDK distribution from Ableton's
+beta program, and put its tarballs (`ableton-extensions-sdk-*.tgz`,
+`ableton-extensions-cli-*.tgz`, `ableton-create-extension-*.tgz`) in `extensions-sdk/`
+at the repo root. The `file:../extensions-sdk/*.tgz` dependency paths then resolve and
+`npm install` works. Don't modify anything inside `extensions-sdk/`.
 
 ## Per-extension scripts
 

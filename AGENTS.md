@@ -8,10 +8,16 @@ our extensions lives in a sibling `<name>-extension/` directory at the repo root
 layout means an extension directory can be dropped next to an `extensions-sdk/` on any
 machine and build without path edits.
 
+> **The `extensions-sdk/` directory is gitignored and not committed.** Ableton's SDK
+> license forbids redistributing the (confidential, beta) SDK, so it is kept local-only:
+> obtain it from Ableton's beta program and place the tarballs in `extensions-sdk/`.
+> Because it's absent on a fresh clone / in CI, anything that needs the SDK (extension
+> `npm install`, typecheck, tests) only runs where it's present.
+
 ## Project Structure
 ```
 .
-├── extensions-sdk/          # SDK distribution drop (not our code, do not modify)
+├── extensions-sdk/          # SDK drop — LOCAL ONLY, gitignored (obtain from Ableton)
 │   ├── ableton-extensions-sdk-1.0.0-beta.0.tgz     # the SDK package (depend on this)
 │   ├── ableton-extensions-cli-1.0.0-beta.0.tgz     # the CLI: `extensions-cli run` / `package`
 │   ├── ableton-create-extension-1.0.0-beta.0.tgz   # project scaffolder
@@ -28,7 +34,7 @@ machine and build without path edits.
 │   ├── build-kb.ts          # Builds knowledge-base/ for Claude Projects
 │   └── dev.ts               # Launches Extension Host in Developer Mode
 ├── knowledge-base/          # Generated, gitignored
-└── package.json             # Root package (scripts only, no deps)
+└── package.json             # Root package (scripts + dev-tooling devDeps)
 ```
 
 ## Extension Development
@@ -224,7 +230,8 @@ Before finishing a task, `npm run check` (typecheck + vitest) must pass.
 Issues are tracked in Linear under the "MIDI Notation Extension" project (AJM-xxx).
 
 ## Rules
-- Do not modify anything inside `extensions-sdk/` — it is a vendored SDK distribution drop
+- Do not modify anything inside `extensions-sdk/` — it is a vendored SDK distribution
+  drop, and it is gitignored (local-only, never commit it; obtain it from Ableton)
 - Keep each extension self-contained with its own package.json and build
 - Depend on the SDK/CLI tarballs by path (extensions are siblings of `extensions-sdk/`):
   `file:../extensions-sdk/ableton-extensions-sdk-1.0.0-beta.0.tgz` (and the matching `-cli-` tgz).

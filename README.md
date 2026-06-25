@@ -2,8 +2,10 @@
 
 A collection of [Ableton Live](https://www.ableton.com/) extensions built with the
 (beta) [Extensions SDK](https://ableton.github.io/extensions-sdk). Each extension is a
-self-contained project in its own `*-extension/` directory; the SDK distribution lives
-in [`extensions-sdk/`](extensions-sdk/).
+self-contained project in its own `*-extension/` directory. The SDK itself is not
+included in this repo — Ableton's license forbids redistributing it, so you obtain it
+from Ableton and place it in a gitignored `extensions-sdk/` directory (see
+[DEVELOPERS.md](DEVELOPERS.md)).
 
 Extensions are distributed as `.ablx` files — open one in Live (Settings → Extensions)
 to install it. The SDK is currently in beta, so building and running these requires
