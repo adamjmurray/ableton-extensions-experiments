@@ -1,26 +1,76 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, mkdirSync, readdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { basename, resolve } from "node:path";
 
 // Thin wrapper around `extensions-cli run` (from @ableton-extensions/cli).
 // The CLI needs EXTENSION_HOST_PATH (or --live) pointing at Live's
-// ExtensionHostNodeModule.node; this script auto-detects the newest installed
-// Ableton Live and passes it via --live, then delegates to the extension's
-// local extensions-cli. Build the extension first (its `npm run build`);
-// Ctrl+C and re-run to pick up changes.
+// ExtensionHostNodeModule.node; this script auto-detects the running (else newest
+// installed) Ableton Live, supplies dev temp/storage directories, and delegates to
+// the extension's local extensions-cli. Build the extension first (its `npm run
+// build`); Ctrl+C and re-run to pick up changes. See DEVELOPERS.md for the workflow.
 
 const LIVE_APP_ROOT = "/Applications";
-const EXTENSION_HOST_REL = "Contents/App-Resources/Extensions/ExtensionHost";
+const HOST_MODULE = "ExtensionHostNodeModule.node";
+// Relative location of the host module within a Live .app bundle. This has moved
+// between releases (App-Resources/Extensions in early betas, Helpers in Live 12.3/13),
+// so we try the known locations and fall back to a recursive search.
+const EXTENSION_HOST_RELS = [
+  "Contents/Helpers/ExtensionHost",
+  "Contents/App-Resources/Extensions/ExtensionHost",
+];
+
+function findInApp(app: string): string | undefined {
+  for (const rel of EXTENSION_HOST_RELS) {
+    const module = resolve(LIVE_APP_ROOT, app, rel, HOST_MODULE);
+    if (existsSync(module)) return module;
+  }
+  // Fallback: recursive search in case the bundle layout changed again.
+  try {
+    const hit = execFileSync("find", [resolve(LIVE_APP_ROOT, app), "-name", HOST_MODULE], {
+      encoding: "utf8",
+    })
+      .split("\n")
+      .find(Boolean);
+    if (hit) return hit;
+  } catch {
+    // `find` failed (e.g. permissions); fall through.
+  }
+  return undefined;
+}
+
+// The host module must come from the SAME Live that's currently running, or the
+// launched host times out trying to pair with Live ("bring-up timed out"). So we
+// prefer the running Live's .app, falling back to the newest installed one.
+function findRunningLiveApp(): string | undefined {
+  try {
+    const out = execFileSync("ps", ["-Axo", "comm"], { encoding: "utf8" });
+    const match = out.match(/\/Applications\/Ableton Live[^/]*\.app/);
+    return match?.[0];
+  } catch {
+    return undefined;
+  }
+}
 
 function findHostModule(): string {
-  const apps = readdirSync(LIVE_APP_ROOT)
+  const installed = readdirSync(LIVE_APP_ROOT)
     .filter((name) => name.startsWith("Ableton Live") && name.endsWith(".app"))
     .sort()
-    .reverse();
+    .reverse()
+    .map((name: string) => resolve(LIVE_APP_ROOT, name));
 
-  for (const app of apps) {
-    const module = resolve(LIVE_APP_ROOT, app, EXTENSION_HOST_REL, "ExtensionHostNodeModule.node");
-    if (existsSync(module)) return module;
+  // Try the running Live first, then fall back to newest installed.
+  const running = findRunningLiveApp();
+  const candidates = running
+    ? [running, ...installed.filter((a: string) => a !== running)]
+    : installed;
+
+  for (const app of candidates) {
+    const module = findInApp(app);
+    if (module) {
+      if (app === running) console.log(`(using running Live: ${app})`);
+      return module;
+    }
   }
   throw new Error("Could not find Ableton Live with Extension Host installed");
 }
@@ -58,12 +108,37 @@ function resolveExtensionDir(): string {
 const hostModule = findHostModule();
 const extDir = resolveExtensionDir();
 
+// When Live manages the Extension Host it provides temp/storage directories; when
+// we take over the host via the CLI, we must supply them ourselves or
+// context.environment.{tempDirectory,storageDirectory} come back undefined.
+const devRoot = resolve(tmpdir(), "ableton-extensions-dev", basename(extDir));
+const tempDirectory = resolve(devRoot, "temp");
+const storageDirectory = resolve(devRoot, "storage");
+mkdirSync(tempDirectory, { recursive: true });
+mkdirSync(storageDirectory, { recursive: true });
+
 console.log(`Extension Host: ${hostModule}`);
 console.log(`Extension:      ${extDir}`);
+console.log(`Temp:           ${tempDirectory}`);
+console.log(`Storage:        ${storageDirectory}`);
 console.log();
 
 // Delegate to the extension's locally-installed extensions-cli.
-execFileSync("npx", ["extensions-cli", "run", ".", "--live", hostModule], {
-  cwd: extDir,
-  stdio: "inherit",
-});
+execFileSync(
+  "npx",
+  [
+    "extensions-cli",
+    "run",
+    ".",
+    "--live",
+    hostModule,
+    "--temp-directory",
+    tempDirectory,
+    "--storage-directory",
+    storageDirectory,
+  ],
+  {
+    cwd: extDir,
+    stdio: "inherit",
+  },
+);

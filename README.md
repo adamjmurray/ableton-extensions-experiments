@@ -7,8 +7,9 @@ in [`extensions-sdk/`](extensions-sdk/).
 
 Extensions are distributed as `.ablx` files — open one in Live (Settings → Extensions)
 to install it. The SDK is currently in beta, so building and running these requires
-Developer Mode and a recent Live beta build. See [AGENTS.md](AGENTS.md) for development
-details.
+Developer Mode and a recent Live beta build. See [DEVELOPERS.md](DEVELOPERS.md) for the
+build/run/package workflow, or [AGENTS.md](AGENTS.md) for deeper SDK and architecture
+notes.
 
 ## Notation
 
