@@ -20,13 +20,6 @@ export interface ClipInfo {
   isDrumRack?: boolean;
 }
 
-const DRUM_NAME_TOKENS = ["drums", "kit"];
-
-export function nameSuggestsDrums(name: string): boolean {
-  const lower = name.toLowerCase();
-  return DRUM_NAME_TOKENS.some((t) => lower.includes(t));
-}
-
 export function beatsPerMeasure(ts: { numerator: number; denominator: number }): number {
   return ts.numerator * (4 / ts.denominator);
 }

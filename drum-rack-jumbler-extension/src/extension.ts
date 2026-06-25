@@ -9,7 +9,7 @@ import {
 } from "@ableton-extensions/sdk";
 import { derange } from "./derange.js";
 import { mulberry32, type Rng } from "./rng.js";
-import { type DrumPad, findTopLevelDrumChains, findTopLevelDrumPads } from "./walker.js";
+import { type DrumPad, findDrumChains, findDrumPads } from "./walker.js";
 
 export function activate(activation: ActivationContext) {
   const context = initialize(activation, "1.0.0");
@@ -32,7 +32,7 @@ export function activate(activation: ActivationContext) {
   function resolvePads(arg: unknown): DrumPad[] | null {
     const track = resolveTrack(arg);
     if (!track) return null;
-    return findTopLevelDrumPads(track)?.pads ?? null;
+    return findDrumPads(track)?.pads ?? null;
   }
 
   function findParameter(simpler: Simpler<"1.0.0">, name: string): DeviceParameter<"1.0.0"> | null {
@@ -55,9 +55,9 @@ export function activate(activation: ActivationContext) {
       console.log("Swap Drum Pads: could not resolve track from selection");
       return;
     }
-    const drumChains = findTopLevelDrumChains(track);
+    const drumChains = findDrumChains(track);
     if (!drumChains) {
-      console.log("Swap Drum Pads: no top-level drum rack on this track");
+      console.log("Swap Drum Pads: no drum rack on this track");
       return;
     }
     if (drumChains.length < 2) {
@@ -80,9 +80,9 @@ export function activate(activation: ActivationContext) {
       console.log("Randomize Panning: could not resolve track from selection");
       return;
     }
-    const drumChains = findTopLevelDrumChains(track);
+    const drumChains = findDrumChains(track);
     if (!drumChains) {
-      console.log("Randomize Panning: no top-level drum rack on this track");
+      console.log("Randomize Panning: no drum rack on this track");
       return;
     }
     const rng = mulberry32(Date.now() >>> 0);
@@ -102,9 +102,9 @@ export function activate(activation: ActivationContext) {
       console.log("Center All Panning: could not resolve track from selection");
       return;
     }
-    const drumChains = findTopLevelDrumChains(track);
+    const drumChains = findDrumChains(track);
     if (!drumChains) {
-      console.log("Center All Panning: no top-level drum rack on this track");
+      console.log("Center All Panning: no drum rack on this track");
       return;
     }
     await context.withinTransaction(async () => {
@@ -162,7 +162,7 @@ export function activate(activation: ActivationContext) {
     context.commands.registerCommand(id, async (arg: unknown) => {
       const pads = resolvePads(arg);
       if (!pads) {
-        console.log(`${label}: no top-level drum rack on this track`);
+        console.log(`${label}: no drum rack on this track`);
         return;
       }
       const ok = await randomizePitch(pads, maxSemitones, continuous);
@@ -187,7 +187,7 @@ export function activate(activation: ActivationContext) {
   context.commands.registerCommand("drumRackJumbler.resetPitch", async (arg: unknown) => {
     const pads = resolvePads(arg);
     if (!pads) {
-      console.log("Reset Simpler Pitch Shifts: no top-level drum rack on this track");
+      console.log("Reset Simpler Pitch Shifts: no drum rack on this track");
       return;
     }
     const ops: Promise<void>[] = [];

@@ -192,16 +192,21 @@ multi-clip entry points render each clip on its own staff in a score layout.
 - The SDK reports `clip.endMarker` at the absolute clip end rather than the
   playback end, so renderers use `clip.loopEnd` as the effective end regardless of
   whether the clip is looping. (Observed under alpha; re-verify under beta.)
-- A Drum Rack only classifies correctly when it sits at the top level of a track.
-  Once wrapped inside an Instrument Rack, the host stops tagging its pad chains as
-  `DrumChain`, the nested `RackDevice.chains` accessor returns empty, and
-  `getObjectIsOfClass(handle, "DrumChain")` also returns false — nothing surfaces a
-  drum tag. The notation extension falls back to a track/rack name heuristic
-  (`drums` / `kit`, case-insensitive) for the wrapped case; see
-  [notation-extension/src/extension.ts](notation-extension/src/extension.ts).
-  Note: the beta `getObjectIsOfClass` takes a plain `className` string (the `ObjectClass`
-  enum was removed), and beta adds a first-class `DrumRack` class plus a `"DrumRack"`
-  context-menu scope — worth re-testing whether these classify the wrapped case now.
+- Nested Drum Rack classification is **fixed in beta** (was broken under alpha).
+  The alpha stopped tagging a Drum Rack's pad chains as `DrumChain` once the rack was
+  wrapped inside an Instrument Rack, and the nested `RackDevice.chains` accessor
+  returned empty — so detection fell back to a `drums`/`kit` track-name heuristic.
+  Verified under 1.0.0-beta.0 (right-clicking a nested rack, and walking down from the
+  track): the beta exposes a first-class `DrumRack` class (`instanceof DrumRack`),
+  populates `RackDevice.chains` / `Chain.devices` for nested racks, and tags nested pad
+  chains as `DrumChain`. Both extensions now detect a Drum Rack at any depth by
+  recursing into rack chains and the name heuristic is gone — see
+  [notation-extension/src/drum-rack.ts](notation-extension/src/drum-rack.ts)
+  (`hasDrumRack`) and [drum-rack-jumbler-extension/src/walker.ts](drum-rack-jumbler-extension/src/walker.ts)
+  (`findDrumRack`). Beta also adds a `"DrumRack"` context-menu scope (hands the rack
+  handle directly). Note: `getObjectIsOfClass` is **not** on the public
+  `ExtensionContext` in beta (it lives on an `@internal` interface) — use `instanceof`
+  against the SDK classes instead.
 
 ### Clip render region
 The shared helper `getClipRenderRegion(clip, beatsPerMeasure)` in [src/ui/musicxml.ts](notation-extension/src/ui/musicxml.ts)

@@ -5,11 +5,10 @@
 import {
   type DataModelObject,
   type Device,
-  DrumChain,
+  DrumRack,
   MidiTrack,
   RackDevice,
 } from "@ableton-extensions/sdk";
-import { nameSuggestsDrums } from "./clip-utils.js";
 
 // Walk up an object's parent chain until a MidiTrack is found. Returns the
 // MidiTrack or null if the chain terminates first.
@@ -21,37 +20,26 @@ export function findMidiTrack(obj: DataModelObject<"1.0.0"> | null): MidiTrack<"
   return current as MidiTrack<"1.0.0"> | null;
 }
 
-// Structural check for a top-level Drum Rack on a track: walk the track's
-// devices and look for a RackDevice whose chains are DrumChains. Works when
-// Drum Rack sits directly on the track.
-//
-// Known alpha-SDK bug: once a Drum Rack is wrapped inside an Instrument Rack,
-// the host no longer tags its pad chains as DrumChain (verified by probing
-// `dataModelInstance.getObjectIsOfClass` directly — nothing returns a drum
-// tag), and the nested Drum Rack's `.chains` returns empty. Recursing into
-// nested racks doesn't help: Instrument Rack → Instrument Rack nesting also
-// yields empty `.chains`, so a 0-chain fallback false-positives. Until the
-// SDK classifies nested drum-rack chains correctly, we only auto-detect the
-// top-level case here and fall back to name heuristics in the caller.
-export function hasTopLevelDrumRack(devices: Device<"1.0.0">[]): boolean {
+// Structural check for a Drum Rack anywhere in a device tree, whether it sits
+// directly on the track or is nested inside an Instrument Rack (or another
+// rack). The beta SDK classifies nested drum racks correctly — `instanceof
+// DrumRack` holds even when wrapped — so we recurse into every rack's chains.
+// (The alpha mis-classified nested racks, which forced an earlier
+// top-level-only check plus a track/rack-name heuristic; verified fixed under
+// 1.0.0-beta.0, so the heuristic is gone.)
+export function hasDrumRack(devices: Device<"1.0.0">[]): boolean {
   for (const d of devices) {
-    if (!(d instanceof RackDevice)) continue;
-    for (const chain of d.chains) {
-      if (chain instanceof DrumChain) return true;
+    if (d instanceof DrumRack) return true;
+    if (d instanceof RackDevice) {
+      for (const chain of d.chains) {
+        if (hasDrumRack(chain.devices)) return true;
+      }
     }
   }
   return false;
 }
 
-// Combined structural + name-heuristic drum-track classifier. Returns true
-// when a track either contains a top-level Drum Rack, is named like a drum
-// track, or holds a rack whose name suggests drums. See nameSuggestsDrums
-// (clip-utils.ts) for the token list.
+// Drum-track classifier: true when the track contains a Drum Rack at any depth.
 export function isDrumRackTrack(track: MidiTrack<"1.0.0"> | null): boolean {
-  if (!track) return false;
-  if (hasTopLevelDrumRack(track.devices)) return true;
-  if (nameSuggestsDrums(String(track.name))) return true;
-  const firstRack = track.devices.find((d): d is RackDevice<"1.0.0"> => d instanceof RackDevice);
-  if (firstRack && nameSuggestsDrums(String(firstRack.name))) return true;
-  return false;
+  return track ? hasDrumRack(track.devices) : false;
 }
