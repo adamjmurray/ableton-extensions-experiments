@@ -2,10 +2,9 @@
 
 Shuffle and tweak a track's Drum Rack in Ableton Live from the right-click menu.
 
-Right-click a Drum Rack device, a MIDI track header, or a MIDI clip on a track that
-contains a Drum Rack, then pick an action. The Drum Rack can sit directly on the track or
-be nested inside an Instrument Rack (or another rack) — it's found at any depth.
-Each action runs in a single undo step.
+Right-click a Drum Rack device, then pick an action. The Drum Rack can sit directly on a
+track or be nested inside an Instrument Rack (or another rack) — the menu appears wherever
+the Drum Rack lives. Each action runs in a single undo step.
 
 ## Context menu actions
 
@@ -18,6 +17,6 @@ Each action runs in a single undo step.
 - **Reset Simpler Pitch Shifts** — clear the Transpose/Detune offsets on every pad's
   Simpler.
 
-Each action is registered on the Drum Rack device (`DrumRack`), the track header
-(`MidiTrack`), and clips (`MidiClip`). The `DrumRack` scope hands the rack directly; for
-the other two the handler walks up to the containing track and finds its Drum Rack.
+Each action is registered only on the Drum Rack device (`DrumRack`) scope, which hands the
+rack to the handler directly — so the menu items appear only on Drum Racks, never on
+non-drum tracks.

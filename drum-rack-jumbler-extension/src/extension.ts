@@ -5,30 +5,22 @@ import {
   DrumRack,
   type Handle,
   initialize,
-  MidiTrack,
   type Simpler,
 } from "@ableton-extensions/sdk";
 import { derange } from "./derange.js";
 import { mulberry32, type Rng } from "./rng.js";
-import { type DrumPad, drumChains, drumPads, findDrumRack } from "./walker.js";
+import { type DrumPad, drumChains, drumPads } from "./walker.js";
 
 export function activate(activation: ActivationContext) {
   const context = initialize(activation, "1.0.0");
 
   console.log("Drum Rack Jumbler activated!");
 
-  // Resolve the target Drum Rack from a context-menu arg. The "DrumRack" scope
-  // hands us the rack handle directly (right-click the device); the "MidiTrack"
-  // and "MidiClip" scopes hand us a track/clip handle, so we walk up to the
-  // containing track and find its first Drum Rack at any depth.
+  // Every action is registered only on the "DrumRack" scope, so the arg is
+  // always the right-clicked Drum Rack's handle.
   function resolveDrumRack(arg: unknown): DrumRack<"1.0.0"> | null {
     const obj = context.getObjectFromHandle(arg as Handle, DataModelObject);
-    if (obj instanceof DrumRack) return obj;
-    let current: DataModelObject<"1.0.0"> | null = obj;
-    while (current && !(current instanceof MidiTrack)) {
-      current = current.parent;
-    }
-    return current instanceof MidiTrack ? findDrumRack(current.devices) : null;
+    return obj instanceof DrumRack ? obj : null;
   }
 
   function resolvePads(arg: unknown): DrumPad[] | null {
@@ -196,10 +188,9 @@ export function activate(activation: ActivationContext) {
   });
 
   // -------------------------------------------------------------------
-  // Menu order is the registration order below. Each action is registered
-  // for three scopes: DrumRack (right-click the rack device — most direct),
-  // MidiTrack (right-click track header), and MidiClip (right-click a clip in
-  // Session or Arrangement). resolveDrumRack handles all three.
+  // Menu order is the registration order below. Actions are registered only on
+  // the DrumRack scope, so they appear when you right-click a Drum Rack device
+  // (and never clutter the menu of a non-drum track).
   // -------------------------------------------------------------------
   const menuItems: [string, string][] = [
     ["Swap Drum Pads", "drumRackJumbler.swapDrumPads"],
@@ -212,7 +203,5 @@ export function activate(activation: ActivationContext) {
   ];
   for (const [label, commandId] of menuItems) {
     context.ui.registerContextMenuAction("DrumRack", label, commandId);
-    context.ui.registerContextMenuAction("MidiTrack", label, commandId);
-    context.ui.registerContextMenuAction("MidiClip", label, commandId);
   }
 }
