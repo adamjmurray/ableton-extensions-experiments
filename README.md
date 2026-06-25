@@ -39,3 +39,9 @@ mappings (a derangement, so no pad keeps its own note), randomize or center pad 
 pitch-shift the pads' Simplers (±1 / ±12 / ±24 semitones), and reset pitch shifts.
 
 → [drum-rack-jumbler-extension/README.md](drum-rack-jumbler-extension/README.md)
+
+## License
+
+This project's code is licensed under the [MIT License](LICENSE). The Ableton
+Extensions SDK is not included in this repository and is licensed separately by
+Ableton under its own terms.
