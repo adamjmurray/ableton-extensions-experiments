@@ -9,6 +9,4 @@ extensions-sdk/
 *.ablx
 knowledge-base/
 *-extension/dist/
-ableton-midi-sculptor/releases/
-ableton-midi-sculptor/device/
 scratchpad/

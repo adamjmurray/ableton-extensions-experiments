@@ -7,7 +7,6 @@ name is stable; the current drop is **1.0.0-beta.0** — see the tgz filenames).
 our extensions lives in a sibling `<name>-extension/` directory at the repo root — this
 layout means an extension directory can be dropped next to an `extensions-sdk/` on any
 machine and build without path edits.
-`ableton-midi-sculptor/` contains an older Max for Live project being ported to an extension.
 
 ## Project Structure
 ```
@@ -25,9 +24,6 @@ machine and build without path edits.
 │   ├── package.json         # npm package (depends on the SDK tgz via file:../extensions-sdk/…tgz)
 │   ├── src/extension.ts     # Source code
 │   └── dist/                # Build output (gitignored)
-├── ableton-midi-sculptor/   # Original Max for Live project (reference for porting)
-│   ├── src/                 # Core logic: Note, Clip, transformers (mostly pure JS, portable)
-│   └── tests/               # Existing tests (port to vitest)
 ├── scripts/
 │   ├── build-kb.ts          # Builds knowledge-base/ for Claude Projects
 │   └── dev.ts               # Launches Extension Host in Developer Mode
