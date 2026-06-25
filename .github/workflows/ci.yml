@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # Each extension is an independent project with its own lockfile and its
+      # SDK/CLI deps vendored as tarballs under extensions-sdk/ (committed), so a
+      # plain `npm ci` per directory resolves the file: dependencies offline.
+      - name: Install extension dependencies
+        run: |
+          for ext in *-extension; do
+            echo "::group::npm ci ($ext)"
+            (cd "$ext" && npm ci)
+            echo "::endgroup::"
+          done
+
+      # Runs each extension's `check` (typecheck + format:check + lint + test).
+      - name: Check all extensions
+        run: npm run check

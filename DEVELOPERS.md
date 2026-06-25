@@ -32,6 +32,29 @@ Run these from inside an extension directory (e.g. `cd notation-extension`):
 | `npm test` | Run the vitest suite |
 | `npm run package` | Production build, then emit a `.ablx` archive |
 
+## Repo-wide checks
+
+From the **repo root**, these fan a script out across every `*-extension/` directory and
+fail if any extension fails (so they gate CI):
+
+| Script | Runs in each extension |
+| --- | --- |
+| `npm run check` | `check` — typecheck + format check + lint + tests |
+| `npm run typecheck` | `typecheck` only |
+| `npm run lint` | `lint` only |
+| `npm test` | `test` only |
+
+These are thin wrappers around `scripts/check-all.ts <script>`, which prints a per-
+extension pass/fail summary. They assume each extension's dependencies are installed
+(`npm ci` / `npm install` in each).
+
+### Continuous integration
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on pushes to `main` and on
+pull requests: it `npm ci`s each extension (the SDK/CLI tarballs are vendored under
+`extensions-sdk/`, so installs resolve offline) and then runs the repo-wide
+`npm run check`.
+
 ## Running in Developer Mode (the dev loop)
 
 Developer Mode lets you take over Live's Extension Host process so you can reload an

@@ -3,7 +3,11 @@
   "type": "module",
   "scripts": {
     "kb": "node scripts/build-kb.ts",
-    "dev": "node scripts/dev.ts"
+    "dev": "node scripts/dev.ts",
+    "check": "node scripts/check-all.ts",
+    "typecheck": "node scripts/check-all.ts typecheck",
+    "lint": "node scripts/check-all.ts lint",
+    "test": "node scripts/check-all.ts test"
   },
   "devDependencies": {
     "@types/node": "^25.3.5"
