@@ -7,12 +7,16 @@
   "scripts": {
     "kb": "node scripts/build-kb.ts",
     "dev": "node scripts/dev.ts",
-    "check": "node scripts/check-all.ts",
+    "check": "npm run check:scripts && node scripts/check-all.ts",
+    "check:scripts": "tsc -p scripts/tsconfig.json && biome check scripts",
+    "fix:scripts": "biome check --write scripts",
     "typecheck": "node scripts/check-all.ts typecheck",
     "lint": "node scripts/check-all.ts lint",
     "test": "node scripts/check-all.ts test"
   },
   "devDependencies": {
-    "@types/node": "^25.3.5"
+    "@biomejs/biome": "2.4.12",
+    "@types/node": "^25.3.5",
+    "typescript": "^5.6.3"
   }
 }

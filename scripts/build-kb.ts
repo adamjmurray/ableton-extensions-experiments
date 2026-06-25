@@ -3,8 +3,8 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
-  readFileSync,
   readdirSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -26,7 +26,7 @@ function flatten(filePath: string): string {
 
 function outputName(flatName: string): string {
   const ext = extname(flatName);
-  return appendTxt.has(ext) ? flatName + ".txt" : flatName;
+  return appendTxt.has(ext) ? `${flatName}.txt` : flatName;
 }
 
 function copy(srcRelative: string, outName: string): void {
@@ -60,7 +60,9 @@ function htmlToMarkdown(html: string): string {
   const description = descMatch ? descMatch[1].trim() : "";
 
   // Extract main content
-  const contentMatch = html.match(/<div class="sl-markdown-content">\s*([\s\S]*?)\s*<\/div>\s*<\/div>\s*<footer/);
+  const contentMatch = html.match(
+    /<div class="sl-markdown-content">\s*([\s\S]*?)\s*<\/div>\s*<\/div>\s*<footer/,
+  );
   if (!contentMatch) return `# ${title}\n\n${description}\n`;
   let content = contentMatch[1];
 
@@ -68,10 +70,11 @@ function htmlToMarkdown(html: string): string {
   content = content.replace(
     /<div class="expressive-code">.*?<pre data-language="(\w+)"><code>([\s\S]*?)<\/code><\/pre>[\s\S]*?<\/figure><\/div>/gs,
     (_, lang, codeHtml) => {
-      const lines = [...codeHtml.matchAll(/<div class="ec-line"><div class="code">(.*?)<\/div><\/div>/g)]
-        .map(m => decodeHtmlEntities(m[1].replace(/<[^>]+>/g, "")));
+      const lines = [
+        ...codeHtml.matchAll(/<div class="ec-line"><div class="code">(.*?)<\/div><\/div>/g),
+      ].map((m) => decodeHtmlEntities(m[1].replace(/<[^>]+>/g, "")));
       return `\n\`\`\`${lang}\n${lines.join("\n")}\n\`\`\`\n`;
-    }
+    },
   );
 
   // Replace asides (notes, tips, cautions)
@@ -80,13 +83,13 @@ function htmlToMarkdown(html: string): string {
     (_, type, body) => {
       const label = type.charAt(0).toUpperCase() + type.slice(1);
       return `\n> **${label}:** ${body.trim()}\n`;
-    }
+    },
   );
 
   // Strip heading wrappers, keep just the heading tag
   content = content.replace(
     /<div class="sl-heading-wrapper level-h(\d)">\s*(<h\d[^>]*>[\s\S]*?<\/h\d>)[\s\S]*?<\/div>/g,
-    (_, _level, heading) => heading
+    (_, _level, heading) => heading,
   );
 
   // Convert headings (strip nested tags like anchor spans)

@@ -5,27 +5,23 @@ on:
     branches: [main]
   pull_request:
 
+# The extensions depend on Ableton's Extensions SDK, which is confidential beta
+# material and is NOT in this repo (it's gitignored). Without it the extensions
+# can't `npm install`, typecheck, or test — so CI covers what it can without the
+# SDK: the repo's own dev scripts. Extension checks run locally via `npm run check`
+# where the SDK is present.
 jobs:
-  check:
+  scripts:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version-file: .nvmrc
+          cache: npm
 
-      # Each extension is an independent project with its own lockfile and its
-      # SDK/CLI deps vendored as tarballs under extensions-sdk/ (committed), so a
-      # plain `npm ci` per directory resolves the file: dependencies offline.
-      - name: Install extension dependencies
-        run: |
-          for ext in *-extension; do
-            echo "::group::npm ci ($ext)"
-            (cd "$ext" && npm ci)
-            echo "::endgroup::"
-          done
+      - run: npm ci
 
-      # Runs each extension's `check` (typecheck + format:check + lint + test).
-      - name: Check all extensions
-        run: npm run check
+      - name: Typecheck and lint dev scripts
+        run: npm run check:scripts

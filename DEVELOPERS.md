@@ -43,26 +43,30 @@ Run these from inside an extension directory (e.g. `cd notation-extension`):
 
 ## Repo-wide checks
 
-From the **repo root**, these fan a script out across every `*-extension/` directory and
-fail if any extension fails (so they gate CI):
+From the **repo root**:
 
-| Script | Runs in each extension |
+| Script | What it does |
 | --- | --- |
-| `npm run check` | `check` — typecheck + format check + lint + tests |
-| `npm run typecheck` | `typecheck` only |
-| `npm run lint` | `lint` only |
-| `npm test` | `test` only |
+| `npm run check` | Checks the dev scripts, then every extension |
+| `npm run check:scripts` | Typecheck + lint `scripts/` (`tsc` + `biome`) |
+| `npm run fix:scripts` | Auto-fix `scripts/` formatting and safe lint issues |
+| `npm run typecheck` | Each extension's `typecheck` |
+| `npm run lint` | Each extension's `lint` |
+| `npm test` | Each extension's `test` |
 
-These are thin wrappers around `scripts/check-all.ts <script>`, which prints a per-
-extension pass/fail summary. They assume each extension's dependencies are installed
-(`npm ci` / `npm install` in each).
+The per-extension fan-outs are thin wrappers around `scripts/check-all.ts <script>`,
+which prints a per-extension pass/fail summary. They assume each extension's
+dependencies are installed (`npm ci` / `npm install` in each) — which requires the SDK
+to be present locally.
 
 ### Continuous integration
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on pushes to `main` and on
-pull requests: it `npm ci`s each extension (the SDK/CLI tarballs are vendored under
-`extensions-sdk/`, so installs resolve offline) and then runs the repo-wide
-`npm run check`.
+The extensions depend on the SDK, which isn't in the repo (see [Project
+layout](#project-layout)), so CI can't install, typecheck, or test them. Instead
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on pushes to `main` and pull
+requests and checks what's SDK-independent: it `npm ci`s the root and runs
+`npm run check:scripts` (typecheck + lint of the dev scripts). The extension checks
+(`npm run check`) run locally, where the SDK is present.
 
 ## Running in Developer Mode (the dev loop)
 
