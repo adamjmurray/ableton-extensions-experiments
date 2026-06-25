@@ -30,7 +30,9 @@ from.
 - **Legato** — extends note durations to fill the gap to the next note so
   phrases read as connected.
 - **Tempo** — toggle a tempo marking at the top of the score.
-- **Drum heads** — render clips on drum-rack tracks with x noteheads.
+- **Drum heads** — render clips on drum tracks with x noteheads. A track counts as a
+  drum track if it contains a Drum Rack at any depth (including nested inside an
+  Instrument Rack), or its name suggests drums ("drums"/"kit"). Toggleable in the dialog.
 - **Sort** — `Pitch` (treble above bass, then high to low), `Track` (track
   order), `Native` (preserve selection order).
 - **View** — toggle between rendered notation and the raw MusicXML source.
@@ -54,10 +56,6 @@ from.
 - **Time signature** — sourced from the first scene's signature. Mid-song
   signature changes are not followed; the displayed signature is a single value
   and is adjustable in the toolbar.
-- **Drum racks must be top-level** — when a drum rack is wrapped inside an
-  instrument rack, the SDK stops tagging its pad chains as drum chains, so
-  classification falls back to a track/rack name heuristic matching "drums"
-  or "kit" (case-insensitive).
 - **Clip end** — the alpha SDK reports `clip.endMarker` at the absolute clip
   end rather than the playback end, so the renderer uses `clip.loopEnd` as the
   effective end regardless of whether the clip is looping.

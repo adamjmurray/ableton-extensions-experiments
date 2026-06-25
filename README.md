@@ -34,9 +34,10 @@ Velocity, Swap Notes, Delete Notes).
 
 ## Drum Rack Jumbler
 
-Shuffle and tweak a track's top-level Drum Rack from the right-click menu: swap pad
-mappings (a derangement, so no pad keeps its own note), randomize or center pad panning,
-pitch-shift the pads' Simplers (±1 / ±12 / ±24 semitones), and reset pitch shifts.
+Right-click a Drum Rack device to swap pad mappings (a derangement, so no pad keeps its
+own note), randomize or center pad panning, pitch-shift the pads' Simplers (±1 / ±12 / ±24
+semitones), and reset pitch shifts. Works whether the Drum Rack sits directly on a track
+or is nested inside an Instrument Rack.
 
 → [drum-rack-jumbler-extension/README.md](drum-rack-jumbler-extension/README.md)
 
