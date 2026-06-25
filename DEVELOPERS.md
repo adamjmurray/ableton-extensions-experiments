@@ -6,7 +6,8 @@ extension does, see [README.md](README.md); for the deeper SDK/architecture note
 
 ## Prerequisites
 
-- **Node.js 25+** (native TypeScript — the scripts here run `.ts` directly).
+- **Node.js 24+** (native TypeScript — the scripts here run `.ts` directly). Pinned via
+  `.nvmrc`; run `nvm use` if you use nvm.
 - **An Ableton Live beta** with Extensions support (Live 12 Beta or Live 13 Beta).
   The SDK is in beta, so Extensions only run in the beta builds.
 - **The Extensions SDK**, obtained from Ableton (see below) — it is **not** included

@@ -1,6 +1,9 @@
 {
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=24.14.1"
+  },
   "scripts": {
     "kb": "node scripts/build-kb.ts",
     "dev": "node scripts/dev.ts",

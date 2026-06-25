@@ -124,7 +124,7 @@ Alternatively, run the CLI directly from an extension dir: set `EXTENSION_HOST_P
 `npx extensions-cli run`.
 
 ## Tech Stack
-- Node.js 25+ (native TypeScript support, no flags needed)
+- Node.js 24+ (native TypeScript support, no flags needed); pinned via `.nvmrc` and root `engines`
 - TypeScript for all new code
 - ESM modules (`"type": "module"` in root package.json)
 
