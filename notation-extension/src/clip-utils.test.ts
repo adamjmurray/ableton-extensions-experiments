@@ -7,6 +7,7 @@ import {
   type ClipInfo,
   computeArrangementRange,
   findOverlap,
+  nameSuggestsDrums,
   readMidiClip,
   shiftClipNotes,
 } from "./clip-utils.js";
@@ -49,6 +50,22 @@ describe("beatsPerMeasure", () => {
 
   it("returns 7 for 7/4", () => {
     expect(beatsPerMeasure({ numerator: 7, denominator: 4 })).toBe(7);
+  });
+});
+
+describe("nameSuggestsDrums", () => {
+  it.each([
+    ["Drums", true],
+    ["DRUMS", true],
+    ["drums 1", true],
+    ["808 Kit", true],
+    ["Acoustic kit", true],
+    ["Bass", false],
+    ["Piano", false],
+    ["", false],
+    ["Lead Synth", false],
+  ])("nameSuggestsDrums(%j) -> %s", (name, expected) => {
+    expect(nameSuggestsDrums(name)).toBe(expected);
   });
 });
 

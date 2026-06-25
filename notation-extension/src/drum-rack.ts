@@ -9,6 +9,7 @@ import {
   MidiTrack,
   RackDevice,
 } from "@ableton-extensions/sdk";
+import { nameSuggestsDrums } from "./clip-utils.js";
 
 // Walk up an object's parent chain until a MidiTrack is found. Returns the
 // MidiTrack or null if the chain terminates first.
@@ -39,7 +40,11 @@ export function hasDrumRack(devices: Device<"1.0.0">[]): boolean {
   return false;
 }
 
-// Drum-track classifier: true when the track contains a Drum Rack at any depth.
+// Drum-track classifier: true when the track contains a Drum Rack at any depth,
+// or its name suggests drums. The name check is a complement that also catches
+// drum tracks built without an Ableton Drum Rack (see nameSuggestsDrums in
+// clip-utils.ts); the notation popup lets the user override the guess.
 export function isDrumRackTrack(track: MidiTrack<"1.0.0"> | null): boolean {
-  return track ? hasDrumRack(track.devices) : false;
+  if (!track) return false;
+  return hasDrumRack(track.devices) || nameSuggestsDrums(String(track.name));
 }

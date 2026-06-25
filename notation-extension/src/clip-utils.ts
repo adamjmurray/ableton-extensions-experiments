@@ -20,6 +20,18 @@ export interface ClipInfo {
   isDrumRack?: boolean;
 }
 
+// Heuristic complement to the structural Drum Rack check (see drum-rack.ts):
+// catches drum tracks that don't use an Ableton Drum Rack at all (e.g. a track
+// named "Drums" driving a third-party drum plugin). Auto-detection is only a
+// starting guess — the notation popup lets the user toggle drum/pitched — so a
+// false positive here is cheap and recoverable.
+const DRUM_NAME_TOKENS = ["drums", "kit"];
+
+export function nameSuggestsDrums(name: string): boolean {
+  const lower = name.toLowerCase();
+  return DRUM_NAME_TOKENS.some((t) => lower.includes(t));
+}
+
 export function beatsPerMeasure(ts: { numerator: number; denominator: number }): number {
   return ts.numerator * (4 / ts.denominator);
 }

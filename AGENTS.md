@@ -199,12 +199,17 @@ multi-clip entry points render each clip on its own staff in a score layout.
   Verified under 1.0.0-beta.0 (right-clicking a nested rack, and walking down from the
   track): the beta exposes a first-class `DrumRack` class (`instanceof DrumRack`),
   populates `RackDevice.chains` / `Chain.devices` for nested racks, and tags nested pad
-  chains as `DrumChain`. Both extensions now detect a Drum Rack at any depth by
-  recursing into rack chains and the name heuristic is gone — see
-  [notation-extension/src/drum-rack.ts](notation-extension/src/drum-rack.ts)
-  (`hasDrumRack`) and [drum-rack-jumbler-extension/src/walker.ts](drum-rack-jumbler-extension/src/walker.ts)
-  (`findDrumRack`). Beta also adds a `"DrumRack"` context-menu scope (hands the rack
-  handle directly). Note: `getObjectIsOfClass` is **not** on the public
+  chains as `DrumChain`. The two extensions now reach a Drum Rack at any depth, by
+  different means:
+  - notation [notation-extension/src/drum-rack.ts](notation-extension/src/drum-rack.ts)
+    recurses into rack chains (`hasDrumRack`) to classify a track. It also keeps a
+    `drums`/`kit` track-name heuristic (`nameSuggestsDrums`) as a *complement*, not a
+    fallback — it catches drum tracks built without an Ableton Drum Rack. Auto-detection
+    is only a starting guess; the notation popup lets the user toggle drum/pitched.
+  - the jumbler registers its actions only on the beta `"DrumRack"` context-menu scope,
+    which hands the rack handle directly (right-click the device) — so it needs no
+    track-walk and no name heuristic at all.
+  Note: `getObjectIsOfClass` is **not** on the public
   `ExtensionContext` in beta (it lives on an `@internal` interface) — use `instanceof`
   against the SDK classes instead.
 
