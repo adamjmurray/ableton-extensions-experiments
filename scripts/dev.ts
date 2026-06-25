@@ -6,9 +6,9 @@ import { basename, resolve } from "node:path";
 // Thin wrapper around `extensions-cli run` (from @ableton-extensions/cli).
 // The CLI needs EXTENSION_HOST_PATH (or --live) pointing at Live's
 // ExtensionHostNodeModule.node; this script auto-detects the running (else newest
-// installed) Ableton Live, supplies dev temp/storage directories, and delegates to
-// the extension's local extensions-cli. Build the extension first (its `npm run
-// build`); Ctrl+C and re-run to pick up changes. See DEVELOPERS.md for the workflow.
+// installed) Ableton Live, supplies dev temp/storage directories, builds the
+// extension (npm run build, skip with --no-build), then delegates to its local
+// extensions-cli. Ctrl+C and re-run to pick up changes. See DEVELOPERS.md.
 
 const LIVE_APP_ROOT = "/Applications";
 const HOST_MODULE = "ExtensionHostNodeModule.node";
@@ -75,13 +75,12 @@ function findHostModule(): string {
   throw new Error("Could not find Ableton Live with Extension Host installed");
 }
 
-function resolveExtensionDir(): string {
-  const args = process.argv.slice(2);
-  if (args.length > 1) {
+function resolveExtensionDir(positional: string[]): string {
+  if (positional.length > 1) {
     throw new Error("`extensions-cli run` takes a single extension; pass exactly one path");
   }
-  if (args.length === 1) {
-    const abs = resolve(args[0]);
+  if (positional.length === 1) {
+    const abs = resolve(positional[0]);
     if (!existsSync(resolve(abs, "manifest.json"))) {
       throw new Error(`No manifest.json found in ${abs}`);
     }
@@ -105,8 +104,19 @@ function resolveExtensionDir(): string {
   );
 }
 
+const rawArgs = process.argv.slice(2);
+const skipBuild = rawArgs.includes("--no-build");
+const positional = rawArgs.filter((a: string) => !a.startsWith("--"));
+
 const hostModule = findHostModule();
-const extDir = resolveExtensionDir();
+const extDir = resolveExtensionDir(positional);
+
+// Build first (like the official `npm start`), unless --no-build was passed.
+if (!skipBuild) {
+  console.log("Building extension...");
+  execFileSync("npm", ["run", "build"], { cwd: extDir, stdio: "inherit" });
+  console.log();
+}
 
 // When Live manages the Extension Host it provides temp/storage directories; when
 // we take over the host via the CLI, we must supply them ourselves or

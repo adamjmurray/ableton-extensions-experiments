@@ -40,17 +40,16 @@ extension without restarting Live.
 1. **Enable Developer Mode in Live.** Settings → Extensions → click the orange
    **Developer Mode** bar at the bottom. Live shuts down the Extension Host it normally
    manages and hands it to you.
-2. **Build the extension first** — the dev script does *not* build for you:
-   ```
-   cd notation-extension && npm run build
-   ```
-3. **Launch it** from the repo root, naming the one extension to run:
+2. **Launch it** from the repo root, naming the one extension to run:
    ```
    npm run dev -- notation-extension
    ```
-4. **Iterate:** edit code → `npm run build` → `Ctrl+C` the dev script → re-run it. Live
-   stays open the whole time; only the host process restarts. There is no file-watch /
-   auto-reload.
+   The dev script builds the extension and then launches the host. Pass `--no-build` to
+   skip the build (e.g. `npm run dev -- notation-extension --no-build`) when `dist/` is
+   already current.
+3. **Iterate:** edit code → `Ctrl+C` the dev script → re-run it (it rebuilds each time).
+   Live stays open the whole time; only the host process restarts. There is no
+   file-watch / auto-reload.
 
 When it starts you'll see the resolved paths:
 
@@ -66,6 +65,8 @@ Storage:        …/ableton-extensions-dev/notation-extension/storage
 `scripts/dev.ts` is a thin wrapper around `extensions-cli run` that fills in the things
 Live normally provides to a managed extension but the CLI does not:
 
+- **Builds the extension** (`npm run build` in its directory) before launching, so a
+  re-run always picks up your latest code. Skip with `--no-build`.
 - **Finds the host module.** It locates `ExtensionHostNodeModule.node` inside the Live
   app bundle and passes it via `--live`. The location has moved between releases
   (`Contents/Helpers/ExtensionHost` in Live 12.3/13, `Contents/App-Resources/…` in early
