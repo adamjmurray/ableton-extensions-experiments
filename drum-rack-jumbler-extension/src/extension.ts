@@ -2,6 +2,7 @@ import {
   type ActivationContext,
   DataModelObject,
   type DeviceParameter,
+  DrumRack,
   type Handle,
   initialize,
   MidiTrack,
@@ -9,30 +10,30 @@ import {
 } from "@ableton-extensions/sdk";
 import { derange } from "./derange.js";
 import { mulberry32, type Rng } from "./rng.js";
-import { type DrumPad, findDrumChains, findDrumPads } from "./walker.js";
+import { type DrumPad, drumChains, drumPads, findDrumRack } from "./walker.js";
 
 export function activate(activation: ActivationContext) {
   const context = initialize(activation, "1.0.0");
 
   console.log("Drum Rack Jumbler activated!");
 
-  // Context-menu args can be a MidiTrack handle (right-click track header) or
-  // a MidiClip/ClipSlot handle (right-click a clip in Session/Arrangement).
-  // Walk up the parent chain to find the containing MidiTrack.
-  function resolveTrack(arg: unknown): MidiTrack<"1.0.0"> | null {
+  // Resolve the target Drum Rack from a context-menu arg. The "DrumRack" scope
+  // hands us the rack handle directly (right-click the device); the "MidiTrack"
+  // and "MidiClip" scopes hand us a track/clip handle, so we walk up to the
+  // containing track and find its first Drum Rack at any depth.
+  function resolveDrumRack(arg: unknown): DrumRack<"1.0.0"> | null {
     const obj = context.getObjectFromHandle(arg as Handle, DataModelObject);
+    if (obj instanceof DrumRack) return obj;
     let current: DataModelObject<"1.0.0"> | null = obj;
-    while (current) {
-      if (current instanceof MidiTrack) return current;
+    while (current && !(current instanceof MidiTrack)) {
       current = current.parent;
     }
-    return null;
+    return current instanceof MidiTrack ? findDrumRack(current.devices) : null;
   }
 
   function resolvePads(arg: unknown): DrumPad[] | null {
-    const track = resolveTrack(arg);
-    if (!track) return null;
-    return findDrumPads(track)?.pads ?? null;
+    const rack = resolveDrumRack(arg);
+    return rack ? drumPads(rack) : null;
   }
 
   function findParameter(simpler: Simpler<"1.0.0">, name: string): DeviceParameter<"1.0.0"> | null {
@@ -50,45 +51,36 @@ export function activate(activation: ActivationContext) {
   // itself, not the devices inside. The visible pad grid follows
   // receivingNote, so pads visually rearrange too.
   context.commands.registerCommand("drumRackJumbler.swapDrumPads", async (arg: unknown) => {
-    const track = resolveTrack(arg);
-    if (!track) {
-      console.log("Swap Drum Pads: could not resolve track from selection");
+    const rack = resolveDrumRack(arg);
+    if (!rack) {
+      console.log("Swap Drum Pads: no drum rack in this selection");
       return;
     }
-    const drumChains = findDrumChains(track);
-    if (!drumChains) {
-      console.log("Swap Drum Pads: no drum rack on this track");
-      return;
-    }
-    if (drumChains.length < 2) {
+    const chains = drumChains(rack);
+    if (chains.length < 2) {
       console.log("Swap Drum Pads: need at least 2 pads to swap");
       return;
     }
     const rng = mulberry32(Date.now() >>> 0);
-    const originalNotes = drumChains.map((c) => c.receivingNote);
+    const originalNotes = chains.map((c) => c.receivingNote);
     const shuffledNotes = derange(originalNotes, rng);
     context.withinTransaction(() => {
-      drumChains.forEach((chain, i) => {
+      chains.forEach((chain, i) => {
         chain.receivingNote = shuffledNotes[i]!;
       });
     });
   });
 
   context.commands.registerCommand("drumRackJumbler.randomizePan", async (arg: unknown) => {
-    const track = resolveTrack(arg);
-    if (!track) {
-      console.log("Randomize Panning: could not resolve track from selection");
-      return;
-    }
-    const drumChains = findDrumChains(track);
-    if (!drumChains) {
-      console.log("Randomize Panning: no drum rack on this track");
+    const rack = resolveDrumRack(arg);
+    if (!rack) {
+      console.log("Randomize Panning: no drum rack in this selection");
       return;
     }
     const rng = mulberry32(Date.now() >>> 0);
     await context.withinTransaction(async () => {
       await Promise.all(
-        drumChains.map((chain) => {
+        drumChains(rack).map((chain) => {
           const pan = chain.mixer.panning;
           return pan.setValue(pan.min + rng() * (pan.max - pan.min));
         }),
@@ -97,18 +89,13 @@ export function activate(activation: ActivationContext) {
   });
 
   context.commands.registerCommand("drumRackJumbler.centerPan", async (arg: unknown) => {
-    const track = resolveTrack(arg);
-    if (!track) {
-      console.log("Center All Panning: could not resolve track from selection");
-      return;
-    }
-    const drumChains = findDrumChains(track);
-    if (!drumChains) {
-      console.log("Center All Panning: no drum rack on this track");
+    const rack = resolveDrumRack(arg);
+    if (!rack) {
+      console.log("Center All Panning: no drum rack in this selection");
       return;
     }
     await context.withinTransaction(async () => {
-      await Promise.all(drumChains.map((chain) => chain.mixer.panning.setValue(0)));
+      await Promise.all(drumChains(rack).map((chain) => chain.mixer.panning.setValue(0)));
     });
   });
 
@@ -162,7 +149,7 @@ export function activate(activation: ActivationContext) {
     context.commands.registerCommand(id, async (arg: unknown) => {
       const pads = resolvePads(arg);
       if (!pads) {
-        console.log(`${label}: no drum rack on this track`);
+        console.log(`${label}: no drum rack in this selection`);
         return;
       }
       const ok = await randomizePitch(pads, maxSemitones, continuous);
@@ -187,7 +174,7 @@ export function activate(activation: ActivationContext) {
   context.commands.registerCommand("drumRackJumbler.resetPitch", async (arg: unknown) => {
     const pads = resolvePads(arg);
     if (!pads) {
-      console.log("Reset Simpler Pitch Shifts: no drum rack on this track");
+      console.log("Reset Simpler Pitch Shifts: no drum rack in this selection");
       return;
     }
     const ops: Promise<void>[] = [];
@@ -210,9 +197,9 @@ export function activate(activation: ActivationContext) {
 
   // -------------------------------------------------------------------
   // Menu order is the registration order below. Each action is registered
-  // for both MidiTrack (right-click track header) and MidiClip (right-click
-  // a clip in Session or Arrangement) scopes — the handler walks parents to
-  // find the containing track either way.
+  // for three scopes: DrumRack (right-click the rack device — most direct),
+  // MidiTrack (right-click track header), and MidiClip (right-click a clip in
+  // Session or Arrangement). resolveDrumRack handles all three.
   // -------------------------------------------------------------------
   const menuItems: [string, string][] = [
     ["Swap Drum Pads", "drumRackJumbler.swapDrumPads"],
@@ -224,6 +211,7 @@ export function activate(activation: ActivationContext) {
     ["Reset Simpler Pitch Shifts", "drumRackJumbler.resetPitch"],
   ];
   for (const [label, commandId] of menuItems) {
+    context.ui.registerContextMenuAction("DrumRack", label, commandId);
     context.ui.registerContextMenuAction("MidiTrack", label, commandId);
     context.ui.registerContextMenuAction("MidiClip", label, commandId);
   }
