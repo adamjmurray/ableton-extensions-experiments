@@ -1,5 +1,9 @@
 node_modules/
 dist/
+# Ableton's Extensions SDK is confidential beta material under a no-redistribution
+# license — keep it local only, never commit it. Obtain it from Ableton and drop
+# it in extensions-sdk/ (see DEVELOPERS.md).
+extensions-sdk/
 .DS_Store
 *.zip
 *.ablx
